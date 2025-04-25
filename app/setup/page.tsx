@@ -24,7 +24,7 @@ interface TermRow {
 
 export default function SetupPage() {
   const router = useRouter()
-  const [selectedSet, setSelectedSet] = useState("set1")
+  const [selectedSet, setSelectedSet] = useState("formations")
   const [rows, setRows] = useState<TermRow[]>(() => load('terms', []))
 
   // Save rows to localStorage whenever they change
@@ -33,10 +33,12 @@ export default function SetupPage() {
   }, [rows])
 
   const terminologySets = {
-    set1: [
-      { key: "customer", label: "Customer" },
-      { key: "product", label: "Product" },
-      { key: "order", label: "Order" },
+    formations: [
+      { key: "Spread", label: "Sprd" },
+      { key: "Trips", label: "Trps" },
+      { key: "Deuce", label: "Duce" },
+      { key: "Trey", label: "Trey" },
+      { key: "Empty", label: "mt" },
     ],
     set2: [
       { key: "user", label: "User" },
@@ -110,7 +112,7 @@ export default function SetupPage() {
             <SelectValue placeholder="Select terminology set" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="set1">Terminology Set 1</SelectItem>
+            <SelectItem value="formations">Formations</SelectItem>
             <SelectItem value="set2">Terminology Set 2</SelectItem>
             <SelectItem value="set3">Terminology Set 3</SelectItem>
             <SelectItem value="set4">Terminology Set 4</SelectItem>

@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@layer base {
+  [data-radix-popper-content-wrapper] {
+    background-color: white !important;
+  }
+  
+  [role="listbox"] {
+    background-color: white !important;
+  }
+}
