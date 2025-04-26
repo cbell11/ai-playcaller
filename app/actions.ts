@@ -5,10 +5,15 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 interface ScoutingData {
-  fronts: Record<string, any>;
-  coverages: Record<string, any>;
-  blitz: Record<string, any>;
+  fronts: Record<string, number>;
+  coverages: Record<string, number>;
+  blitz: Record<string, number>;
   terms: string[];
+  preferences: {
+    motionPercentage: number;
+    runPassRatio: number;
+    specificConcepts: string[];
+  };
 }
 
 export async function makeGamePlan(data: ScoutingData) {
