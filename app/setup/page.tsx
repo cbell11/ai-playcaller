@@ -265,18 +265,6 @@ export default function SetupPage() {
     terms => terms.some(term => term.isDirty)
   )
 
-  const handleContinue = () => {
-    if (hasUnsavedChanges) {
-      if (window.confirm('You have unsaved changes. Do you want to save them before continuing?')) {
-        handleSaveChanges().then(() => router.push('/scouting'))
-      } else {
-        router.push('/scouting')
-      }
-    } else {
-      router.push('/scouting')
-    }
-  }
-
   const handleAddRow = (category: string) => {
     setTerminologyState(prev => ({
       ...prev,
@@ -367,12 +355,6 @@ export default function SetupPage() {
             <Save className="h-4 w-4 mr-2" />
             {isSaving ? 'Saving...' : 'Save Changes'}
           </Button>
-          <Button 
-            onClick={handleContinue}
-            disabled={isSaving}
-          >
-            Continue to Scouting
-          </Button>
         </div>
       </div>
 
@@ -398,6 +380,15 @@ export default function SetupPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
+                <div className="flex items-center space-x-2 pb-1 px-2">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-700">Concept</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-700">Label</span>
+                  </div>
+                  <div className="w-8"></div>
+                </div>
                 {terminologyState[category]?.map((term, index) => (
                   <div
                     key={term.id}
@@ -444,20 +435,13 @@ export default function SetupPage() {
         >
           ← Back to Home
         </Button>
-        <div className="space-x-4">
-          <Button
-            variant="outline"
-            onClick={handleSaveChanges}
-            disabled={!hasUnsavedChanges || isSaving}
-          >
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </Button>
-          <Button 
-            onClick={handleContinue}
-          >
-            Continue to Play Pool →
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          onClick={handleSaveChanges}
+          disabled={!hasUnsavedChanges || isSaving}
+        >
+          {isSaving ? 'Saving...' : 'Save Changes'}
+        </Button>
       </div>
     </div>
   )

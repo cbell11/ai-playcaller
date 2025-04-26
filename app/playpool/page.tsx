@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
+import { Slider } from "@/components/ui/slider"
+import { Label } from "@/components/ui/label"
 import { getPlayPool, updatePlay, Play, testPlayPoolConnection, regeneratePlayPool } from "@/lib/playpool"
+import { load, save } from "@/lib/local"
 
 const CATEGORIES = {
   run_game: "Run Game",
@@ -37,6 +40,11 @@ export default function PlayPoolPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState(false)
+  const [motionPercentage, setMotionPercentage] = useState(() => load('motion_percentage', 25))
+
+  useEffect(() => {
+    save('motion_percentage', motionPercentage)
+  }, [motionPercentage])
 
   const loadPlays = async () => {
     try {
@@ -141,6 +149,30 @@ export default function PlayPoolPage() {
           </Button>
         </div>
       </div>
+
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Play Pool Settings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label>Motion Percentage</Label>
+            <div className="flex items-center gap-4">
+              <Slider
+                value={[motionPercentage]}
+                onValueChange={(value: number[]) => setMotionPercentage(value[0])}
+                max={100}
+                step={5}
+                className="flex-1"
+              />
+              <span className="w-12 text-right">{motionPercentage}%</span>
+            </div>
+            <p className="text-sm text-gray-500">
+              Percentage of plays that will include motion
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">

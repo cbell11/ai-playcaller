@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { initializeDefaultTerminology } from './terminology'
+import { load } from '@/lib/local'
 
 export interface Play {
   id: string
@@ -165,12 +166,18 @@ export async function initializeDefaultPlayPool(): Promise<void> {
     // Helper function to randomly decide whether to include something
     const shouldInclude = () => Math.random() > 0.5
 
+    // Helper function to decide whether to include motion based on the saved percentage
+    const shouldIncludeMotion = () => {
+      const motionPercentage = load('motion_percentage', 25)
+      return Math.random() * 100 < motionPercentage
+    }
+
     // Generate 20 random run plays
     const runPlays = Array.from({ length: 20 }, () => {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const runConcept = getRandomItem(runConcepts)
-      const motion = shouldInclude() ? getRandomItem(motions) : null
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null
       const strength = Math.random() > 0.5 ? '+' : '-'
       const direction = Math.random() > 0.5 ? '+' : '-'
 
@@ -193,7 +200,7 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const quickGameConcept = getRandomItem(quickGame)
-      const motion = shouldInclude() ? getRandomItem(motions) : null
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null
       const strength = Math.random() > 0.5 ? '+' : '-'
 
       return {
@@ -215,7 +222,7 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const dropbackConcept = getRandomItem(dropback)
-      const motion = shouldInclude() ? getRandomItem(motions) : null
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null
       const strength = Math.random() > 0.5 ? '+' : '-'
 
       return {
@@ -237,7 +244,7 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const shotPlayConcept = getRandomItem(shotPlays)
-      const motion = shouldInclude() ? getRandomItem(motions) : null
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null
       const strength = Math.random() > 0.5 ? '+' : '-'
 
       return {
@@ -259,7 +266,7 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const screenConcept = getRandomItem(screens)
-      const motion = shouldInclude() ? getRandomItem(motions) : null
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null
       const strength = Math.random() > 0.5 ? '+' : '-'
       const direction = Math.random() > 0.5 ? '+' : '-'
 

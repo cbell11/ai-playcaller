@@ -371,7 +371,12 @@ export default function ScoutingPage() {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold mb-6 text-center">Scouting Form</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Scouting Form</h1>
+        <Button size="lg" onClick={handleGenerateGamePlan}>
+          Save Scouting Report
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {renderCategoryCard("Fronts", "fronts", fronts, frontPct)}
@@ -393,12 +398,6 @@ export default function ScoutingPage() {
           />
         </CardContent>
       </Card>
-
-      <div className="flex justify-center">
-        <Button size="lg" onClick={handleGenerateGamePlan}>
-          Generate Game Plan
-        </Button>
-      </div>
     </div>
   )
 }
