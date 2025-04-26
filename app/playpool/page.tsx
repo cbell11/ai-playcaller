@@ -7,6 +7,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Pencil, X, Check, Plus } from "lucide-react"
 import { getPlayPool, updatePlay, Play, testPlayPoolConnection, regeneratePlayPool } from "@/lib/playpool"
 import { load, save } from "@/lib/local"
 
@@ -41,6 +44,9 @@ export default function PlayPoolPage() {
   const [error, setError] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState(false)
   const [motionPercentage, setMotionPercentage] = useState(() => load('motion_percentage', 25))
+  const [editingPlay, setEditingPlay] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<Partial<Play>>({})
+  const [showCustomInput, setShowCustomInput] = useState<{ [key: string]: boolean }>({})
 
   useEffect(() => {
     save('motion_percentage', motionPercentage)
@@ -103,6 +109,196 @@ export default function PlayPoolPage() {
 
   const getPlaysByCategory = (category: string) => {
     return plays.filter(play => play.category === category)
+  }
+
+  const handleStartEdit = (play: Play) => {
+    setEditingPlay(play.id)
+    setEditForm(play)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingPlay(null)
+    setEditForm({})
+  }
+
+  const handleSaveEdit = async (play: Play) => {
+    try {
+      const updatedPlay = await updatePlay(play.id, editForm)
+      setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
+      setEditingPlay(null)
+      setEditForm({})
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update play')
+    }
+  }
+
+  // Helper functions to get unique values for each field
+  const getUniqueValues = (field: keyof Play) => {
+    return Array.from(new Set(plays.map(play => play[field]).filter(Boolean))) as string[]
+  }
+
+  const handleCustomInputChange = (field: keyof Play, value: string) => {
+    setEditForm({ ...editForm, [field]: value })
+  }
+
+  const handleFieldChange = (field: keyof Play, value: string) => {
+    if (value === 'custom') {
+      setShowCustomInput({ ...showCustomInput, [field]: true })
+      return
+    }
+    setEditForm({ ...editForm, [field]: value })
+    setShowCustomInput({ ...showCustomInput, [field]: false })
+  }
+
+  const renderFieldSelect = (field: keyof Play, label: string, customPlaceholder: string) => {
+    const uniqueValues = getUniqueValues(field)
+    const currentValue = editForm[field] as string
+
+    if (showCustomInput[field]) {
+      return (
+        <div>
+          <Label>{label}</Label>
+          <div className="flex gap-2">
+            <Input
+              value={currentValue || ''}
+              placeholder={customPlaceholder}
+              onChange={(e) => handleCustomInputChange(field, e.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowCustomInput({ ...showCustomInput, [field]: false })}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div>
+        <Label>{label}</Label>
+        <Select
+          value={currentValue || ''}
+          onValueChange={(value) => handleFieldChange(field, value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {uniqueValues.map((value) => (
+              <SelectItem key={value} value={value}>
+                {value}
+              </SelectItem>
+            ))}
+            <SelectItem value="custom" className="text-blue-600">
+              <Plus className="h-4 w-4 mr-2 inline-block" />
+              Add Custom {label}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    )
+  }
+
+  const renderPlayContent = (play: Play) => {
+    if (editingPlay === play.id) {
+      return (
+        <div className="flex flex-col gap-2 w-full">
+          <div className="grid grid-cols-2 gap-2">
+            {renderFieldSelect('formation', 'Formation', 'Enter custom formation')}
+            {renderFieldSelect('tag', 'Tag', 'Enter custom tag')}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>Strength</Label>
+              <Select 
+                value={editForm.strength || ''} 
+                onValueChange={(value) => setEditForm({...editForm, strength: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select strength" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="+">+</SelectItem>
+                  <SelectItem value="-">-</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {renderFieldSelect('motion_shift', 'Motion/Shift', 'Enter custom motion/shift')}
+          </div>
+          {renderFieldSelect('concept', 'Concept', 'Enter custom concept')}
+          {play.category === 'run_game' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Run Direction</Label>
+                <Select 
+                  value={editForm.run_direction || ''} 
+                  onValueChange={(value) => setEditForm({...editForm, run_direction: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select direction" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="+">+</SelectItem>
+                    <SelectItem value="-">-</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          {play.category === 'screen_game' && (
+            <div>
+              <Label>Screen Direction</Label>
+              <Select 
+                value={editForm.screen_direction || ''} 
+                onValueChange={(value) => setEditForm({...editForm, screen_direction: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select direction" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="+">+</SelectItem>
+                  <SelectItem value="-">-</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 mt-2">
+            <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+              <X className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+            <Button size="sm" onClick={() => handleSaveEdit(play)}>
+              <Check className="h-4 w-4 mr-1" />
+              Save
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <>
+        <div className="flex-1">
+          <div className="font-medium">{formatPlay(play)}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleStartEdit(play)}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Switch
+            checked={play.is_enabled}
+            onCheckedChange={() => handleTogglePlay(play)}
+          />
+        </div>
+      </>
+    )
   }
 
   if (loading) {
@@ -197,15 +393,8 @@ export default function PlayPoolPage() {
             <CardContent>
               <div className={`${category === 'run_game' || category === 'quick_game' || category === 'dropback_game' || category === 'shot_plays' || category === 'screen_game' ? 'grid grid-cols-2 gap-4' : 'space-y-4'}`}>
                 {categoryPlays.map((play) => (
-                  <div key={play.id} className="flex justify-between items-center">
-                    <Switch
-                      checked={play.is_enabled}
-                      onCheckedChange={() => handleTogglePlay(play)}
-                      className="mr-4"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium truncate block">{formatPlay(play)}</span>
-                    </div>
+                  <div key={play.id} className="flex justify-between items-center p-4 bg-white rounded-lg shadow-sm">
+                    {renderPlayContent(play)}
                   </div>
                 ))}
               </div>
