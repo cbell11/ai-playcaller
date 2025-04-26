@@ -2,63 +2,71 @@
 
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Check, Trash2 } from "lucide-react"
-import { load, save } from "@/lib/local"
-
+import { Plus, Pencil, Check, Trash2, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { getTerminology, addTerminology, updateTerminology, deleteTerminology, initializeDefaultTerminology, Terminology, testSupabaseConnection } from "@/lib/terminology"
+import { updatePlayPoolTerminology } from "@/lib/playpool"
 
-interface TermRow {
-  id: string
-  concept: string
-  label: string
+// Extend Terminology interface to include UI state
+interface TerminologyWithUI extends Terminology {
   isEditing?: boolean
+  isDirty?: boolean  // Track if this term has unsaved changes
 }
 
 interface TerminologySetProps {
   title: string
-  rows: TermRow[]
-  onUpdate: (rows: TermRow[]) => void
+  terms: TerminologyWithUI[]
+  category: string
+  onUpdate: (terms: TerminologyWithUI[]) => void
 }
 
-const TerminologySet: React.FC<TerminologySetProps> = ({ title, rows, onUpdate }) => {
-  const addRow = () => {
-    const newRow: TermRow = {
-      id: crypto.randomUUID(),
-      concept: `New Concept`,
-      label: '',
-      isEditing: true
+const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate }) => {
+  const addRow = async () => {
+    try {
+      const newTerm = await addTerminology({
+        concept: "New Concept",
+        label: "",
+        category: category
+      })
+      onUpdate([...terms, { ...newTerm, isEditing: true, isDirty: true }])
+    } catch (error) {
+      console.error('Error adding new term:', error)
     }
-    onUpdate([...rows, newRow])
   }
 
-  const updateConcept = (index: number, newConcept: string) => {
-    onUpdate(rows.map((row, i) => 
-      i === index ? { ...row, concept: newConcept } : row
-    ))
+  const updateConcept = (term: TerminologyWithUI, newConcept: string) => {
+    onUpdate(terms.map(t => t.id === term.id ? { ...term, concept: newConcept, isDirty: true } : t))
   }
 
-  const updateLabel = (index: number, newLabel: string) => {
-    onUpdate(rows.map((row, i) => 
-      i === index ? { ...row, label: newLabel } : row
-    ))
+  const updateLabel = (term: TerminologyWithUI, newLabel: string) => {
+    onUpdate(terms.map(t => t.id === term.id ? { ...term, label: newLabel, isDirty: true } : t))
   }
 
-  const toggleEdit = (index: number) => {
-    onUpdate(rows.map((row, i) => 
-      i === index ? { ...row, isEditing: !row.isEditing } : row
-    ))
+  const toggleEdit = (term: TerminologyWithUI) => {
+    onUpdate(terms.map(t => t.id === term.id ? { ...t, isEditing: !t.isEditing } : t))
   }
 
-  const saveItem = (index: number) => {
-    onUpdate(rows.map((row, i) => 
-      i === index ? { ...row, isEditing: false } : row
-    ))
+  const saveItem = async (term: TerminologyWithUI) => {
+    try {
+      await updateTerminology(term.id, {
+        concept: term.concept,
+        label: term.label
+      })
+      onUpdate(terms.map(t => t.id === term.id ? { ...term, isEditing: false, isDirty: false } : t))
+    } catch (error) {
+      console.error('Error saving term:', error)
+    }
   }
 
-  const deleteRow = (index: number) => {
-    onUpdate(rows.filter((_, i) => i !== index))
+  const deleteRow = async (term: TerminologyWithUI) => {
+    try {
+      await deleteTerminology(term.id)
+      onUpdate(terms.filter(t => t.id !== term.id))
+    } catch (error) {
+      console.error('Error deleting term:', error)
+    }
   }
 
   return (
@@ -75,48 +83,52 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, rows, onUpdate }
             <div></div>
           </div>
 
-          {rows.map((row, index) => (
-            <div key={row.id} className="grid grid-cols-[1fr_1fr_auto_auto] gap-4 items-center py-2 border-b">
-              <div>
-                {row.isEditing ? (
+          {terms.map((term) => (
+            <div key={`row-${term.id}`} className="grid grid-cols-[1fr_1fr_auto_auto] gap-4 items-center py-2 border-b">
+              <div key={`concept-${term.id}`}>
+                {term.isEditing ? (
                   <Input 
-                    value={row.concept} 
-                    onChange={(e) => updateConcept(index, e.target.value)} 
+                    key={`concept-input-${term.id}`}
+                    value={term.concept} 
+                    onChange={(e) => updateConcept(term, e.target.value)} 
                     className="h-9" 
                   />
                 ) : (
-                  <span className="text-gray-600">{row.concept}</span>
+                  <span key={`concept-text-${term.id}`} className="text-gray-600">{term.concept}</span>
                 )}
               </div>
-              <div>
-                {row.isEditing ? (
+              <div key={`label-${term.id}`}>
+                {term.isEditing ? (
                   <Input 
-                    value={row.label} 
-                    onChange={(e) => updateLabel(index, e.target.value)} 
+                    key={`label-input-${term.id}`}
+                    value={term.label} 
+                    onChange={(e) => updateLabel(term, e.target.value)} 
                     className="h-9" 
                   />
                 ) : (
-                  <span>{row.label}</span>
+                  <span key={`label-text-${term.id}`} className={term.isDirty ? "text-yellow-600 font-medium" : ""}>{term.label}</span>
                 )}
               </div>
               <Button
+                key={`edit-btn-${term.id}`}
                 variant="ghost"
                 size="icon"
                 onClick={() => {
-                  if (row.isEditing) {
-                    saveItem(index)
+                  if (term.isEditing) {
+                    saveItem(term)
                   } else {
-                    toggleEdit(index)
+                    toggleEdit(term)
                   }
                 }}
               >
-                {row.isEditing ? <Check className="h-4 w-4 text-green-500" /> : <Pencil className="h-4 w-4" />}
-                <span className="sr-only">{row.isEditing ? "Save" : "Edit"}</span>
+                {term.isEditing ? <Check className="h-4 w-4 text-green-500" /> : <Pencil className="h-4 w-4" />}
+                <span className="sr-only">{term.isEditing ? "Save" : "Edit"}</span>
               </Button>
               <Button
+                key={`delete-btn-${term.id}`}
                 variant="ghost"
                 size="icon"
-                onClick={() => deleteRow(index)}
+                onClick={() => deleteRow(term)}
                 className="text-red-500 hover:text-red-700 hover:bg-red-50"
               >
                 <Trash2 className="h-4 w-4" />
@@ -137,141 +149,199 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, rows, onUpdate }
 
 export default function SetupPage() {
   const router = useRouter()
-  const [terminologyState, setTerminologyState] = useState<Record<string, TermRow[]>>(() => {
-    const savedState = load('terms', {})
-    return savedState
-  })
+  const [terminologyState, setTerminologyState] = useState<Record<string, TerminologyWithUI[]>>({})
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const terminologySets = {
-    formations: {
-      title: "Formations",
-      data: [
-        { concept: "Spread", label: "sprd" },
-        { concept: "Trips", label: "trps" },
-        { concept: "Deuce", label: "duce" },
-        { concept: "Trey", label: "trey" },
-        { concept: "Empty", label: "mt" },
-        { concept: "Queen", label: "q" },
-        { concept: "Sam", label: "sam" },
-        { concept: "Will", label: "will" },
-        { concept: "Bunch", label: "bunch" },
-      ]
-    },
-    tags: {
-      title: "Formation Tags",
-      data: [
-        { concept: "Over", label: "ovr" },
-        { concept: "Slot", label: "slot" },
-        { concept: "Closed", label: "clsd" },
-        { concept: "Flip", label: "flip" },
-      ]
-    },
-    motions: {
-      title: "Motions/Shifts",
-      data: [
-        { concept: "Jet", label: "jet" },
-        { concept: "Orbit", label: "orb" },
-        { concept: "Zoom", label: "zm" },
-        { concept: "Flash", label: "fl" },
-      ]
-    },
-    run_game: {
-      title: "Run Game",
-      data: [
-        { concept: "Inside Zone", label: "iz" },
-        { concept: "Outside Zone", label: "oz" },
-        { concept: "Power", label: "pwr" },
-        { concept: "Counter", label: "ctr" },
-        { concept: "Draw", label: "drw" },
-      ]
-    },
-    quick_game: {
-      title: "Quick Game",
-      data: [
-        { concept: "Hoss", label: "hoss" },
-        { concept: "Stick", label: "stick" },
-        { concept: "Quick Out", label: "qo" },
-        { concept: "Slot Fade", label: "slfade" },
-        { concept: "Snag", label: "snag" },
-      ]
-    },
-    dropback: {
-      title: "Dropback Game",
-      data: [
-        { concept: "Curl", label: "curl" },
-        { concept: "Dig", label: "dig" },
-        { concept: "Dagger", label: "dger" },
-        { concept: "Flood", label: "fl" },
-      ]
-    },
-    shot_plays: {
-      title: "Shot Plays",
-      data: [
-        { concept: "Go", label: "go" },
-        { concept: "Post/Wheel", label: "pw" },
-        { concept: "Double Move", label: "dbm" },
-        { concept: "Yankee", label: "yanke" },
-      ]
-    },
-    screens: {
-      title: "Screen Game",
-      data: [
-        { concept: "Bubble", label: "bub" },
-        { concept: "Tunnel", label: "tnl" },
-        { concept: "RB Screen", label: "rbs" },
-        { concept: "Double Screen", label: "dbl screen" },
-      ]
-    },
-  }
-
-  // Initialize state from terminologySets on first load
   useEffect(() => {
-    const initialState: Record<string, TermRow[]> = {}
-    Object.entries(terminologySets).forEach(([key, { data }]) => {
-      initialState[key] = data.map(item => ({
-        id: crypto.randomUUID(),
-        ...item,
-        isEditing: false
-      }))
-    })
-    setTerminologyState(initialState)
+    const loadTerminology = async () => {
+      try {
+        // Test connection first
+        const isConnected = await testSupabaseConnection()
+        if (!isConnected) {
+          setError('Unable to connect to Supabase. Please check your database configuration.')
+          setIsLoading(false)
+          return
+        }
+
+        try {
+          await initializeDefaultTerminology()
+        } catch (initError) {
+          console.error('Initialization error:', initError)
+          setError(`Error initializing terminology: ${initError instanceof Error ? initError.message : 'Unknown initialization error'}`)
+          setIsLoading(false)
+          return
+        }
+
+        try {
+          const terms = await getTerminology()
+          
+          // Group terms by category
+          const groupedTerms = terms.reduce((acc, term) => {
+            const category = term.category
+            if (!acc[category]) {
+              acc[category] = []
+            }
+            acc[category].push({ ...term, isEditing: false, isDirty: false })
+            return acc
+          }, {} as Record<string, TerminologyWithUI[]>)
+          
+          setTerminologyState(groupedTerms)
+          setIsLoading(false)
+        } catch (fetchError) {
+          console.error('Fetch error:', fetchError)
+          setError(`Error fetching terminology: ${fetchError instanceof Error ? fetchError.message : 'Unknown fetch error'}`)
+          setIsLoading(false)
+        }
+      } catch (error) {
+        console.error('Setup error:', error)
+        let errorMessage = 'An unexpected error occurred'
+        
+        if (error instanceof Error) {
+          errorMessage = `Error: ${error.message}`
+        } else if (typeof error === 'object' && error !== null) {
+          const supabaseError = error as any
+          if (supabaseError.code && supabaseError.message) {
+            errorMessage = `Database error (${supabaseError.code}): ${supabaseError.message}`
+            if (supabaseError.hint) {
+              errorMessage += `\nHint: ${supabaseError.hint}`
+            }
+          }
+        }
+        
+        setError(errorMessage)
+        setIsLoading(false)
+      }
+    }
+
+    loadTerminology()
   }, [])
 
-  // Save state whenever it changes
-  useEffect(() => {
-    save('terms', terminologyState)
-  }, [terminologyState])
-
-  const updateSetRows = (setKey: string, newRows: TermRow[]) => {
+  const updateSetTerms = (category: string, newTerms: TerminologyWithUI[]) => {
     setTerminologyState(prev => ({
       ...prev,
-      [setKey]: newRows
+      [category]: newTerms
     }))
   }
 
+  const handleSaveChanges = async () => {
+    setIsSaving(true)
+    try {
+      // Save all dirty terms
+      for (const category of Object.keys(terminologyState)) {
+        const dirtyTerms = terminologyState[category].filter(term => term.isDirty)
+        for (const term of dirtyTerms) {
+          await updateTerminology(term.id, {
+            concept: term.concept,
+            label: term.label
+          })
+        }
+      }
+
+      // Update play pool with new terminology
+      await updatePlayPoolTerminology()
+
+      // Clear dirty flags
+      setTerminologyState(prev => {
+        const updated = { ...prev }
+        Object.keys(updated).forEach(category => {
+          updated[category] = updated[category].map(term => ({
+            ...term,
+            isDirty: false
+          }))
+        })
+        return updated
+      })
+    } catch (error) {
+      console.error('Error saving changes:', error)
+      // You might want to show an error message to the user here
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const hasUnsavedChanges = Object.values(terminologyState).some(
+    terms => terms.some(term => term.isDirty)
+  )
+
   const handleContinue = () => {
-    router.push('/scouting')
+    if (hasUnsavedChanges) {
+      if (window.confirm('You have unsaved changes. Do you want to save them before continuing?')) {
+        handleSaveChanges().then(() => router.push('/scouting'))
+      } else {
+        router.push('/scouting')
+      }
+    } else {
+      router.push('/scouting')
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen p-4">
+        <div className="text-red-500 text-lg mb-4">Error Loading Terminology</div>
+        <div className="text-gray-700 whitespace-pre-wrap text-center">{error}</div>
+        <Button 
+          onClick={() => window.location.reload()} 
+          className="mt-4"
+        >
+          Try Again
+        </Button>
+      </div>
+    )
+  }
+
+  const terminologySets = {
+    formations: { title: "Formations", category: "formations" },
+    tags: { title: "Formation Tags", category: "tags" },
+    motions: { title: "Motions/Shifts", category: "motions" },
+    run_game: { title: "Run Game", category: "run_game" },
+    quick_game: { title: "Quick Game", category: "quick_game" },
+    dropback: { title: "Dropback Game", category: "dropback" },
+    shot_plays: { title: "Shot Plays", category: "shot_plays" },
+    screens: { title: "Screen Game", category: "screens" },
   }
 
   return (
-    <div className="max-w-7xl mx-auto mt-10 p-8">
+    <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Terminology Setup</h1>
-        <Button onClick={handleContinue}>
-          Continue <span aria-hidden="true">→</span>
-        </Button>
+        <h1 className="text-3xl font-bold">Terminology Setup</h1>
+        <div className="flex gap-4">
+          <Button 
+            variant="outline"
+            onClick={handleSaveChanges}
+            disabled={!hasUnsavedChanges || isSaving}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
+          <Button 
+            onClick={handleContinue}
+            disabled={isSaving}
+          >
+            Continue to Scouting
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {Object.entries(terminologySets).map(([key, { title }]) => (
-          <TerminologySet
-            key={key}
-            title={title}
-            rows={terminologyState[key] || []}
-            onUpdate={(newRows) => updateSetRows(key, newRows)}
-          />
-        ))}
-      </div>
+      {Object.entries(terminologySets).map(([key, { title, category }]) => (
+        <TerminologySet
+          key={key}
+          title={title}
+          category={category}
+          terms={terminologyState[key] || []}
+          onUpdate={(newTerms) => updateSetTerms(key, newTerms)}
+        />
+      ))}
     </div>
   )
 }
