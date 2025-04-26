@@ -11,6 +11,7 @@ export interface Play {
   run_concept?: string
   run_direction?: string
   pass_screen_concept?: string
+  screen_direction?: string
   category: 'run_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'
   is_enabled: boolean
   created_at?: string
@@ -147,6 +148,9 @@ export async function initializeDefaultPlayPool(): Promise<void> {
     const tags = terminology.filter(t => t.category === 'tags')
     const runConcepts = terminology.filter(t => t.category === 'run_game')
     const quickGame = terminology.filter(t => t.category === 'quick_game')
+    const dropback = terminology.filter(t => t.category === 'dropback')
+    const shotPlays = terminology.filter(t => t.category === 'shot_plays')
+    const screens = terminology.filter(t => t.category === 'screens')
     const motions = terminology.filter(t => t.category === 'motions')
 
     if (!formations.length || !tags.length || !runConcepts.length) {
@@ -206,10 +210,75 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       }
     })
 
-    // Generate plays for other categories...
-    // TODO: Add generation for dropback, shot plays, and screen game
+    // Generate 20 dropback plays
+    const dropbackPlays = Array.from({ length: 20 }, () => {
+      const formation = getRandomItem(formations)
+      const tag = shouldInclude() ? getRandomItem(tags) : null
+      const dropbackConcept = getRandomItem(dropback)
+      const motion = shouldInclude() ? getRandomItem(motions) : null
+      const strength = Math.random() > 0.5 ? '+' : '-'
 
-    const defaultPlays = [...runPlays, ...quickPlays]
+      return {
+        formation: formation.label || '',
+        tag: tag?.label || '',
+        strength,
+        motion_shift: motion?.label || '',
+        concept: dropbackConcept.label || '',
+        run_concept: '',
+        run_direction: '',
+        pass_screen_concept: '',
+        category: 'dropback_game' as const,
+        is_enabled: true
+      }
+    })
+
+    // Generate 20 shot plays
+    const shotPlaysGenerated = Array.from({ length: 20 }, () => {
+      const formation = getRandomItem(formations)
+      const tag = shouldInclude() ? getRandomItem(tags) : null
+      const shotPlayConcept = getRandomItem(shotPlays)
+      const motion = shouldInclude() ? getRandomItem(motions) : null
+      const strength = Math.random() > 0.5 ? '+' : '-'
+
+      return {
+        formation: formation.label || '',
+        tag: tag?.label || '',
+        strength,
+        motion_shift: motion?.label || '',
+        concept: shotPlayConcept.label || '',
+        run_concept: '',
+        run_direction: '',
+        pass_screen_concept: '',
+        category: 'shot_plays' as const,
+        is_enabled: true
+      }
+    })
+
+    // Generate 20 screen plays
+    const screenPlays = Array.from({ length: 20 }, () => {
+      const formation = getRandomItem(formations)
+      const tag = shouldInclude() ? getRandomItem(tags) : null
+      const screenConcept = getRandomItem(screens)
+      const motion = shouldInclude() ? getRandomItem(motions) : null
+      const strength = Math.random() > 0.5 ? '+' : '-'
+      const direction = Math.random() > 0.5 ? '+' : '-'
+
+      return {
+        formation: formation.label || '',
+        tag: tag?.label || '',
+        strength,
+        motion_shift: motion?.label || '',
+        concept: '',
+        run_concept: '',
+        run_direction: '',
+        pass_screen_concept: screenConcept.label || '',
+        screen_direction: direction,
+        category: 'screen_game' as const,
+        is_enabled: true
+      }
+    })
+
+    const defaultPlays = [...runPlays, ...quickPlays, ...dropbackPlays, ...shotPlaysGenerated, ...screenPlays]
 
     console.log('Inserting randomly generated plays:', defaultPlays)
 
@@ -307,6 +376,9 @@ export async function updatePlayPoolTerminology(): Promise<void> {
     const tags = terminology.filter(t => t.category === 'tags')
     const runConcepts = terminology.filter(t => t.category === 'run_game')
     const quickGame = terminology.filter(t => t.category === 'quick_game')
+    const dropback = terminology.filter(t => t.category === 'dropback')
+    const shotPlays = terminology.filter(t => t.category === 'shot_plays')
+    const screens = terminology.filter(t => t.category === 'screens')
     const motions = terminology.filter(t => t.category === 'motions')
 
     // Update each play with new terminology

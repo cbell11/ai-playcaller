@@ -24,7 +24,8 @@ function formatPlay(play: Play): string {
     play.concept,
     play.run_concept,
     play.run_direction,
-    play.pass_screen_concept
+    play.pass_screen_concept,
+    play.category === 'screen_game' ? play.screen_direction : null
   ].filter(Boolean)
 
   return parts.join(" ")
@@ -162,7 +163,7 @@ export default function PlayPoolPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`${category === 'run_game' || category === 'quick_game' ? 'grid grid-cols-2 gap-4' : 'space-y-4'}`}>
+              <div className={`${category === 'run_game' || category === 'quick_game' || category === 'dropback_game' || category === 'shot_plays' || category === 'screen_game' ? 'grid grid-cols-2 gap-4' : 'space-y-4'}`}>
                 {categoryPlays.map((play) => (
                   <div key={play.id} className="flex justify-between items-center">
                     <Switch

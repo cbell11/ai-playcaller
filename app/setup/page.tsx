@@ -277,6 +277,49 @@ export default function SetupPage() {
     }
   }
 
+  const handleAddRow = (category: string) => {
+    setTerminologyState(prev => ({
+      ...prev,
+      [category]: [
+        ...(prev[category] || []),
+        {
+          id: crypto.randomUUID(),
+          category,
+          concept: '',
+          label: '',
+          is_enabled: true,
+          isDirty: true,
+          isEditing: false
+        }
+      ]
+    }))
+  }
+
+  const handleUpdateConcept = (category: string, index: number, value: string) => {
+    setTerminologyState(prev => ({
+      ...prev,
+      [category]: prev[category].map((term, i) => 
+        i === index ? { ...term, concept: value, isDirty: true } : term
+      )
+    }))
+  }
+
+  const handleUpdateLabel = (category: string, index: number, value: string) => {
+    setTerminologyState(prev => ({
+      ...prev,
+      [category]: prev[category].map((term, i) => 
+        i === index ? { ...term, label: value, isDirty: true } : term
+      )
+    }))
+  }
+
+  const handleDeleteRow = (category: string, index: number) => {
+    setTerminologyState(prev => ({
+      ...prev,
+      [category]: prev[category].filter((_, i) => i !== index)
+    }))
+  }
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -333,15 +376,89 @@ export default function SetupPage() {
         </div>
       </div>
 
-      {Object.entries(terminologySets).map(([key, { title, category }]) => (
-        <TerminologySet
-          key={key}
-          title={title}
-          category={category}
-          terms={terminologyState[key] || []}
-          onUpdate={(newTerms) => updateSetTerms(key, newTerms)}
-        />
-      ))}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {Object.entries(terminologySets).map(([key, { title, category }]) => (
+          <Card key={category} className="mb-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xl font-bold">{title}</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleAddRow(category)}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                Add Row
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {terminologyState[category]?.map((term, index) => (
+                  <div
+                    key={term.id}
+                    className={`flex items-center space-x-2 ${term.isDirty ? 'bg-blue-50 rounded p-1' : ''}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={term.concept}
+                        onChange={(e) => handleUpdateConcept(category, index, e.target.value)}
+                        className="w-full px-2 py-1 text-sm border rounded"
+                        placeholder="Concept"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={term.label}
+                        onChange={(e) => handleUpdateLabel(category, index, e.target.value)}
+                        className="w-full px-2 py-1 text-sm border rounded"
+                        placeholder="Label"
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteRow(category, index)}
+                      className="text-red-600 hover:text-red-800 px-2"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="flex justify-between mt-8">
+        <Button 
+          variant="outline" 
+          onClick={() => router.push('/')}
+        >
+          ← Back to Home
+        </Button>
+        <div className="space-x-4">
+          <Button
+            variant="outline"
+            onClick={handleSaveChanges}
+            disabled={!hasUnsavedChanges || isSaving}
+          >
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
+          <Button 
+            onClick={handleContinue}
+          >
+            Continue to Play Pool →
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
