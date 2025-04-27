@@ -10,16 +10,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'popover': {
-          DEFAULT: '#ffffff',
-          foreground: '#000000',
+        border: "#e5e7eb",  // Standard gray border color
+        input: "#e5e7eb",
+        ring: "#e5e7eb",
+        background: {
+          DEFAULT: "hsl(var(--background))",
+          foreground: "hsl(var(--foreground))",
         },
-        'background': '#ffffff',
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -41,8 +38,8 @@ module.exports = {
           foreground: "hsl(var(--accent-foreground))",
         },
         popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
+          DEFAULT: "#ffffff",
+          foreground: "#000000",
         },
         card: {
           DEFAULT: "hsl(var(--card))",
