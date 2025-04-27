@@ -354,7 +354,7 @@ export default function SetupPage() {
           >
             <Save className="h-4 w-4 mr-2" />
             {isSaving ? 'Saving...' : 'Save Changes'}
-          </Button>
+        </Button>
         </div>
       </div>
 

@@ -9,7 +9,7 @@ import { Label } from "../components/ui/label"
 import { Textarea } from "../components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
 import { Slider } from "../components/ui/slider"
-import { Plus } from "lucide-react"
+import { Plus, FileText } from "lucide-react"
 import { load, save } from "@/lib/local"
 
 // Define the option type with the new fields
@@ -62,6 +62,9 @@ export default function ScoutingPage() {
   const [addingCustomTo, setAddingCustomTo] = useState<"fronts" | "coverages" | "blitzes" | null>(null)
   const [customName, setCustomName] = useState("")
   const [notes, setNotes] = useState(() => load('notes', ""))
+
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+  const [report, setReport] = useState<string | null>(null)
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
@@ -157,6 +160,50 @@ export default function ScoutingPage() {
     
     // Navigate to plan page
     router.push('/plan')
+  }
+
+  const handleGenerateReport = async () => {
+    setIsGeneratingReport(true)
+    setReport("")
+    
+    try {
+      const response = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fronts,
+          coverages,
+          blitzes,
+          frontPct,
+          coverPct,
+          blitzPct,
+          overallBlitzPct,
+          notes,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate report')
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No reader available')
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        const text = new TextDecoder().decode(value)
+        setReport(prev => (prev || "") + text)
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Failed to generate report. Please try again.')
+    } finally {
+      setIsGeneratingReport(false)
+    }
   }
 
   // Helper function to calculate total percentage for a category
@@ -370,22 +417,108 @@ export default function ScoutingPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Scouting Form</h1>
-        <Button size="lg" onClick={handleGenerateGamePlan}>
-          Save Scouting Report
-        </Button>
+    <div className="container mx-auto p-4 space-y-6">
+      {(report || isGeneratingReport) && (
+        <Card className="mb-8 bg-white shadow-lg border-2 border-green-600">
+          <CardHeader className="border-b border-slate-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xl font-bold text-green-700">
+                {isGeneratingReport ? 'Generating Scouting Report...' : 'Defensive Breakdown'}
+              </CardTitle>
+              {!isGeneratingReport && (
+                <Button
+                  onClick={() => setReport(null)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-slate-500 hover:text-slate-700"
+                >
+                  Clear Report
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="space-y-6">
+              {report?.split('\n\n').map((section, index) => {
+                // Handle section headers
+                if (section.trim().startsWith('###')) {
+                  return (
+                    <div key={index} className="border-t first:border-t-0 border-slate-200 pt-6 first:pt-0">
+                      <h2 className="text-xl font-bold text-slate-900 mb-4">
+                        {section.trim().replace('### ', '')}
+                      </h2>
+                    </div>
+                  )
+                }
+
+                // Handle content sections
+                return (
+                  <div key={index} className="text-slate-700">
+                    {section.split('\n').map((line, lineIndex) => {
+                      const trimmedLine = line.trim()
+                      
+                      // Skip empty lines
+                      if (!trimmedLine) return null
+                      
+                      // Handle bullet points
+                      if (trimmedLine.startsWith('•')) {
+                        return (
+                          <div key={lineIndex} className="flex items-start gap-2 mb-3">
+                            <span className="text-green-600 mt-1">•</span>
+                            <span className="flex-1">{trimmedLine.substring(1).trim()}</span>
+                          </div>
+                        )
+                      }
+                      
+                      // Handle regular paragraphs
+                      return (
+                        <p key={lineIndex} className="mb-4">
+                          {trimmedLine}
+                        </p>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+              {isGeneratingReport && (
+                <div className="flex items-center gap-2 text-slate-500 mt-4 border-t border-slate-200 pt-4">
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <div className="animate-pulse">Breaking down defensive tendencies...</div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Scouting Report</h1>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleGenerateReport}
+            disabled={isGeneratingReport}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            {isGeneratingReport ? 'Generating...' : 'Generate Report'}
+          </Button>
+          <Button
+            onClick={handleGenerateGamePlan}
+            variant="outline"
+          >
+            Save & Continue
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {renderCategoryCard("Fronts", "fronts", fronts, frontPct)}
         {renderCategoryCard("Coverages", "coverages", coverages, coverPct)}
         {renderCategoryCard("Blitz", "blitzes", blitzes, blitzPct)}
       </div>
 
       {/* Additional Notes */}
-      <Card className="bg-slate-50 mb-8">
+      <Card className="bg-slate-50">
         <CardHeader>
           <CardTitle>Additional Notes</CardTitle>
         </CardHeader>
