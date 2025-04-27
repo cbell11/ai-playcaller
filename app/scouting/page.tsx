@@ -9,7 +9,7 @@ import { Label } from "../components/ui/label"
 import { Textarea } from "../components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
 import { Slider } from "../components/ui/slider"
-import { Plus, FileText } from "lucide-react"
+import { Plus, FileText, Loader2 } from "lucide-react"
 import { load, save } from "@/lib/local"
 
 // Define the option type with the new fields
@@ -494,13 +494,19 @@ export default function ScoutingPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Scouting Report</h1>
         <div className="flex gap-2">
-          <Button
+          <Button 
             onClick={handleGenerateReport}
             disabled={isGeneratingReport}
-            className="bg-green-600 hover:bg-green-700"
+            className="w-full bg-green-600 hover:bg-green-700 text-white"
           >
-            <FileText className="w-4 h-4 mr-2" />
-            {isGeneratingReport ? 'Generating...' : 'Generate Report'}
+            {isGeneratingReport ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Generating...</span>
+              </div>
+            ) : (
+              'Generate Scouting Report'
+            )}
           </Button>
           <Button
             onClick={handleGenerateGamePlan}
