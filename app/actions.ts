@@ -1,9 +1,10 @@
 "use server";
 
-import OpenAI from "openai";
-import { getPlayPool, Play } from '@/lib/playpool'
+// These imports are currently unused but retained for future development
+// import OpenAI from "openai";
+// import { getPlayPool, Play } from '@/lib/playpool'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+// const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 interface ScoutingData {
   fronts: Record<string, number>;
@@ -20,7 +21,7 @@ interface ScoutingData {
   };
 }
 
-export async function makeGamePlan(data: ScoutingData) {
+export async function makeGamePlan(scoutingData: ScoutingData) {
   try {
     // Create an empty game plan with no auto-generated plays
     const gamePlan = {

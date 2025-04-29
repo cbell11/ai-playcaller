@@ -7,17 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
-import { makeGamePlan } from "@/app/actions"
+// import { makeGamePlan } from "@/app/actions"
 import { getPlayPool, Play } from "@/lib/playpool"
-import { Input } from "../components/ui/input"
-import { Label } from "../components/ui/label"
-import { Slider } from "../components/ui/slider"
-import { Textarea } from "../components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
+// import { Input } from "../components/ui/input"
+// import { Label } from "../components/ui/label"
+// import { Slider } from "../components/ui/slider"
+// import { Textarea } from "../components/ui/textarea"
+// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 
-// Add a helper component for displaying a dragging item
-const DragItem = ({ play, snapshot }: { play: Play, snapshot: any }) => {
+// Helper component for displaying a dragging item - currently unused but may be needed in future
+function DragItem({ play }: { play: Play, snapshot: any }) {
   return (
     <div
       className={`p-2 rounded text-sm font-mono bg-blue-100 shadow-md border border-blue-300`}
@@ -32,7 +32,7 @@ const DragItem = ({ play, snapshot }: { play: Play, snapshot: any }) => {
       <span>{formatPlayFromPool(play)}</span>
     </div>
   );
-};
+}
 
 // Add a global drag layer component
 function DragLayer({ isDragging, play }: { isDragging: boolean, play: Play | null }) {
@@ -70,7 +70,7 @@ interface PlayCall {
   runDirection?: "+" | "-"  // + for field, - for boundary (only for run plays)
 }
 
-// Add new types for the cascading dropdowns
+// Add new types for the cascading dropdowns - currently unused but may be used in future versions
 type ConceptCategory = 'formation' | 'run' | 'pass' | 'screen'
 
 interface ConceptOption {
@@ -139,20 +139,22 @@ export default function PlanPage() {
   const componentRef = useRef<HTMLDivElement>(null)
   const [plan, setPlan] = useState<GamePlan | null>(() => load('plan', null))
   const [loading, setLoading] = useState(false)
-  const [runPassRatio, setRunPassRatio] = useState<number>(50)
-  const [basePackage1, setBasePackage1] = useState<string>("none")
-  const [basePackage2, setBasePackage2] = useState<string>("none")
-  const [basePackage3, setBasePackage3] = useState<string>("none")
-  const [motionPercentage, setMotionPercentage] = useState<number>(50)
-  const [specificConcepts, setSpecificConcepts] = useState<string[]>([])
+  
+  // State variables defined but currently unused - retained for future development
+  // const [runPassRatio, setRunPassRatio] = useState<number>(50)
+  // const [basePackage1, setBasePackage1] = useState<string>("none")
+  // const [basePackage2, setBasePackage2] = useState<string>("none")
+  // const [basePackage3, setBasePackage3] = useState<string>("none")
+  // const [motionPercentage, setMotionPercentage] = useState<number>(50)
+  // const [specificConcepts, setSpecificConcepts] = useState<string[]>([])
 
-  // Add new state for cascading dropdowns
-  const [selectedCategory1, setSelectedCategory1] = useState<ConceptCategory | ''>('')
-  const [selectedConcept1, setSelectedConcept1] = useState<string>("none")
-  const [selectedCategory2, setSelectedCategory2] = useState<ConceptCategory | ''>('')
-  const [selectedConcept2, setSelectedConcept2] = useState<string>("none")
-  const [selectedCategory3, setSelectedCategory3] = useState<ConceptCategory | ''>('')
-  const [selectedConcept3, setSelectedConcept3] = useState<string>("none")
+  // State for cascading dropdowns - currently unused but kept for future development
+  // const [selectedCategory1, setSelectedCategory1] = useState<ConceptCategory | ''>('')
+  // const [selectedConcept1, setSelectedConcept1] = useState<string>("none")
+  // const [selectedCategory2, setSelectedCategory2] = useState<ConceptCategory | ''>('')
+  // const [selectedConcept2, setSelectedConcept2] = useState<string>("none")
+  // const [selectedCategory3, setSelectedCategory3] = useState<ConceptCategory | ''>('')
+  // const [selectedConcept3, setSelectedConcept3] = useState<string>("none")
 
   const [isDragging, setIsDragging] = useState(false);
   const [draggingPlay, setDraggingPlay] = useState<Play | null>(null);
@@ -223,12 +225,6 @@ export default function PlanPage() {
     event.preventDefault();
     setShowPrintDialog(true);
   };
-
-  // Helper function to get the label for a concept value
-  const getLabelForValue = (category: ConceptCategory, value: string): string => {
-    const option = conceptOptions[category].find(opt => opt.value === value);
-    return option?.label || value;
-  }
 
   // Helper function to format a play call using labels instead of concepts
   const formatPlayCall = (play: PlayCall) => {
