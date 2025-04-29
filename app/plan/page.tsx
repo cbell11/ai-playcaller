@@ -653,10 +653,10 @@ export default function PlanPage() {
                   if (!hasContent) {
                     // Render empty slot without draggable
                     return (
-                      <div key={`${section}-${index}-empty`} className="px-4 py-2 flex items-center">
+                      <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
                         <span className="w-6 text-slate-500">{index + 1}.</span>
-                        <span className="text-gray-400 italic border border-dashed border-gray-300 rounded p-2 flex-1 text-center">
-                          Drop play here
+                        <span className="text-gray-300 italic flex-1 text-center text-xs">
+                          {/* Empty space for vacant slot */}
                         </span>
                       </div>
                     );
