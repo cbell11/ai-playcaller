@@ -1,6 +1,7 @@
 "use server";
 
 import OpenAI from "openai";
+import { getPlayPool, Play } from '@/lib/playpool'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -13,30 +14,36 @@ interface ScoutingData {
     motionPercentage: number;
     runPassRatio: number;
     specificConcepts: string[];
+    basePackage1: string;
+    basePackage2: string;
+    basePackage3: string;
   };
 }
 
 export async function makeGamePlan(data: ScoutingData) {
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo-0125",
-      temperature: 0.35,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: "You are an offensive coordinator. Based on the defensive scouting data, generate a game plan with 5-7 run concepts exploiting front weaknesses, 5-7 pass concepts attacking coverage tendencies, and 3-5 key tendencies to exploit. Return a JSON object with keys: runConcepts (array), passConcepts (array), and tendencies (array)."
-        },
-        {
-          role: "user",
-          content: JSON.stringify(data)
-        }
-      ]
-    });
+    // Create an empty game plan with no auto-generated plays
+    const gamePlan = {
+      openingScript: [],
+      basePackage1: [],
+      basePackage2: [],
+      basePackage3: [],
+      firstDowns: [],
+      secondAndShort: [],
+      secondAndLong: [],
+      shortYardage: [],
+      thirdAndLong: [],
+      redZone: [],
+      goalline: [],
+      backedUp: [],
+      screens: [],
+      playAction: [],
+      deepShots: []
+    }
 
-    return completion.choices[0].message.content;
+    return JSON.stringify(gamePlan)
   } catch (error) {
-    console.error('Error generating game plan:', error);
-    throw new Error('Failed to generate game plan');
+    console.error('Error generating game plan:', error)
+    throw new Error('Failed to generate game plan')
   }
 } 
