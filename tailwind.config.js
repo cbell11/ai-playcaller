@@ -46,6 +46,9 @@ module.exports = {
           foreground: "hsl(var(--card-foreground))",
         },
       },
+      fontSize: {
+        'xxs': '0.65rem',
+      },
       zIndex: {
         'dropdown': '1000',
       },

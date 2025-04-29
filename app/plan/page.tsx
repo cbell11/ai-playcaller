@@ -995,33 +995,36 @@ export default function PlanPage() {
 
   // Add a function to format plays for printable version
   const renderPrintableList = (title: string, plays: PlayCall[], bgColor: string = "bg-blue-100") => {
-    const filledPlays = plays.filter(play => play.formation);
-    
-    if (filledPlays.length === 0) return null;
+    // Filter only non-empty plays to save space
+    const filledPlays = plays.filter(p => p.formation);
     
     return (
-      <div className="mb-4 break-inside-avoid">
-        <div className={`${bgColor} p-2 font-bold text-lg border-b`}>
+      <div className="break-inside-avoid">
+        <div className={`${bgColor} p-0.5 font-bold border-b text-xxs`}>
           {title}
         </div>
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full border-collapse text-xxs">
           <thead>
             <tr className="border-b">
-              <th className="py-1 px-2 text-left w-8">★</th>
-              <th className="py-1 px-2 text-left w-8">✓</th>
-              <th className="py-1 px-2 text-left">#</th>
-              <th className="py-1 px-2 text-left">Play</th>
+              <th className="py-0 px-0.5 text-left w-2">★</th>
+              <th className="py-0 px-0.5 text-left w-2">✓</th>
+              <th className="py-0 px-0.5 text-left w-2">#</th>
+              <th className="py-0 px-0.5 text-left">Play</th>
             </tr>
           </thead>
           <tbody>
-            {filledPlays.map((play, idx) => (
-              <tr key={idx} className="border-b hover:bg-gray-50">
-                <td className="py-1 px-2 border-r">□</td>
-                <td className="py-1 px-2 border-r">□</td>
-                <td className="py-1 px-2 border-r">{idx + 1}</td>
-                <td className="py-1 px-2 font-mono">{formatPlayCall(play)}</td>
+            {filledPlays.slice(0, title === "Opening Script" ? 7 : (title.startsWith("Base Package") ? 8 : 5)).map((play, idx) => (
+              <tr key={idx} className="border-b">
+                <td className="py-0 px-0.5 border-r">□</td>
+                <td className="py-0 px-0.5 border-r">□</td>
+                <td className="py-0 px-0.5 border-r">{idx + 1}</td>
+                <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">{formatPlayCall(play)}</td>
               </tr>
             ))}
+            {/* Add empty row only if no plays */}
+            {filledPlays.length === 0 && (
+              <tr><td colSpan={4} className="py-0.25 text-center text-gray-400 italic text-xxs">Empty</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -1092,7 +1095,7 @@ export default function PlanPage() {
                 <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={printHandler} className="flex items-center gap-2">
+                <Button onClick={() => printHandler()} className="flex items-center gap-2">
                   <Printer className="h-4 w-4" />
                   Print
                 </Button>
@@ -1103,27 +1106,28 @@ export default function PlanPage() {
 
         {/* Printable content (hidden from normal view) */}
         <div className="hidden">
-          <div ref={printRef} className={`p-4 ${printOrientation === 'landscape' ? 'landscape' : 'portrait'}`}>
+          <div ref={printRef} className={`p-2 ${printOrientation === 'landscape' ? 'landscape' : 'portrait'}`}>
             <style type="text/css" media="print">
               {`
                 @page {
                   size: ${printOrientation};
-                  margin: 10mm;
+                  margin: 5mm;
                 }
                 
                 body {
                   -webkit-print-color-adjust: exact !important;
                   print-color-adjust: exact !important;
+                  font-size: 7pt !important;
                 }
                 
                 .landscape {
                   width: 297mm;
-                  min-height: 210mm;
+                  height: 210mm;
                 }
                 
                 .portrait {
                   width: 210mm;
-                  min-height: 297mm;
+                  height: 297mm;
                 }
                 
                 table {
@@ -1133,36 +1137,100 @@ export default function PlanPage() {
                 .break-inside-avoid {
                   page-break-inside: avoid;
                 }
+
+                .print-grid {
+                  display: grid;
+                  grid-template-columns: repeat(3, 1fr);
+                  gap: 1mm;
+                  page-break-after: avoid;
+                }
+
+                .col-span-full {
+                  grid-column: 1 / -1;
+                }
+
+                /* Shrink table rows for compactness */
+                .print-grid tr {
+                  line-height: 1;
+                }
+
+                /* Minimize cell padding */
+                .print-grid td, .print-grid th {
+                  padding: 0.3mm 0.5mm;
+                }
+
+                /* Override any hover effects in print */
+                .print-grid tr:hover {
+                  background-color: transparent !important;
+                }
+
+                /* Ensure proper table width */
+                .print-grid table {
+                  width: 100%;
+                  table-layout: fixed;
+                }
+
+                /* Set smaller font for play text */
+                .print-grid .font-mono {
+                  font-size: 6.5pt;
+                }
               `}
             </style>
             
-            <div className="text-center mb-4">
-              <h1 className="text-2xl font-bold">Game Plan</h1>
-              <p className="text-sm mb-4">✓ = Called &nbsp;&nbsp; ★ = Key Play</p>
+            <div className="text-center mb-1">
+              <h1 className="text-sm font-bold mb-0">Game Plan</h1>
+              <p className="text-xs mb-1">✓ = Called &nbsp;&nbsp; ★ = Key Play</p>
             </div>
             
-            <div className={`grid ${printOrientation === 'landscape' ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
-              {plan.openingScript.some(p => p.formation) && (
-                <div className="col-span-full">
-                  {renderPrintableList("Opening Script", plan.openingScript, "bg-amber-100")}
-                </div>
-              )}
+            <div className="print-grid">
+              {/* Opening Script - spans full width */}
+              <div className="col-span-full mb-1">
+                {renderPrintableList("Opening Script", plan.openingScript, "bg-amber-100")}
+              </div>
               
-              {renderPrintableList("Base Package 1", plan.basePackage1, "bg-green-100")}
-              {renderPrintableList("Base Package 2", plan.basePackage2, "bg-green-100")}
-              {renderPrintableList("Base Package 3", plan.basePackage3, "bg-green-100")}
+              {/* Base Packages - all in same row */}
+              <div>
+                {renderPrintableList("Base Package 1", plan.basePackage1, "bg-green-100")}
+              </div>
+              <div>
+                {renderPrintableList("Base Package 2", plan.basePackage2, "bg-green-100")}
+              </div>
+              <div>
+                {renderPrintableList("Base Package 3", plan.basePackage3, "bg-green-100")}
+              </div>
               
-              {renderPrintableList("Short Yardage", plan.shortYardage, "bg-blue-100")}
-              {renderPrintableList("3rd and Long", plan.thirdAndLong, "bg-blue-100")}
-              {renderPrintableList("First Downs", plan.firstDowns, "bg-blue-100")}
+              {/* Down & Distance */}
+              <div>
+                {renderPrintableList("First Downs", plan.firstDowns, "bg-blue-100")}
+              </div>
+              <div>
+                {renderPrintableList("Short Yardage", plan.shortYardage, "bg-blue-100")}
+              </div>
+              <div>
+                {renderPrintableList("3rd and Long", plan.thirdAndLong, "bg-blue-100")}
+              </div>
               
-              {renderPrintableList("Red Zone", plan.redZone, "bg-red-100")}
-              {renderPrintableList("Goalline", plan.goalline, "bg-red-100")}
-              {renderPrintableList("Backed Up", plan.backedUp, "bg-red-100")}
+              {/* Field Position */}
+              <div>
+                {renderPrintableList("Red Zone", plan.redZone, "bg-red-100")}
+              </div>
+              <div>
+                {renderPrintableList("Goalline", plan.goalline, "bg-red-100")}
+              </div>
+              <div>
+                {renderPrintableList("Backed Up", plan.backedUp, "bg-red-100")}
+              </div>
               
-              {renderPrintableList("Screens", plan.screens, "bg-purple-100")}
-              {renderPrintableList("Play Action", plan.playAction, "bg-purple-100")}
-              {renderPrintableList("Deep Shots", plan.deepShots, "bg-purple-100")}
+              {/* Special Categories */}
+              <div>
+                {renderPrintableList("Screens", plan.screens, "bg-purple-100")}
+              </div>
+              <div>
+                {renderPrintableList("Play Action", plan.playAction, "bg-purple-100")}
+              </div>
+              <div>
+                {renderPrintableList("Deep Shots", plan.deepShots, "bg-purple-100")}
+              </div>
             </div>
           </div>
         </div>
@@ -1222,7 +1290,7 @@ export default function PlanPage() {
             )}
           </div>
           
-          {/* Base Packages */}
+          {/* Base Package 1 row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
             <div className={showPlayPool && playPoolSection === 'basePackage1' ? 'col-span-2' : 'col-span-1'}>
               {renderPlayListCard("Base Package 1", plan.basePackage1, 10, "bg-green-100", "basePackage1")}
@@ -1244,7 +1312,31 @@ export default function PlanPage() {
             )}
           </div>
 
-          {/* Base Package 2-3 (when play pool is showing for basePackage1) */}
+          {/* Base Package 2 row */}
+          {showPlayPool && playPoolSection === 'basePackage2' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              <div className="col-span-2">
+                {renderPlayListCard("Base Package 2", plan.basePackage2, 10, "bg-green-100", "basePackage2")}
+              </div>
+              <div className="col-span-1">
+                {renderPlayPool()}
+              </div>
+            </div>
+          )}
+
+          {/* Base Package 3 row */}
+          {showPlayPool && playPoolSection === 'basePackage3' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              <div className="col-span-2">
+                {renderPlayListCard("Base Package 3", plan.basePackage3, 10, "bg-green-100", "basePackage3")}
+              </div>
+              <div className="col-span-1">
+                {renderPlayPool()}
+              </div>
+            </div>
+          )}
+
+          {/* Show Base Packages 2-3 when Base Package 1 is expanded */}
           {showPlayPool && playPoolSection === 'basePackage1' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
@@ -1259,8 +1351,9 @@ export default function PlanPage() {
             </div>
           )}
 
-          {/* Base Package 2 row */}
-          {!showPlayPool || (playPoolSection !== 'shortYardage' && playPoolSection !== 'thirdAndLong' && playPoolSection !== 'redZone') ? (
+          {/* Short Yardage, 3rd and Long, Red Zone row */}
+          {!showPlayPool || (playPoolSection !== 'shortYardage' && playPoolSection !== 'thirdAndLong' && playPoolSection !== 'redZone' && 
+                          playPoolSection !== 'basePackage2' && playPoolSection !== 'basePackage3') ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 {renderPlayListCard("Short Yardage", plan.shortYardage, 5, "bg-blue-100", "shortYardage")}
