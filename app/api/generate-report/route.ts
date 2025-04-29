@@ -29,8 +29,8 @@ ${blitzes.map((b: any) => `• ${b.name}: ${blitzPct[b.name] || 0}% of pressures
   - Down: ${b.dominateDown}
   - Area: ${b.fieldArea}`).join('\n')}
 
-NOTES:
-${notes}
+${notes ? `ADDITIONAL NOTES (IMPORTANT - incorporate these insights into your analysis):
+${notes}` : ''}
 
 Provide your analysis in the following format, ensuring each bullet point is on its own line with a line break after it:
 
@@ -74,13 +74,14 @@ Remember:
 1. Start each bullet point with "• "
 2. Put each bullet point on its own line
 3. Add a blank line between bullet points
-4. Keep insights clear and actionable`
+4. Keep insights clear and actionable
+5. CRITICALLY IMPORTANT: Directly incorporate any information from the ADDITIONAL NOTES section into your analysis`
 
     const stream = await openai.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are an experienced offensive coordinator breaking down defensive tendencies. Be direct and specific. Format your response exactly as shown in the prompt, with each bullet point on its own line and a blank line between points. Use ### for section headers."
+          content: "You are an experienced offensive coordinator breaking down defensive tendencies. Be direct and specific. Format your response exactly as shown in the prompt, with each bullet point on its own line and a blank line between points. Use ### for section headers. Make sure to incorporate any additional notes from the user into your analysis."
         },
         {
           role: "user",
