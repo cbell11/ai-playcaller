@@ -503,7 +503,7 @@ export default function PlanPage() {
         
         // Get the target length based on section
         const targetLength = sectionId === 'openingScript' ? 7 : 
-                            (sectionId.startsWith('basePackage') ? 10 : 5);
+                           (sectionId.startsWith('basePackage') || sectionId === 'firstDowns') ? 10 : 5;
         
         console.log("Target length for section:", targetLength);
         console.log("Current plays in section:", sectionPlays);
@@ -615,7 +615,7 @@ export default function PlanPage() {
     }
     
     return (
-    <Card className="bg-white rounded shadow">
+    <Card className="bg-white rounded shadow h-full">
         <CardHeader className={`${bgColor} border-b flex flex-row justify-between items-center`}>
         <CardTitle className="font-bold">{title}</CardTitle>
           <Button 
@@ -635,7 +635,7 @@ export default function PlanPage() {
             {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
           </Button>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
           <Droppable 
             droppableId={`section-${section}`} 
             type="PLAY" 
@@ -764,7 +764,7 @@ export default function PlanPage() {
       
       // Get the target length based on section
       const targetLength = playPoolSection === 'openingScript' ? 7 : 
-                          (playPoolSection.startsWith('basePackage') ? 10 : 5);
+                          (playPoolSection.startsWith('basePackage') || playPoolSection === 'firstDowns') ? 10 : 5;
       
       // Separate empty and non-empty plays
       const nonEmptyPlays = sectionPlays.filter(p => p.formation);
@@ -883,113 +883,117 @@ export default function PlanPage() {
     const sectionPlays = plan[playPoolSection] || [];
 
     return (
-      <div className="bg-white p-4 rounded-lg shadow-md w-full max-w-md">
-        <h3 className="text-lg font-semibold mb-2">Play Pool</h3>
-        
-        <div className="p-2 mb-2 bg-blue-50 text-blue-800 text-sm rounded">
-          Click the "+ Add" button to add a play to the {
-            playPoolSection === 'openingScript' ? 'Opening Script' : 
-            playPoolSection === 'basePackage1' ? 'Base Package 1' : 
-            playPoolSection === 'basePackage2' ? 'Base Package 2' : 
-            playPoolSection === 'basePackage3' ? 'Base Package 3' : 
-            playPoolSection
-          }
-        </div>
-        
-        {/* Filter type selector */}
-        <div className="flex justify-center mb-3 border-b pb-2">
-          <div className="inline-flex rounded-md shadow-sm" role="group">
-            <button
-              type="button"
-              className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
-                playPoolFilterType === 'category' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setPlayPoolFilterType('category')}
-            >
-              By Category
-            </button>
-            <button
-              type="button"
-              className={`px-4 py-2 text-sm font-medium rounded-r-lg ${
-                playPoolFilterType === 'formation' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setPlayPoolFilterType('formation')}
-            >
-              By Formation
-            </button>
-          </div>
-        </div>
-        
-        <div className="flex">
-          {/* Vertical tabs for either categories or formations */}
-          <div className="w-1/3 border-r pr-2">
-            {playPoolFilterType === 'category' ? (
-              // Render category tabs
-              Object.entries(CATEGORIES).map(([key, label]) => (
-                <button 
-                  key={key}
-                  className={`w-full text-left py-2 px-3 mb-1 rounded ${playPoolCategory === key ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
-                  onClick={() => setPlayPoolCategory(key as any)}
-                >
-                  {label}
-                </button>
-              ))
-            ) : (
-              // Render formation tabs
-              formations.map((formation) => (
-                <button 
-                  key={formation}
-                  className={`w-full text-left py-2 px-3 mb-1 rounded ${selectedFormation === formation ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
-                  onClick={() => setSelectedFormation(formation)}
-                >
-                  {formation}
-                </button>
-              ))
-            )}
-          </div>
-          
-          {/* Play list area */}
-          <div className="w-2/3 pl-2">
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {filteredPlays.length > 0 ? (
-                filteredPlays.map((play, index) => {
-                  const alreadyInSection = isPlayInSection(play, sectionPlays);
-                  return (
-                    <div 
-                      key={index}
-                      className={`p-2 border rounded flex justify-between items-center ${
-                        alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
-                      }`}
-                    >
-                      <div className={`text-sm font-mono ${alreadyInSection ? 'text-gray-500' : ''}`}>
-                        {formatPlayFromPool(play)}
-                      </div>
-                      {alreadyInSection ? (
-                        <div className="text-xs text-gray-500 ml-1 px-3 py-1 border border-gray-300 rounded">
-                          In Script
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleAddPlayToSection(play)}
-                          className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 ml-1 rounded"
-                        >
-                          + Add
-                        </button>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-gray-500 italic">No plays available in this {playPoolFilterType === 'category' ? 'category' : 'formation'}</p>
-              )}
+      <Card className="bg-white rounded shadow-md w-full h-full">
+        <CardHeader className="bg-gray-100 border-b flex flex-row justify-between items-center p-3">
+          <CardTitle className="text-sm font-semibold">Play Pool</CardTitle>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => {
+              setShowPlayPool(false);
+              setPlayPoolSection(null);
+            }}
+            className="text-xs"
+          >
+            Hide
+          </Button>
+        </CardHeader>
+        <CardContent className="p-3 flex flex-col overflow-hidden" style={{ height: 'calc(100% - 56px)' }}>
+          {/* Filter type selector */}
+          <div className="flex justify-center mb-2 border-b pb-1">
+            <div className="inline-flex rounded-md shadow-sm" role="group">
+              <button
+                type="button"
+                className={`px-2 py-1 text-xs font-medium rounded-l-lg ${
+                  playPoolFilterType === 'category' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setPlayPoolFilterType('category')}
+              >
+                By Category
+              </button>
+              <button
+                type="button"
+                className={`px-2 py-1 text-xs font-medium rounded-r-lg ${
+                  playPoolFilterType === 'formation' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setPlayPoolFilterType('formation')}
+              >
+                By Formation
+              </button>
             </div>
           </div>
-        </div>
-      </div>
+          
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* Vertical tabs for either categories or formations */}
+            <div className="w-1/3 border-r pr-1 overflow-y-auto">
+              {playPoolFilterType === 'category' ? (
+                // Render category tabs
+                Object.entries(CATEGORIES).map(([key, label]) => (
+                  <button 
+                    key={key}
+                    className={`w-full text-left py-1 px-2 mb-1 text-xs rounded ${playPoolCategory === key ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
+                    onClick={() => setPlayPoolCategory(key as any)}
+                  >
+                    {label}
+                  </button>
+                ))
+              ) : (
+                // Render formation tabs
+                formations.map((formation) => (
+                  <button 
+                    key={formation}
+                    className={`w-full text-left py-1 px-2 mb-1 text-xs rounded ${selectedFormation === formation ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
+                    onClick={() => setSelectedFormation(formation)}
+                  >
+                    {formation}
+                  </button>
+                ))
+              )}
+            </div>
+            
+            {/* Play list area */}
+            <div className="w-2/3 pl-1 flex-1 min-h-0">
+              <div className="h-full overflow-y-auto space-y-1 pr-1">
+                {filteredPlays.length > 0 ? (
+                  filteredPlays.map((play, index) => {
+                    const alreadyInSection = isPlayInSection(play, sectionPlays);
+                    return (
+                      <div 
+                        key={index}
+                        className={`p-1 border rounded flex justify-between items-center ${
+                          alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                          {formatPlayFromPool(play)}
+                        </div>
+                        {alreadyInSection ? (
+                          <div className="text-xs text-gray-500 ml-1 px-2 py-0.5 border border-gray-300 rounded flex-shrink-0">
+                            In Script
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleAddPlayToSection(play)}
+                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0"
+                          >
+                            + Add
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-gray-500 italic text-xs">No plays available in this {playPoolFilterType === 'category' ? 'category' : 'formation'}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -997,6 +1001,10 @@ export default function PlanPage() {
   const renderPrintableList = (title: string, plays: PlayCall[], bgColor: string = "bg-blue-100") => {
     // Filter only non-empty plays to save space
     const filledPlays = plays.filter(p => p.formation);
+    
+    // Determine the number of plays to show based on the script type
+    const maxPlaysToShow = title === "Opening Script" ? 7 : 
+                          (title.startsWith("Base Package") || title === "First Downs") ? 10 : 5;
     
     return (
       <div className="break-inside-avoid">
@@ -1013,7 +1021,7 @@ export default function PlanPage() {
             </tr>
           </thead>
           <tbody>
-            {filledPlays.slice(0, title === "Opening Script" ? 7 : (title.startsWith("Base Package") ? 8 : 5)).map((play, idx) => (
+            {filledPlays.slice(0, maxPlaysToShow).map((play, idx) => (
               <tr key={idx} className="border-b">
                 <td className="py-0 px-0.5 border-r">□</td>
                 <td className="py-0 px-0.5 border-r">□</td>
@@ -1029,6 +1037,24 @@ export default function PlanPage() {
         </table>
       </div>
     );
+  };
+
+  // Function to render play pool in absolute position with responsive positioning
+  const renderPlayPoolAbsolute = (section: keyof GamePlan) => {
+    if (showPlayPool && playPoolSection === section) {
+      return (
+        <div className={`
+          absolute z-10
+          ${section === 'openingScript' 
+            ? 'md:right-[-35%] md:w-[33%] md:top-0 md:h-full'
+            : 'md:right-[-105%] md:w-[100%] md:top-0 md:h-full'}
+          left-0 top-full w-full mt-2 md:mt-0
+        `}>
+          {renderPlayPool()}
+        </div>
+      );
+    }
+    return null;
   };
 
   if (loading) {
@@ -1199,7 +1225,7 @@ export default function PlanPage() {
                 {renderPrintableList("Base Package 3", plan.basePackage3, "bg-green-100")}
               </div>
               
-              {/* Down & Distance */}
+              {/* Down and Distance */}
               <div>
                 {renderPrintableList("First Downs", plan.firstDowns, "bg-blue-100")}
               </div>
@@ -1279,219 +1305,109 @@ export default function PlanPage() {
 
           {/* Opening Script - Special row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className={showPlayPool && playPoolSection === 'openingScript' ? 'col-span-2' : 'col-span-3'}>
-              {renderPlayListCard("Opening Script", plan.openingScript, 7, "bg-amber-100", "openingScript")}
-            </div>
-            
-            {showPlayPool && playPoolSection === 'openingScript' && (
-              <div className="col-span-1">
-                {renderPlayPool()}
+            <div className="col-span-3">
+              <div className="relative">
+                {renderPlayListCard("Opening Script", plan.openingScript, 7, "bg-amber-100", "openingScript")}
+                {renderPlayPoolAbsolute('openingScript')}
               </div>
-            )}
+            </div>
           </div>
           
-          {/* Base Package 1 row */}
+          {/* Base Package row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <div className={showPlayPool && playPoolSection === 'basePackage1' ? 'col-span-2' : 'col-span-1'}>
-              {renderPlayListCard("Base Package 1", plan.basePackage1, 10, "bg-green-100", "basePackage1")}
+            <div className="col-span-1">
+              <div className="relative">
+                {renderPlayListCard("Base Package 1", plan.basePackage1, 10, "bg-green-100", "basePackage1")}
+                {renderPlayPoolAbsolute('basePackage1')}
+              </div>
             </div>
             
-            {showPlayPool && playPoolSection === 'basePackage1' ? (
-              <div className="col-span-1">
-                {renderPlayPool()}
+            <div className="col-span-1">
+              <div className="relative">
+                {renderPlayListCard("Base Package 2", plan.basePackage2, 10, "bg-green-100", "basePackage2")}
+                {renderPlayPoolAbsolute('basePackage2')}
               </div>
-            ) : (
-              <>
-                <div className="col-span-1">
-                  {renderPlayListCard("Base Package 2", plan.basePackage2, 10, "bg-green-100", "basePackage2")}
-                </div>
-                <div className="col-span-1">
-                  {renderPlayListCard("Base Package 3", plan.basePackage3, 10, "bg-green-100", "basePackage3")}
-                </div>
-              </>
-            )}
+            </div>
+            
+            <div className="col-span-1">
+              <div className="relative">
+                {renderPlayListCard("Base Package 3", plan.basePackage3, 10, "bg-green-100", "basePackage3")}
+                {renderPlayPoolAbsolute('basePackage3')}
+              </div>
+            </div>
           </div>
 
-          {/* Base Package 2 row */}
-          {showPlayPool && playPoolSection === 'basePackage2' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-2">
-                {renderPlayListCard("Base Package 2", plan.basePackage2, 10, "bg-green-100", "basePackage2")}
-              </div>
-              <div className="col-span-1">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
-
-          {/* Base Package 3 row */}
-          {showPlayPool && playPoolSection === 'basePackage3' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-2">
-                {renderPlayListCard("Base Package 3", plan.basePackage3, 10, "bg-green-100", "basePackage3")}
-              </div>
-              <div className="col-span-1">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
-
-          {/* Show Base Packages 2-3 when Base Package 1 is expanded */}
-          {showPlayPool && playPoolSection === 'basePackage1' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                {renderPlayListCard("Base Package 2", plan.basePackage2, 10, "bg-green-100", "basePackage2")}
-              </div>
-              <div className="col-span-1">
-                {renderPlayListCard("Base Package 3", plan.basePackage3, 10, "bg-green-100", "basePackage3")}
-              </div>
-              <div className="col-span-1">
+          {/* Down and Distance row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div className="col-span-1">
+              <div className="relative">
                 {renderPlayListCard("First Downs", plan.firstDowns, 10, "bg-blue-100", "firstDowns")}
+                {renderPlayPoolAbsolute('firstDowns')}
               </div>
             </div>
-          )}
-
-          {/* Short Yardage, 3rd and Long, Red Zone row */}
-          {!showPlayPool || (playPoolSection !== 'shortYardage' && playPoolSection !== 'thirdAndLong' && playPoolSection !== 'redZone' && 
-                          playPoolSection !== 'basePackage2' && playPoolSection !== 'basePackage3') ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
+            
+            <div className="col-span-1">
+              <div className="relative">
                 {renderPlayListCard("Short Yardage", plan.shortYardage, 5, "bg-blue-100", "shortYardage")}
+                {renderPlayPoolAbsolute('shortYardage')}
               </div>
-              <div className="col-span-1">
+            </div>
+            
+            <div className="col-span-1">
+              <div className="relative">
                 {renderPlayListCard("3rd and Long", plan.thirdAndLong, 5, "bg-blue-100", "thirdAndLong")}
+                {renderPlayPoolAbsolute('thirdAndLong')}
               </div>
-              <div className="col-span-1">
+            </div>
+          </div>
+
+          {/* Field Position row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div className="col-span-1">
+              <div className="relative">
                 {renderPlayListCard("Red Zone", plan.redZone, 5, "bg-red-100", "redZone")}
+                {renderPlayPoolAbsolute('redZone')}
               </div>
             </div>
-          ) : null}
-
-          {/* Short Yardage with play pool */}
-          {showPlayPool && playPoolSection === 'shortYardage' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                {renderPlayListCard("Short Yardage", plan.shortYardage, 5, "bg-blue-100", "shortYardage")}
-              </div>
-              <div className="col-span-2">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
-
-          {/* 3rd and Long with play pool */}
-          {showPlayPool && playPoolSection === 'thirdAndLong' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                {renderPlayListCard("3rd and Long", plan.thirdAndLong, 5, "bg-blue-100", "thirdAndLong")}
-              </div>
-              <div className="col-span-2">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
-
-          {/* Red Zone with play pool */}
-          {showPlayPool && playPoolSection === 'redZone' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                {renderPlayListCard("Red Zone", plan.redZone, 5, "bg-red-100", "redZone")}
-              </div>
-              <div className="col-span-2">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
-
-          {/* Field Position Row */}
-          {!showPlayPool || (playPoolSection !== 'goalline' && playPoolSection !== 'backedUp' && playPoolSection !== 'screens') ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
+            
+            <div className="col-span-1">
+              <div className="relative">
                 {renderPlayListCard("Goalline", plan.goalline, 5, "bg-red-100", "goalline")}
+                {renderPlayPoolAbsolute('goalline')}
               </div>
-              <div className="col-span-1">
+            </div>
+            
+            <div className="col-span-1">
+              <div className="relative">
                 {renderPlayListCard("Backed Up", plan.backedUp, 5, "bg-red-100", "backedUp")}
+                {renderPlayPoolAbsolute('backedUp')}
               </div>
-              <div className="col-span-1">
+            </div>
+          </div>
+
+          {/* Special Categories row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div className="col-span-1">
+              <div className="relative">
                 {renderPlayListCard("Screens", plan.screens, 5, "bg-purple-100", "screens")}
+                {renderPlayPoolAbsolute('screens')}
               </div>
             </div>
-          ) : null}
-
-          {/* Goalline with play pool */}
-          {showPlayPool && playPoolSection === 'goalline' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                {renderPlayListCard("Goalline", plan.goalline, 5, "bg-red-100", "goalline")}
-              </div>
-              <div className="col-span-2">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
-
-          {/* Backed Up with play pool */}
-          {showPlayPool && playPoolSection === 'backedUp' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                {renderPlayListCard("Backed Up", plan.backedUp, 5, "bg-red-100", "backedUp")}
-              </div>
-              <div className="col-span-2">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
-
-          {/* Screens with play pool */}
-          {showPlayPool && playPoolSection === 'screens' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                {renderPlayListCard("Screens", plan.screens, 5, "bg-purple-100", "screens")}
-              </div>
-              <div className="col-span-2">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
-
-          {/* Special Categories Row */}
-          {!showPlayPool || (playPoolSection !== 'playAction' && playPoolSection !== 'deepShots') ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
+            
+            <div className="col-span-1">
+              <div className="relative">
                 {renderPlayListCard("Play Action", plan.playAction, 5, "bg-purple-100", "playAction")}
+                {renderPlayPoolAbsolute('playAction')}
               </div>
-              <div className="col-span-1">
+            </div>
+            
+            <div className="col-span-1">
+              <div className="relative">
                 {renderPlayListCard("Deep Shots", plan.deepShots, 5, "bg-purple-100", "deepShots")}
-              </div>
-              <div className="col-span-1">
-                {/* Empty cell for alignment */}
+                {renderPlayPoolAbsolute('deepShots')}
               </div>
             </div>
-          ) : null}
-
-          {/* Play Action with play pool */}
-          {showPlayPool && playPoolSection === 'playAction' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                {renderPlayListCard("Play Action", plan.playAction, 5, "bg-purple-100", "playAction")}
-              </div>
-              <div className="col-span-2">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
-
-          {/* Deep Shots with play pool */}
-          {showPlayPool && playPoolSection === 'deepShots' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                {renderPlayListCard("Deep Shots", plan.deepShots, 5, "bg-purple-100", "deepShots")}
-              </div>
-              <div className="col-span-2">
-                {renderPlayPool()}
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
       <DragLayer isDragging={isDragging} play={draggingPlay} />
