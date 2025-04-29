@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils"
 
 const navigation = [
   { name: "Setup", href: "/setup" },
-  { name: "Play Pool", href: "/playpool" },
   { name: "Scouting", href: "/scouting" },
+  { name: "Play Pool", href: "/playpool" },
   { name: "Game Plan", href: "/plan" },
 ]
 
