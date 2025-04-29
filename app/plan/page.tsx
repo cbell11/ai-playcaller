@@ -164,7 +164,7 @@ export default function PlanPage() {
   const [playPoolCategory, setPlayPoolCategory] = useState<keyof typeof CATEGORIES>('run_game');
   const [playPoolSection, setPlayPoolSection] = useState<keyof GamePlan | null>(null);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'formation'>('category');
+  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'formation' | 'favorites'>('category');
   const [selectedFormation, setSelectedFormation] = useState<string>('Trips');
 
   // Add state for print orientation
@@ -845,7 +845,10 @@ export default function PlanPage() {
     if (!plan || !playPoolSection) return null;
     
     const filteredPlays = playPool.filter(play => {
-      if (playPoolFilterType === 'formation') {
+      if (playPoolFilterType === 'favorites') {
+        // Filter by favorited plays
+        return play.is_favorite === true;
+      } else if (playPoolFilterType === 'formation') {
         // Filter by selected formation
         return play.formation === selectedFormation;
       } else {
@@ -911,7 +914,7 @@ export default function PlanPage() {
               </button>
               <button
                 type="button"
-                className={`px-2 py-1 text-xs font-medium rounded-r-lg ${
+                className={`px-2 py-1 text-xs font-medium ${
                   playPoolFilterType === 'formation' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -920,12 +923,23 @@ export default function PlanPage() {
               >
                 By Formation
               </button>
+              <button
+                type="button"
+                className={`px-2 py-1 text-xs font-medium rounded-r-lg ${
+                  playPoolFilterType === 'favorites' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setPlayPoolFilterType('favorites')}
+              >
+                Favorites
+              </button>
             </div>
           </div>
           
           <div className="flex flex-1 min-h-0 overflow-hidden">
             {/* Vertical tabs for either categories or formations */}
-            <div className="w-1/3 border-r pr-1 overflow-y-auto">
+            <div className={`${playPoolFilterType === 'favorites' ? 'hidden' : 'w-1/3'} border-r pr-1 overflow-y-auto`}>
               {playPoolFilterType === 'category' ? (
                 // Render category tabs
                 Object.entries(CATEGORIES).map(([key, label]) => (
@@ -952,7 +966,13 @@ export default function PlanPage() {
             </div>
             
             {/* Play list area */}
-            <div className="w-2/3 pl-1 flex-1 min-h-0">
+            <div className={`${playPoolFilterType === 'favorites' ? 'w-full' : 'w-2/3'} pl-1 flex-1 min-h-0`}>
+              {playPoolFilterType === 'favorites' && (
+                <div className="mb-2 text-sm font-medium text-center text-yellow-600">
+                  <Star className="inline-block h-4 w-4 mr-1 fill-yellow-400" />
+                  Favorite Plays
+                </div>
+              )}
               <div className="h-full overflow-y-auto space-y-1 pr-1">
                 {filteredPlays.length > 0 ? (
                   filteredPlays.map((play, index) => {
@@ -965,6 +985,9 @@ export default function PlanPage() {
                         }`}
                       >
                         <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                          {play.is_favorite && (
+                            <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
+                          )}
                           {formatPlayFromPool(play)}
                         </div>
                         {alreadyInSection ? (
@@ -983,7 +1006,11 @@ export default function PlanPage() {
                     );
                   })
                 ) : (
-                  <p className="text-gray-500 italic text-xs">No plays available in this {playPoolFilterType === 'category' ? 'category' : 'formation'}</p>
+                  <p className="text-gray-500 italic text-xs text-center p-4">
+                    {playPoolFilterType === 'favorites'
+                      ? "No favorite plays yet. Star plays in the Play Pool page."
+                      : `No plays available in this ${playPoolFilterType === 'category' ? 'category' : 'formation'}`}
+                  </p>
                 )}
               </div>
             </div>
