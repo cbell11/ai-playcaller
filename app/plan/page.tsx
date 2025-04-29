@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, MouseEventHandler } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
-import { Download, ArrowLeft, Trash2, GripVertical, Plus } from "lucide-react"
+import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
 import { makeGamePlan } from "@/app/actions"
@@ -165,6 +165,10 @@ export default function PlanPage() {
   const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'formation'>('category');
   const [selectedFormation, setSelectedFormation] = useState<string>('Trips');
 
+  // Add state for print orientation
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape');
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+
   // Define concept options for each category
   const conceptOptions: Record<ConceptCategory, ConceptOption[]> = {
     formation: [
@@ -203,12 +207,21 @@ export default function PlanPage() {
   const printHandler = useReactToPrint({
     contentRef: printRef,
     documentTitle: 'Game Plan',
-    onAfterPrint: () => console.log('Print completed')
+    onAfterPrint: () => {
+      console.log('Print completed');
+      setShowPrintDialog(false);
+    },
+    pageStyle: `
+      @page {
+        size: ${printOrientation};
+        margin: 10mm;
+      }
+    `
   })
 
   const handlePrint: MouseEventHandler<HTMLButtonElement> = (event) => {
     event.preventDefault();
-    printHandler();
+    setShowPrintDialog(true);
   };
 
   // Helper function to get the label for a concept value
@@ -690,7 +703,7 @@ export default function PlanPage() {
                               </Button>
                             </div>
                           )}
-                        </div>
+            </div>
                       )}
                     </Draggable>
                   );
@@ -980,6 +993,41 @@ export default function PlanPage() {
     );
   };
 
+  // Add a function to format plays for printable version
+  const renderPrintableList = (title: string, plays: PlayCall[], bgColor: string = "bg-blue-100") => {
+    const filledPlays = plays.filter(play => play.formation);
+    
+    if (filledPlays.length === 0) return null;
+    
+    return (
+      <div className="mb-4 break-inside-avoid">
+        <div className={`${bgColor} p-2 font-bold text-lg border-b`}>
+          {title}
+        </div>
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b">
+              <th className="py-1 px-2 text-left w-8">★</th>
+              <th className="py-1 px-2 text-left w-8">✓</th>
+              <th className="py-1 px-2 text-left">#</th>
+              <th className="py-1 px-2 text-left">Play</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filledPlays.map((play, idx) => (
+              <tr key={idx} className="border-b hover:bg-gray-50">
+                <td className="py-1 px-2 border-r">□</td>
+                <td className="py-1 px-2 border-r">□</td>
+                <td className="py-1 px-2 border-r">{idx + 1}</td>
+                <td className="py-1 px-2 font-mono">{formatPlayCall(play)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -1019,45 +1067,145 @@ export default function PlanPage() {
           </div>
         )}
         
-        <div ref={componentRef} className="space-y-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-            <h1 className="text-3xl font-bold">Game Plan</h1>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => router.push('/scouting')} className="flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Button>
-              <Button variant="outline" onClick={handlePrint} className="flex items-center gap-2">
-                <Download className="h-4 w-4" />
-                Download PDF
-              </Button>
+        {/* Print Orientation Dialog */}
+        {showPrintDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+              <h3 className="text-xl font-bold mb-4">Select Print Orientation</h3>
+              <div className="flex space-x-4 mb-6">
+                <div 
+                  className={`border p-4 rounded cursor-pointer flex-1 flex flex-col items-center ${printOrientation === 'portrait' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                  onClick={() => setPrintOrientation('portrait')}
+                >
+                  <div className="w-16 h-24 border border-gray-400 mb-2"></div>
+                  <span>Portrait</span>
+                </div>
+                <div 
+                  className={`border p-4 rounded cursor-pointer flex-1 flex flex-col items-center ${printOrientation === 'landscape' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                  onClick={() => setPrintOrientation('landscape')}
+                >
+                  <div className="w-24 h-16 border border-gray-400 mb-2"></div>
+                  <span>Landscape</span>
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={printHandler} className="flex items-center gap-2">
+                  <Printer className="h-4 w-4" />
+                  Print
+                </Button>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* User Preferences Form */}
-          <Card className="bg-white">
+        {/* Printable content (hidden from normal view) */}
+        <div className="hidden">
+          <div ref={printRef} className={`p-4 ${printOrientation === 'landscape' ? 'landscape' : 'portrait'}`}>
+            <style type="text/css" media="print">
+              {`
+                @page {
+                  size: ${printOrientation};
+                  margin: 10mm;
+                }
+                
+                body {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                
+                .landscape {
+                  width: 297mm;
+                  min-height: 210mm;
+                }
+                
+                .portrait {
+                  width: 210mm;
+                  min-height: 297mm;
+                }
+                
+                table {
+                  page-break-inside: avoid;
+                }
+                
+                .break-inside-avoid {
+                  page-break-inside: avoid;
+                }
+              `}
+            </style>
+            
+            <div className="text-center mb-4">
+              <h1 className="text-2xl font-bold">Game Plan</h1>
+              <p className="text-sm mb-4">✓ = Called &nbsp;&nbsp; ★ = Key Play</p>
+            </div>
+            
+            <div className={`grid ${printOrientation === 'landscape' ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
+              {plan.openingScript.some(p => p.formation) && (
+                <div className="col-span-full">
+                  {renderPrintableList("Opening Script", plan.openingScript, "bg-amber-100")}
+                </div>
+              )}
+              
+              {renderPrintableList("Base Package 1", plan.basePackage1, "bg-green-100")}
+              {renderPrintableList("Base Package 2", plan.basePackage2, "bg-green-100")}
+              {renderPrintableList("Base Package 3", plan.basePackage3, "bg-green-100")}
+              
+              {renderPrintableList("Short Yardage", plan.shortYardage, "bg-blue-100")}
+              {renderPrintableList("3rd and Long", plan.thirdAndLong, "bg-blue-100")}
+              {renderPrintableList("First Downs", plan.firstDowns, "bg-blue-100")}
+              
+              {renderPrintableList("Red Zone", plan.redZone, "bg-red-100")}
+              {renderPrintableList("Goalline", plan.goalline, "bg-red-100")}
+              {renderPrintableList("Backed Up", plan.backedUp, "bg-red-100")}
+              
+              {renderPrintableList("Screens", plan.screens, "bg-purple-100")}
+              {renderPrintableList("Play Action", plan.playAction, "bg-purple-100")}
+              {renderPrintableList("Deep Shots", plan.deepShots, "bg-purple-100")}
+            </div>
+          </div>
+        </div>
+
+      <div ref={componentRef} className="space-y-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <h1 className="text-3xl font-bold">Game Plan</h1>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.push('/scouting')} className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+          <Button variant="outline" onClick={handlePrint} className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Download PDF
+          </Button>
+        </div>
+        </div>
+
+        {/* User Preferences Form */}
+        <Card className="bg-white">
             <CardHeader>
               <CardTitle>Game Plan Settings</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+          <CardContent className="space-y-6">
               <div className="p-4 bg-blue-50 text-blue-800 rounded-md">
                 <p className="text-sm">
                   Use the "Add a Play" button on each section to build your game plan from the play pool.
                 </p>
-              </div>
+        </div>
 
-              <Button 
+            <Button 
                 onClick={() => {
                   setPlan(null);
                   setShowPlayPool(false);
                   setDraggingPlay(null);
                   setIsDragging(false);
                 }} 
-                className="w-full"
-                variant="default"
-              >
+              className="w-full"
+              variant="default"
+            >
                 Create New Empty Game Plan
-              </Button>
+            </Button>
             </CardContent>
           </Card>
 
