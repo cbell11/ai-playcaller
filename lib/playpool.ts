@@ -15,6 +15,7 @@ export interface Play {
   screen_direction?: string
   category: 'run_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'
   is_enabled: boolean
+  is_favorite: boolean
   created_at?: string
 }
 
@@ -92,6 +93,22 @@ export async function updatePlay(id: string, updates: Partial<Omit<Play, 'id'>>)
   
   if (error) {
     console.error('Error updating play:', error)
+    throw error
+  }
+  
+  return data
+}
+
+export async function toggleFavoritePlay(id: string, isFavorite: boolean): Promise<Play> {
+  const { data, error } = await supabase
+    .from('playpool')
+    .update({ is_favorite: isFavorite })
+    .eq('id', id)
+    .select()
+    .single()
+  
+  if (error) {
+    console.error('Error toggling favorite status:', error)
     throw error
   }
   

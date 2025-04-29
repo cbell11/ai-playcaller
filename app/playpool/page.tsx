@@ -9,8 +9,8 @@ import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Pencil, X, Check, Plus } from "lucide-react"
-import { getPlayPool, updatePlay, Play, testPlayPoolConnection, regeneratePlayPool } from "@/lib/playpool"
+import { Pencil, X, Check, Plus, Star } from "lucide-react"
+import { getPlayPool, updatePlay, Play, testPlayPoolConnection, regeneratePlayPool, toggleFavoritePlay } from "@/lib/playpool"
 import { load, save } from "@/lib/local"
 
 const CATEGORIES = {
@@ -104,6 +104,15 @@ export default function PlayPoolPage() {
       setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update play')
+    }
+  }
+
+  const handleToggleFavorite = async (play: Play) => {
+    try {
+      const updatedPlay = await toggleFavoritePlay(play.id, !play.is_favorite)
+      setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update favorite status')
     }
   }
 
@@ -279,6 +288,9 @@ export default function PlayPoolPage() {
       )
     }
 
+    // Handle case where is_favorite might be undefined
+    const isFavorite = play.is_favorite || false
+
     return (
       <>
         <div className="flex-1">
@@ -292,10 +304,14 @@ export default function PlayPoolPage() {
           >
             <Pencil className="h-4 w-4" />
           </Button>
-          <Switch
-            checked={play.is_enabled}
-            onCheckedChange={() => handleTogglePlay(play)}
-          />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleToggleFavorite(play)}
+            className={isFavorite ? 'text-yellow-400' : 'text-gray-400 hover:text-gray-600'}
+          >
+            <Star className="h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
+          </Button>
         </div>
       </>
     )
