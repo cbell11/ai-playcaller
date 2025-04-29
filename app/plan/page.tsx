@@ -219,8 +219,22 @@ export default function PlanPage() {
 
   // Helper function to format a play call using labels instead of concepts
   const formatPlayCall = (play: PlayCall) => {
-    // Find the label for the formation
-    const formationLabel = getLabelForValue('formation', play.formation);
+    // If the play field already contains spaces, it's likely a full formatted string
+    if (play.play && play.play.includes(' ')) {
+      return play.play;
+    }
+    
+    // Otherwise, use the existing formatting logic
+    // Convert full formation name to abbreviated format
+    let formationLabel = play.formation;
+    if (play.formation === 'Trips') formationLabel = 'trps';
+    if (play.formation === 'Deuce') formationLabel = 'duce';
+    if (play.formation === 'Trey') formationLabel = 'trey';
+    if (play.formation === 'Empty') formationLabel = 'mt';
+    if (play.formation === 'Queen') formationLabel = 'q';
+    if (play.formation === 'Sam') formationLabel = 'sam';
+    if (play.formation === 'Will') formationLabel = 'will';
+    if (play.formation === 'Bunch') formationLabel = 'bunch';
     
     // Find the label for the motion if it exists
     let motionLabel = play.motion;
@@ -228,19 +242,29 @@ export default function PlanPage() {
     if (play.motion === 'Orbit') motionLabel = 'orb';
     if (play.motion === 'Shift') motionLabel = 'zm';
     
-    // Try to find the label for the play concept
+    // Convert full concept name to abbreviated format
     let playLabel = play.play;
-    for (const category of ['run', 'pass', 'screen'] as ConceptCategory[]) {
-      const option = conceptOptions[category].find(opt => opt.value === play.play);
-      if (option) {
-        playLabel = option.label;
-        break;
-      }
-    }
+    // Run concepts
+    if (play.play === 'Inside Zone') playLabel = 'iz';
+    if (play.play === 'Outside Zone') playLabel = 'oz';
+    if (play.play === 'Power') playLabel = 'pwr';
+    if (play.play === 'Counter') playLabel = 'ctr';
+    if (play.play === 'Draw') playLabel = 'drw';
+    // Pass concepts
+    if (play.play === 'Hoss') playLabel = 'hoss';
+    if (play.play === 'Stick') playLabel = 'stick';
+    if (play.play === 'Quick Out') playLabel = 'qo';
+    if (play.play === 'Slot Fade') playLabel = 'slfade';
+    if (play.play === 'Snag') playLabel = 'snag';
+    // Screen concepts
+    if (play.play === 'Bubble') playLabel = 'bub';
+    if (play.play === 'Tunnel') playLabel = 'tnl';
+    if (play.play === 'Quick') playLabel = 'qck';
     
-    // For run plays, add the run direction
-    const isRun = conceptOptions.run.some(option => option.value === play.play);
-    const runDirectionText = isRun && play.runDirection ? ` ${play.runDirection}` : '';
+    // Check if it's a run play and add direction if needed
+    const runConcepts = ['Inside Zone', 'Outside Zone', 'Power', 'Counter', 'Draw'];
+    const isRunPlay = runConcepts.includes(play.play);
+    const runDirectionText = isRunPlay && play.runDirection ? ` ${play.runDirection}` : '';
     
     return `${formationLabel} ${play.fieldAlignment}${motionLabel ? ` ${motionLabel}` : ''} ${playLabel}${runDirectionText}`;
   }
@@ -621,12 +645,15 @@ export default function PlanPage() {
       console.log("Adding play to section:", playPoolSection);
       console.log("Play being added:", play);
       
-      // Convert Play to PlayCall
+      // Get the formatted play string directly
+      const playString = formatPlayFromPool(play);
+      
+      // Create a PlayCall object with the full string
       const newPlay: PlayCall = {
         formation: play.formation || '',
         fieldAlignment: (play.strength as "+" | "-") || '+',
         motion: play.motion_shift || '',
-        play: play.concept || play.pass_screen_concept || '',
+        play: playString, // Use the full formatted string as the play
         runDirection: (play.run_direction as "+" | "-") || '+'
       };
       
