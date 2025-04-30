@@ -152,7 +152,7 @@ export default function SetupPage() {
   const [terminologyState, setTerminologyState] = useState<Record<string, TerminologyWithUI[]>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
+  const [savedSections, setSavedSections] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const loadTerminology = async () => {
@@ -224,46 +224,6 @@ export default function SetupPage() {
       [category]: newTerms
     }))
   }
-
-  const handleSaveChanges = async () => {
-    setIsSaving(true)
-    try {
-      // Save all dirty terms
-      for (const category of Object.keys(terminologyState)) {
-        const dirtyTerms = terminologyState[category].filter(term => term.isDirty)
-        for (const term of dirtyTerms) {
-          await updateTerminology(term.id, {
-            concept: term.concept,
-            label: term.label
-          })
-        }
-      }
-
-      // Update play pool with new terminology
-      await updatePlayPoolTerminology()
-
-      // Clear dirty flags
-      setTerminologyState(prev => {
-        const updated = { ...prev }
-        Object.keys(updated).forEach(category => {
-          updated[category] = updated[category].map(term => ({
-            ...term,
-            isDirty: false
-          }))
-        })
-        return updated
-      })
-    } catch (error) {
-      console.error('Error saving changes:', error)
-      // You might want to show an error message to the user here
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const hasUnsavedChanges = Object.values(terminologyState).some(
-    terms => terms.some(term => term.isDirty)
-  )
 
   const handleAddRow = (category: string) => {
     setTerminologyState(prev => ({
@@ -349,12 +309,10 @@ export default function SetupPage() {
         <div className="flex gap-4">
           <Button 
             variant="outline"
-            onClick={handleSaveChanges}
-            disabled={!hasUnsavedChanges || isSaving}
+            onClick={() => router.push('/playpool')}
           >
-            <Save className="h-4 w-4 mr-2" />
-            {isSaving ? 'Saving...' : 'Save Changes'}
-        </Button>
+            Continue to Play Pool →
+          </Button>
         </div>
       </div>
 
@@ -369,14 +327,72 @@ export default function SetupPage() {
           <Card key={category} className="mb-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xl font-bold">{title}</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleAddRow(category)}
-                className="text-blue-600 hover:text-blue-800"
-              >
-                Add Row
-              </Button>
+              <div className="flex space-x-2 items-center">
+                {savedSections[category] && (
+                  <span className="text-green-600 text-xs font-medium flex items-center">
+                    <Check className="h-3 w-3 mr-1" />
+                    Saved!
+                  </span>
+                )}
+                {terminologyState[category]?.some(term => term.isDirty) && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        // Save dirty terms for this category only
+                        const dirtyTerms = terminologyState[category].filter(term => term.isDirty);
+                        for (const term of dirtyTerms) {
+                          await updateTerminology(term.id, {
+                            concept: term.concept,
+                            label: term.label
+                          });
+                        }
+                        
+                        // Update only this category's terms to remove dirty flags
+                        setTerminologyState(prev => ({
+                          ...prev,
+                          [category]: prev[category].map(term => ({
+                            ...term,
+                            isDirty: false
+                          }))
+                        }));
+                        
+                        // Update play pool after saving a section
+                        await updatePlayPoolTerminology();
+
+                        // Mark this section as saved
+                        setSavedSections({
+                          ...savedSections,
+                          [category]: true
+                        });
+                        
+                        // Clear the saved indicator after 2 seconds
+                        setTimeout(() => {
+                          setSavedSections(prev => ({
+                            ...prev,
+                            [category]: false
+                          }));
+                        }, 2000);
+                      } catch (error) {
+                        console.error(`Error saving ${category}:`, error);
+                      }
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Save className="h-3 w-3 mr-1" />
+                    Save
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleAddRow(category)}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  Add Row
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -437,10 +453,9 @@ export default function SetupPage() {
         </Button>
         <Button
           variant="outline"
-          onClick={handleSaveChanges}
-          disabled={!hasUnsavedChanges || isSaving}
+          onClick={() => router.push('/playpool')}
         >
-          {isSaving ? 'Saving...' : 'Save Changes'}
+          Continue to Play Pool →
         </Button>
       </div>
     </div>
