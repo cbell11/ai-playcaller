@@ -117,7 +117,7 @@ export async function toggleFavoritePlay(id: string, isFavorite: boolean): Promi
   return data
 }
 
-export async function initializeDefaultPlayPool(): Promise<void> {
+export async function initializeDefaultPlayPool(existingPlayCounts: Record<string, number> = {}): Promise<void> {
   try {
     console.log('Starting initializeDefaultPlayPool...')
     
@@ -191,8 +191,18 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       return Math.random() * 100 < motionPercentage
     }
 
-    // Generate 20 random run plays
-    const runPlays = Array.from({ length: 20 }, () => {
+    // Maximum number of plays per category
+    const PLAYS_PER_CATEGORY = 20
+
+    // Calculate how many new plays to generate for each category
+    const runGameCount = PLAYS_PER_CATEGORY - (existingPlayCounts['run_game'] || 0)
+    const quickGameCount = PLAYS_PER_CATEGORY - (existingPlayCounts['quick_game'] || 0)
+    const dropbackGameCount = PLAYS_PER_CATEGORY - (existingPlayCounts['dropback_game'] || 0)
+    const shotPlaysCount = PLAYS_PER_CATEGORY - (existingPlayCounts['shot_plays'] || 0)
+    const screenGameCount = PLAYS_PER_CATEGORY - (existingPlayCounts['screen_game'] || 0)
+
+    // Generate run plays (adjusted count)
+    const runPlays = Array.from({ length: Math.max(0, runGameCount) }, () => {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const runConcept = getRandomItem(runConcepts)
@@ -215,8 +225,8 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       }
     })
 
-    // Generate 20 quick game plays
-    const quickPlays = Array.from({ length: 20 }, () => {
+    // Generate quick game plays (adjusted count)
+    const quickPlays = Array.from({ length: Math.max(0, quickGameCount) }, () => {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const quickGameConcept = getRandomItem(quickGame)
@@ -238,8 +248,8 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       }
     })
 
-    // Generate 20 dropback plays
-    const dropbackPlays = Array.from({ length: 20 }, () => {
+    // Generate dropback plays (adjusted count)
+    const dropbackPlays = Array.from({ length: Math.max(0, dropbackGameCount) }, () => {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const dropbackConcept = getRandomItem(dropback)
@@ -261,8 +271,8 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       }
     })
 
-    // Generate 20 shot plays
-    const shotPlaysGenerated = Array.from({ length: 20 }, () => {
+    // Generate shot plays (adjusted count)
+    const shotPlaysGenerated = Array.from({ length: Math.max(0, shotPlaysCount) }, () => {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const shotPlayConcept = getRandomItem(shotPlays)
@@ -284,8 +294,8 @@ export async function initializeDefaultPlayPool(): Promise<void> {
       }
     })
 
-    // Generate 20 screen plays
-    const screenPlays = Array.from({ length: 20 }, () => {
+    // Generate screen plays (adjusted count)
+    const screenPlays = Array.from({ length: Math.max(0, screenGameCount) }, () => {
       const formation = getRandomItem(formations)
       const tag = shouldInclude() ? getRandomItem(tags) : null
       const screenConcept = getRandomItem(screens)
@@ -311,23 +321,28 @@ export async function initializeDefaultPlayPool(): Promise<void> {
 
     const defaultPlays = [...runPlays, ...quickPlays, ...dropbackPlays, ...shotPlaysGenerated, ...screenPlays]
 
-    console.log('Inserting randomly generated plays:', defaultPlays)
+    // Only insert if there are plays to insert
+    if (defaultPlays.length > 0) {
+      console.log(`Inserting ${defaultPlays.length} randomly generated plays`)
 
-    const { error: insertError } = await supabase
-      .from('playpool')
-      .insert(defaultPlays)
+      const { error: insertError } = await supabase
+        .from('playpool')
+        .insert(defaultPlays)
 
-    if (insertError) {
-      console.error('Error initializing play pool:', {
-        code: insertError.code,
-        message: insertError.message,
-        details: insertError.details,
-        hint: insertError.hint
-      })
-      throw new Error(`Failed to insert plays: ${insertError.message}`)
+      if (insertError) {
+        console.error('Error initializing play pool:', {
+          code: insertError.code,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint
+        })
+        throw new Error(`Failed to insert plays: ${insertError.message}`)
+      }
+
+      console.log('Successfully inserted plays')
+    } else {
+      console.log('No new plays to insert, all categories at maximum capacity with locked plays')
     }
-
-    console.log('Successfully inserted plays')
   } catch (error) {
     console.error('Detailed error in initializeDefaultPlayPool:', {
       error,
@@ -342,7 +357,11 @@ export async function regeneratePlayPool(): Promise<void> {
   try {
     console.log('Starting play pool regeneration...')
     
-    // Get all locked plays so we can preserve them
+    // Constants
+    const MAX_PLAYS_PER_CATEGORY = 20;
+    const categories = ['run_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'];
+    
+    // First, get all locked plays
     const { data: lockedPlays, error: lockedError } = await supabase
       .from('playpool')
       .select('*')
@@ -353,28 +372,204 @@ export async function regeneratePlayPool(): Promise<void> {
       throw lockedError
     }
     
-    // Delete all existing plays by category except locked ones
-    const categories = ['run_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game']
-    for (const category of categories) {
-      const { error: deleteError } = await supabase
-        .from('playpool')
-        .delete()
-        .eq('category', category)
-        .eq('is_locked', false)
+    const lockedPlaysByCategory: Record<string, Play[]> = {};
+    categories.forEach(category => {
+      lockedPlaysByCategory[category] = (lockedPlays || []).filter(p => p.category === category);
+      console.log(`Found ${lockedPlaysByCategory[category].length} locked plays in ${category}`);
       
-      if (deleteError) {
-        console.error(`Error clearing ${category} plays:`, {
-          code: deleteError.code,
-          message: deleteError.message,
-          details: deleteError.details,
-          hint: deleteError.hint
-        })
-        throw new Error(`Failed to clear ${category} plays: ${deleteError.message}`)
+      // If we have more than MAX_PLAYS_PER_CATEGORY locked plays, we need to delete the excess
+      if (lockedPlaysByCategory[category].length > MAX_PLAYS_PER_CATEGORY) {
+        console.warn(`Warning: ${category} has ${lockedPlaysByCategory[category].length} locked plays, which exceeds the limit of ${MAX_PLAYS_PER_CATEGORY}. Some locked plays will be deleted.`);
       }
+    });
+    
+    // Delete all unlocked plays
+    const { error: deleteError } = await supabase
+      .from('playpool')
+      .delete()
+      .eq('is_locked', false)
+    
+    if (deleteError) {
+      console.error('Error deleting unlocked plays:', deleteError)
+      throw deleteError
+    }
+    
+    // Calculate how many new plays we need for each category
+    const playsToGenerate: Record<string, number> = {};
+    
+    for (const category of categories) {
+      const lockedPlayCount = lockedPlaysByCategory[category].length;
+      playsToGenerate[category] = Math.max(0, MAX_PLAYS_PER_CATEGORY - lockedPlayCount);
+      console.log(`Will generate ${playsToGenerate[category]} new plays for ${category}`);
+    }
+    
+    // Get terminology for generating new plays
+    const { data: terminology, error: termError } = await supabase
+      .from('terminology')
+      .select('*')
+
+    if (termError) {
+      console.error('Error fetching terminology:', termError)
+      throw termError
+    }
+    
+    if (!terminology || terminology.length === 0) {
+      throw new Error('No terminology found')
     }
 
-    // Initialize new plays
-    await initializeDefaultPlayPool()
+    // Filter terminology by category
+    const formations = terminology.filter(t => t.category === 'formations')
+    const tags = terminology.filter(t => t.category === 'tags')
+    const runConcepts = terminology.filter(t => t.category === 'run_game')
+    const quickGame = terminology.filter(t => t.category === 'quick_game')
+    const dropback = terminology.filter(t => t.category === 'dropback')
+    const shotPlays = terminology.filter(t => t.category === 'shot_plays')
+    const screens = terminology.filter(t => t.category === 'screens')
+    const motions = terminology.filter(t => t.category === 'motions')
+    
+    // Helper functions
+    const getRandomItem = <T>(array: T[]): T => array[Math.floor(Math.random() * array.length)]
+    const shouldInclude = () => Math.random() > 0.5
+    const shouldIncludeMotion = () => {
+      const motionPercentage = load('motion_percentage', 25)
+      return Math.random() * 100 < motionPercentage
+    }
+    
+    // Generate new plays
+    const newPlays: Partial<Play>[] = [];
+    
+    // Run game plays
+    for (let i = 0; i < playsToGenerate['run_game']; i++) {
+      const formation = getRandomItem(formations);
+      const tag = shouldInclude() ? getRandomItem(tags) : null;
+      const runConcept = getRandomItem(runConcepts);
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
+      const strength = Math.random() > 0.5 ? '+' : '-';
+      const direction = Math.random() > 0.5 ? '+' : '-';
+
+      newPlays.push({
+        formation: formation.label || '',
+        tag: tag?.label || '',
+        strength,
+        motion_shift: motion?.label || '',
+        concept: runConcept.label || '',
+        run_concept: '',
+        run_direction: direction,
+        pass_screen_concept: '',
+        category: 'run_game',
+        is_enabled: true,
+        is_locked: false
+      });
+    }
+    
+    // Quick game plays
+    for (let i = 0; i < playsToGenerate['quick_game']; i++) {
+      const formation = getRandomItem(formations);
+      const tag = shouldInclude() ? getRandomItem(tags) : null;
+      const quickGameConcept = getRandomItem(quickGame);
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
+      const strength = Math.random() > 0.5 ? '+' : '-';
+
+      newPlays.push({
+        formation: formation.label || '',
+        tag: tag?.label || '',
+        strength,
+        motion_shift: motion?.label || '',
+        concept: quickGameConcept.label || '',
+        run_concept: '',
+        run_direction: '',
+        pass_screen_concept: '',
+        category: 'quick_game',
+        is_enabled: true,
+        is_locked: false
+      });
+    }
+    
+    // Dropback plays
+    for (let i = 0; i < playsToGenerate['dropback_game']; i++) {
+      const formation = getRandomItem(formations);
+      const tag = shouldInclude() ? getRandomItem(tags) : null;
+      const dropbackConcept = getRandomItem(dropback);
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
+      const strength = Math.random() > 0.5 ? '+' : '-';
+
+      newPlays.push({
+        formation: formation.label || '',
+        tag: tag?.label || '',
+        strength,
+        motion_shift: motion?.label || '',
+        concept: dropbackConcept.label || '',
+        run_concept: '',
+        run_direction: '',
+        pass_screen_concept: '',
+        category: 'dropback_game',
+        is_enabled: true,
+        is_locked: false
+      });
+    }
+    
+    // Shot plays
+    for (let i = 0; i < playsToGenerate['shot_plays']; i++) {
+      const formation = getRandomItem(formations);
+      const tag = shouldInclude() ? getRandomItem(tags) : null;
+      const shotPlayConcept = getRandomItem(shotPlays);
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
+      const strength = Math.random() > 0.5 ? '+' : '-';
+
+      newPlays.push({
+        formation: formation.label || '',
+        tag: tag?.label || '',
+        strength,
+        motion_shift: motion?.label || '',
+        concept: shotPlayConcept.label || '',
+        run_concept: '',
+        run_direction: '',
+        pass_screen_concept: '',
+        category: 'shot_plays',
+        is_enabled: true,
+        is_locked: false
+      });
+    }
+    
+    // Screen plays
+    for (let i = 0; i < playsToGenerate['screen_game']; i++) {
+      const formation = getRandomItem(formations);
+      const tag = shouldInclude() ? getRandomItem(tags) : null;
+      const screenConcept = getRandomItem(screens);
+      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
+      const strength = Math.random() > 0.5 ? '+' : '-';
+      const direction = Math.random() > 0.5 ? '+' : '-';
+
+      newPlays.push({
+        formation: formation.label || '',
+        tag: tag?.label || '',
+        strength,
+        motion_shift: motion?.label || '',
+        concept: '',
+        run_concept: '',
+        run_direction: '',
+        pass_screen_concept: screenConcept.label || '',
+        screen_direction: direction,
+        category: 'screen_game',
+        is_enabled: true,
+        is_locked: false
+      });
+    }
+    
+    // Insert the new plays if any
+    if (newPlays.length > 0) {
+      console.log(`Inserting ${newPlays.length} new plays`);
+      const { error: insertError } = await supabase
+        .from('playpool')
+        .insert(newPlays);
+        
+      if (insertError) {
+        console.error('Error inserting new plays:', insertError);
+        throw insertError;
+      }
+    } else {
+      console.log('No new plays to insert');
+    }
     
     console.log('Successfully regenerated play pool')
   } catch (error) {

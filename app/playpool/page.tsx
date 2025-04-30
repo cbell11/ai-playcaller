@@ -126,7 +126,27 @@ export default function PlayPoolPage() {
   }
 
   const getPlaysByCategory = (category: string) => {
-    return plays.filter(play => play.category === category)
+    const categoryPlays = plays.filter(play => play.category === category);
+    
+    // If we have more than 20 plays, prioritize locked plays
+    if (categoryPlays.length > 20) {
+      // First include all locked plays
+      const lockedPlays = categoryPlays.filter(play => play.is_locked);
+      
+      // If we have room for more, add unlocked plays until we hit 20
+      if (lockedPlays.length < 20) {
+        const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
+        // Only take enough unlocked plays to reach a total of 20
+        const unlockedPlaysToInclude = unlockedPlays.slice(0, 20 - lockedPlays.length);
+        return [...lockedPlays, ...unlockedPlaysToInclude];
+      }
+      
+      // If we have more than 20 locked plays, just return the first 20
+      return lockedPlays.slice(0, 20);
+    }
+    
+    // If we have 20 or fewer plays, return all of them
+    return categoryPlays;
   }
 
   const handleStartEdit = (play: Play) => {
