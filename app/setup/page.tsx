@@ -6,7 +6,7 @@ import { Plus, Pencil, Check, Trash2, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { getTerminology, addTerminology, updateTerminology, deleteTerminology, initializeDefaultTerminology, Terminology, testSupabaseConnection } from "@/lib/terminology"
+import { getTerminology, addTerminology, updateTerminology, batchUpdateTerminology, deleteTerminology, initializeDefaultTerminology, Terminology, testSupabaseConnection } from "@/lib/terminology"
 import { updatePlayPoolTerminology } from "@/lib/playpool"
 
 // Extend Terminology interface to include UI state
@@ -154,6 +154,8 @@ export default function SetupPage() {
   const [error, setError] = useState<string | null>(null)
   const [savedSections, setSavedSections] = useState<Record<string, boolean>>({})
   const [savingCategories, setSavingCategories] = useState<Record<string, boolean>>({})
+  const [needsPlayPoolUpdate, setNeedsPlayPoolUpdate] = useState(false)
+  const [updatingPlayPool, setUpdatingPlayPool] = useState(false)
 
   useEffect(() => {
     const loadTerminology = async () => {
@@ -310,6 +312,39 @@ export default function SetupPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Terminology Setup</h1>
         <div className="flex gap-4">
+          {needsPlayPoolUpdate && (
+            <Button 
+              variant="outline"
+              onClick={async () => {
+                try {
+                  setUpdatingPlayPool(true);
+                  await updatePlayPoolTerminology();
+                  setNeedsPlayPoolUpdate(false);
+                } catch (error) {
+                  console.error('Error updating play pool:', error);
+                } finally {
+                  setUpdatingPlayPool(false);
+                }
+              }}
+              disabled={updatingPlayPool}
+              className="bg-yellow-50 border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+            >
+              {updatingPlayPool ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-yellow-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Updating Play Pool...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">⚠️</span>
+                  Sync Changes to Play Pool
+                </>
+              )}
+            </Button>
+          )}
           <Button 
             variant="outline"
             onClick={() => router.push('/playpool')}
@@ -351,12 +386,11 @@ export default function SetupPage() {
                         
                         // Save dirty terms for this category only
                         const dirtyTerms = terminologyState[category].filter(term => term.isDirty);
-                        for (const term of dirtyTerms) {
-                          await updateTerminology(term.id, {
-                            concept: term.concept,
-                            label: term.label
-                          });
-                        }
+                        await batchUpdateTerminology(dirtyTerms.map(term => ({
+                          id: term.id,
+                          concept: term.concept,
+                          label: term.label
+                        })));
                         
                         // Update only this category's terms to remove dirty flags
                         setTerminologyState(prev => ({
@@ -367,8 +401,8 @@ export default function SetupPage() {
                           }))
                         }));
                         
-                        // Update play pool after saving a section
-                        await updatePlayPoolTerminology();
+                        // Set flag that play pool needs to be updated
+                        setNeedsPlayPoolUpdate(true);
                         
                         // Mark this section as saved
                         setSavedSections({
@@ -479,12 +513,34 @@ export default function SetupPage() {
         >
           ← Back to Home
         </Button>
-        <Button
-          variant="outline"
-          onClick={() => router.push('/playpool')}
-        >
-          Continue to Play Pool →
-        </Button>
+        <div className="flex gap-2">
+          {needsPlayPoolUpdate && (
+            <Button 
+              variant="outline"
+              onClick={async () => {
+                try {
+                  setUpdatingPlayPool(true);
+                  await updatePlayPoolTerminology();
+                  setNeedsPlayPoolUpdate(false);
+                } catch (error) {
+                  console.error('Error updating play pool:', error);
+                } finally {
+                  setUpdatingPlayPool(false);
+                }
+              }}
+              disabled={updatingPlayPool}
+              className="bg-yellow-50 border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+            >
+              {updatingPlayPool ? "Updating..." : "Sync to Play Pool"}
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => router.push('/playpool')}
+          >
+            Continue to Play Pool →
+          </Button>
+        </div>
       </div>
     </div>
   )

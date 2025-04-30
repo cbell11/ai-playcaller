@@ -56,10 +56,37 @@ export async function updateTerminology(id: string, updates: { concept?: string,
       throw error
     }
 
-    // After terminology is updated, update all plays that use this terminology
-    await updatePlayPoolTerminology()
+    // Removed automatic updatePlayPoolTerminology call
   } catch (error) {
     console.error('Error in updateTerminology:', error)
+    throw error
+  }
+}
+
+// New function to batch update multiple terms at once
+export async function batchUpdateTerminology(updates: Array<{id: string, concept?: string, label?: string, is_enabled?: boolean}>): Promise<void> {
+  try {
+    if (updates.length === 0) return;
+    
+    // Prepare batch updates
+    const promises = updates.map(update => {
+      const { id, ...fields } = update;
+      const filteredUpdates: { [key: string]: any } = {}
+      if (fields.concept !== undefined) filteredUpdates.concept = fields.concept
+      if (fields.label !== undefined) filteredUpdates.label = fields.label
+      if (fields.is_enabled !== undefined) filteredUpdates.is_enabled = fields.is_enabled
+      
+      return supabase
+        .from('terminology')
+        .update(filteredUpdates)
+        .eq('id', id);
+    });
+    
+    // Execute all updates in parallel
+    await Promise.all(promises);
+    
+  } catch (error) {
+    console.error('Error in batchUpdateTerminology:', error)
     throw error
   }
 }
