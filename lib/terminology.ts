@@ -121,6 +121,18 @@ export async function initializeDefaultTerminology(): Promise<void> {
         { concept: "Zoom", label: "zm", category: "motions" },
         { concept: "Flash", label: "fl", category: "motions" },
         
+        // Shifts
+        { concept: "Dodge", label: "dodge", category: "shifts" },
+        { concept: "Texas", label: "texas", category: "shifts" },
+        { concept: "Exchange", label: "xchg", category: "shifts" },
+        { concept: "Swap", label: "swap", category: "shifts" },
+        
+        // Pass Protections
+        { concept: "Base", label: "base", category: "pass_protections" },
+        { concept: "Slide", label: "slide", category: "pass_protections" },
+        { concept: "Max", label: "max", category: "pass_protections" },
+        { concept: "Half", label: "half", category: "pass_protections" },
+        
         // Run Game
         { concept: "Inside Zone", label: "iz", category: "run_game" },
         { concept: "Outside Zone", label: "oz", category: "run_game" },

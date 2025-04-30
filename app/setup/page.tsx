@@ -153,6 +153,7 @@ export default function SetupPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savedSections, setSavedSections] = useState<Record<string, boolean>>({})
+  const [savingCategories, setSavingCategories] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const loadTerminology = async () => {
@@ -294,7 +295,9 @@ export default function SetupPage() {
   const terminologySets = {
     formations: { title: "Formations", category: "formations" },
     tags: { title: "Formation Tags", category: "tags" },
-    motions: { title: "Motions/Shifts", category: "motions" },
+    motions: { title: "Motions", category: "motions" },
+    shifts: { title: "Shifts", category: "shifts" },
+    pass_protections: { title: "Pass Protections", category: "pass_protections" },
     run_game: { title: "Run Game", category: "run_game" },
     quick_game: { title: "Quick Game", category: "quick_game" },
     dropback: { title: "Dropback Game", category: "dropback" },
@@ -340,6 +343,12 @@ export default function SetupPage() {
                     size="sm"
                     onClick={async () => {
                       try {
+                        // Set loading state for this category
+                        setSavingCategories(prev => ({
+                          ...prev,
+                          [category]: true
+                        }));
+                        
                         // Save dirty terms for this category only
                         const dirtyTerms = terminologyState[category].filter(term => term.isDirty);
                         for (const term of dirtyTerms) {
@@ -360,7 +369,7 @@ export default function SetupPage() {
                         
                         // Update play pool after saving a section
                         await updatePlayPoolTerminology();
-
+                        
                         // Mark this section as saved
                         setSavedSections({
                           ...savedSections,
@@ -376,12 +385,31 @@ export default function SetupPage() {
                         }, 2000);
                       } catch (error) {
                         console.error(`Error saving ${category}:`, error);
+                      } finally {
+                        // Clear loading state for this category
+                        setSavingCategories(prev => ({
+                          ...prev,
+                          [category]: false
+                        }));
                       }
                     }}
                     className="bg-green-600 hover:bg-green-700 text-white"
+                    disabled={savingCategories[category]}
                   >
-                    <Save className="h-3 w-3 mr-1" />
-                    Save
+                    {savingCategories[category] ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-3 w-3 mr-1" />
+                        Save
+                      </>
+                    )}
                   </Button>
                 )}
                 <Button
