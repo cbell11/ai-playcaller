@@ -47,6 +47,7 @@ export default function PlayPoolPage() {
   const [editingPlay, setEditingPlay] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<Play>>({})
   const [showCustomInput, setShowCustomInput] = useState<{ [key: string]: boolean }>({})
+  const [clearingLocks, setClearingLocks] = useState(false)
 
   useEffect(() => {
     save('motion_percentage', motionPercentage)
@@ -376,6 +377,33 @@ export default function PlayPoolPage() {
     )
   }
 
+  const handleClearLockedPlays = async () => {
+    try {
+      setClearingLocks(true)
+      setError(null)
+      
+      // Get all locked plays
+      const lockedPlays = plays.filter(p => p.is_locked)
+      
+      if (lockedPlays.length === 0) {
+        setClearingLocks(false)
+        return // No locked plays to clear
+      }
+      
+      // Unlock each play
+      for (const play of lockedPlays) {
+        await updatePlay(play.id, { is_locked: false })
+      }
+      
+      // Refresh the plays list
+      await loadPlays()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to clear locked plays')
+    } finally {
+      setClearingLocks(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -402,16 +430,20 @@ export default function PlayPoolPage() {
         <h1 className="text-3xl font-bold">Play Pool</h1>
         <div className="flex gap-4">
           <Button 
-            variant="outline" 
+            variant="default" 
+            className="bg-blue-500 hover:bg-blue-600 text-white"
             onClick={handleRegeneratePlayPool}
             disabled={regenerating}
           >
-            {regenerating ? 'Regenerating...' : 'Regenerate Play Pool'}
+            {regenerating ? 'Regenerating...' : 'Regenerate Entire Play Pool'}
           </Button>
           <Button 
-            onClick={() => router.push('/setup')}
+            variant="default"
+            className="bg-amber-500 hover:bg-amber-600 text-white"
+            onClick={handleClearLockedPlays}
+            disabled={clearingLocks}
           >
-            ← Back to Setup
+            {clearingLocks ? 'Clearing...' : 'Clear All Locked Plays'}
           </Button>
           <Button 
             onClick={() => router.push('/scouting')}
