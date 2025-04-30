@@ -16,6 +16,7 @@ export interface Play {
   category: 'run_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'
   is_enabled: boolean
   is_favorite: boolean
+  is_locked?: boolean
   created_at?: string
 }
 
@@ -64,6 +65,7 @@ export async function getPlayPool(): Promise<Play[]> {
       .from('playpool')
       .select('*')
       .order('category')
+      .order('is_locked', { ascending: false })
       .order('concept')
     
     if (error) {
@@ -208,7 +210,8 @@ export async function initializeDefaultPlayPool(): Promise<void> {
         run_direction: direction,
         pass_screen_concept: '',
         category: 'run_game' as const,
-        is_enabled: true
+        is_enabled: true,
+        is_locked: false
       }
     })
 
@@ -230,7 +233,8 @@ export async function initializeDefaultPlayPool(): Promise<void> {
         run_direction: '',
         pass_screen_concept: '',
         category: 'quick_game' as const,
-        is_enabled: true
+        is_enabled: true,
+        is_locked: false
       }
     })
 
@@ -252,7 +256,8 @@ export async function initializeDefaultPlayPool(): Promise<void> {
         run_direction: '',
         pass_screen_concept: '',
         category: 'dropback_game' as const,
-        is_enabled: true
+        is_enabled: true,
+        is_locked: false
       }
     })
 
@@ -274,7 +279,8 @@ export async function initializeDefaultPlayPool(): Promise<void> {
         run_direction: '',
         pass_screen_concept: '',
         category: 'shot_plays' as const,
-        is_enabled: true
+        is_enabled: true,
+        is_locked: false
       }
     })
 
@@ -298,7 +304,8 @@ export async function initializeDefaultPlayPool(): Promise<void> {
         pass_screen_concept: screenConcept.label || '',
         screen_direction: direction,
         category: 'screen_game' as const,
-        is_enabled: true
+        is_enabled: true,
+        is_locked: false
       }
     })
 
@@ -335,13 +342,25 @@ export async function regeneratePlayPool(): Promise<void> {
   try {
     console.log('Starting play pool regeneration...')
     
-    // Delete all existing plays by category
+    // Get all locked plays so we can preserve them
+    const { data: lockedPlays, error: lockedError } = await supabase
+      .from('playpool')
+      .select('*')
+      .eq('is_locked', true)
+    
+    if (lockedError) {
+      console.error('Error fetching locked plays:', lockedError)
+      throw lockedError
+    }
+    
+    // Delete all existing plays by category except locked ones
     const categories = ['run_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game']
     for (const category of categories) {
       const { error: deleteError } = await supabase
         .from('playpool')
         .delete()
         .eq('category', category)
+        .eq('is_locked', false)
       
       if (deleteError) {
         console.error(`Error clearing ${category} plays:`, {

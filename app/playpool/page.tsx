@@ -9,7 +9,7 @@ import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Pencil, X, Check, Plus, Star } from "lucide-react"
+import { Pencil, X, Check, Plus, Star, Lock, Unlock } from "lucide-react"
 import { getPlayPool, updatePlay, Play, testPlayPoolConnection, regeneratePlayPool, toggleFavoritePlay } from "@/lib/playpool"
 import { load, save } from "@/lib/local"
 
@@ -113,6 +113,15 @@ export default function PlayPoolPage() {
       setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update favorite status')
+    }
+  }
+
+  const handleToggleLock = async (play: Play) => {
+    try {
+      const updatedPlay = await updatePlay(play.id, { is_locked: !play.is_locked })
+      setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update lock status')
     }
   }
 
@@ -288,8 +297,29 @@ export default function PlayPoolPage() {
       )
     }
 
-    // Handle case where is_favorite might be undefined
+    // Handle case where is_favorite and is_locked might be undefined
     const isFavorite = play.is_favorite || false
+    const isLocked = play.is_locked || false
+
+    // Custom lock icon with only body filled
+    const CustomLock = () => (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="lucide lucide-lock h-4 w-4"
+      >
+        {/* Shackle (not filled) */}
+        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2Z" fill="currentColor" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    );
 
     return (
       <>
@@ -311,6 +341,15 @@ export default function PlayPoolPage() {
             className={isFavorite ? 'text-yellow-400' : 'text-gray-400 hover:text-gray-600'}
           >
             <Star className="h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleToggleLock(play)}
+            className={isLocked ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'}
+            title={isLocked ? "Play will be preserved when regenerating" : "Lock to preserve when regenerating"}
+          >
+            {isLocked ? <CustomLock /> : <Unlock className="h-4 w-4" />}
           </Button>
         </div>
       </>
@@ -396,6 +435,26 @@ export default function PlayPoolPage() {
         const categoryPlays = getPlaysByCategory(category)
         const enabledCount = categoryPlays.filter(p => p.is_enabled).length
 
+        // Split plays into locked and unlocked
+        const lockedPlays = categoryPlays.filter(p => p.is_locked)
+        const unlockedPlays = categoryPlays.filter(p => !p.is_locked)
+        
+        // Create ordered array with locked plays first, then unlocked plays
+        const orderedPlays = [...lockedPlays, ...unlockedPlays]
+        
+        // Determine if we need a grid layout
+        const useGridLayout = category === 'run_game' || category === 'quick_game' || 
+                              category === 'dropback_game' || category === 'shot_plays' || 
+                              category === 'screen_game'
+        
+        // Calculate how many plays to put in each column
+        const totalPlays = orderedPlays.length
+        const firstColumnCount = Math.ceil(totalPlays / 2)
+        
+        // Split into left and right columns
+        const leftColumnPlays = orderedPlays.slice(0, firstColumnCount)
+        const rightColumnPlays = orderedPlays.slice(firstColumnCount)
+
         return (
           <Card key={category} className="mb-8">
             <CardHeader>
@@ -407,13 +466,34 @@ export default function PlayPoolPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`${category === 'run_game' || category === 'quick_game' || category === 'dropback_game' || category === 'shot_plays' || category === 'screen_game' ? 'grid grid-cols-2 gap-4' : 'space-y-4'}`}>
-                {categoryPlays.map((play) => (
-                  <div key={play.id} className="flex justify-between items-center p-4 bg-white rounded-lg shadow-sm">
-                    {renderPlayContent(play)}
+              {useGridLayout ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    {leftColumnPlays.map((play) => (
+                      <div key={play.id} className="flex justify-between items-center p-4 bg-white rounded-lg shadow-sm">
+                        {renderPlayContent(play)}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                  {rightColumnPlays.length > 0 && (
+                    <div className="space-y-4">
+                      {rightColumnPlays.map((play) => (
+                        <div key={play.id} className="flex justify-between items-center p-4 bg-white rounded-lg shadow-sm">
+                          {renderPlayContent(play)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {orderedPlays.map((play) => (
+                    <div key={play.id} className="flex justify-between items-center p-4 bg-white rounded-lg shadow-sm">
+                      {renderPlayContent(play)}
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )
