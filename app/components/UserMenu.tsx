@@ -41,7 +41,8 @@ export function UserMenu() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    router.push("/auth");
+    // Force a page reload to the auth page instead of using router.push
+    window.location.href = "/auth";
   };
 
   if (!user) return null;

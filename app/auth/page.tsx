@@ -32,7 +32,9 @@ export default function AuthPage() {
         });
         
         if (error) throw error;
-        router.push("/setup");
+        
+        // Force a page reload to the setup page instead of using router.push
+        window.location.href = "/setup";
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -41,10 +43,10 @@ export default function AuthPage() {
         
         if (error) throw error;
         setError("Check your email for the confirmation link.");
+        setLoading(false);
       }
     } catch (error: any) {
       setError(error.message || "An error occurred during authentication");
-    } finally {
       setLoading(false);
     }
   };

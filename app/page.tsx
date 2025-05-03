@@ -18,10 +18,11 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        router.push("/auth");
+        // Use window.location for a full page redirect instead of router.push
+        window.location.href = "/auth";
       } else {
-        // User is authenticated, can stay on this page or redirect to a default page
-        router.push("/setup");
+        // User is authenticated, redirect to setup page with a full page reload
+        window.location.href = "/setup";
       }
     };
 
