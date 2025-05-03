@@ -592,12 +592,15 @@ export default function PlanPage() {
   // Helper function to render a play list card with drag and drop
   const renderPlayListCard = (
     title: string,
-    plays: PlayCall[],
+    plays: PlayCall[] | undefined,
     expectedLength: number,
     bgColor: string = "bg-blue-100",
     section: keyof GamePlan
   ) => {
-    const filledPlays = [...plays];
+    // Add safety check for undefined
+    const safetyPlays = plays || [];
+    
+    const filledPlays = [...safetyPlays];
     
     // Ensure the array has exactly expectedLength items
     while (filledPlays.length < expectedLength) {
@@ -826,12 +829,15 @@ export default function PlanPage() {
   };
 
   // Function to check if a play is already in a section
-  const isPlayInSection = (play: Play, sectionPlays: PlayCall[]): boolean => {
+  const isPlayInSection = (play: Play, sectionPlays: PlayCall[] | undefined): boolean => {
     if (!playPoolSection) return false;
+    
+    // Add safety check for undefined
+    const safetyPlays = sectionPlays || [];
     
     const playText = formatPlayFromPool(play);
     
-    return sectionPlays.some(sectionPlay => {
+    return safetyPlays.some(sectionPlay => {
       // If the play field directly contains the formatted play
       if (sectionPlay.play === playText) return true;
       
@@ -1021,9 +1027,12 @@ export default function PlanPage() {
   };
 
   // Add a function to format plays for printable version
-  const renderPrintableList = (title: string, plays: PlayCall[], bgColor: string = "bg-blue-100") => {
+  const renderPrintableList = (title: string, plays: PlayCall[] | undefined, bgColor: string = "bg-blue-100") => {
+    // Check if plays is undefined and provide an empty array as fallback
+    const safetyPlays = plays || [];
+    
     // Filter only non-empty plays to save space
-    const filledPlays = plays.filter(p => p.formation);
+    const filledPlays = safetyPlays.filter(p => p.formation);
     
     // Determine the number of plays to show based on the script type
     const maxPlaysToShow = title === "Opening Script" ? 7 : 
