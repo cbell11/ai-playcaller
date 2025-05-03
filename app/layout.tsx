@@ -35,7 +35,8 @@ export default function RootLayout({
             <NavLinks />
           </div>
           <div className="flex-1 flex flex-col">
-            <div className="h-14 border-b flex items-center justify-end px-4">
+            <div className="h-14 border-b flex items-center justify-between px-6">
+              <span className="text-gray-500 text-sm">Football Strategy Assistant</span>
               <UserMenu />
             </div>
             <main className="flex-1 p-4">
