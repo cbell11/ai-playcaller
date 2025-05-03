@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NavLinks } from "./components/NavLinks"
+import { UserMenu } from "./components/UserMenu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,9 +34,14 @@ export default function RootLayout({
             </div>
             <NavLinks />
           </div>
-          <main className="flex-1 p-4">
-            {children}
-          </main>
+          <div className="flex-1 flex flex-col">
+            <div className="h-14 border-b flex items-center justify-end px-4">
+              <UserMenu />
+            </div>
+            <main className="flex-1 p-4">
+              {children}
+            </main>
+          </div>
         </div>
       </body>
     </html>

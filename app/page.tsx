@@ -1,10 +1,43 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { createBrowserClient } from '@supabase/ssr';
+
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkUser = async () => {
+      // Create Supabase client in the browser
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        router.push("/auth");
+      } else {
+        // User is authenticated, can stay on this page or redirect to a default page
+        router.push("/setup");
+      }
+    };
+
+    checkUser();
+  }, [router]);
+
+  // Display a loading state while checking authentication
   return (
     <div className="flex flex-col items-center justify-center h-[calc(100vh-2rem)]">
       <h1 className="text-4xl font-bold mb-4">Welcome to AI Playcaller</h1>
-      <p className="text-lg text-gray-600 mb-8">
-        Get started by configuring your terminology.
-      </p>
+      <div className="flex flex-col items-center gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <p className="text-lg text-gray-600">
+          Checking authentication...
+        </p>
+      </div>
     </div>
   );
 }
