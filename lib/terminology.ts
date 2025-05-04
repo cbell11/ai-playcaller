@@ -9,6 +9,32 @@ export interface Terminology {
   isEditing?: boolean  // Optional property for UI state
 }
 
+// Define available formation concepts
+export const FORMATION_CONCEPTS = [
+  // 2x2 Formations
+  { concept: "2x2 Open (Field)", label: "Spread +", imageUrl: "https://res.cloudinary.com/dfvzvbygc/image/upload/v1746348062/Screenshot_2025-05-04_at_10.40.57_AM_jfs2an.png" },
+  { concept: "2x2 Open (Boundary)", label: "Spread -", imageUrl: "https://res.cloudinary.com/dfvzvbygc/image/upload/v1746348062/Screenshot_2025-05-04_at_10.40.57_AM_jfs2an.png" },
+  { concept: "2x2 Y Attached (Field)", label: "Deuce +", imageUrl: "/formations/2x2-y-attached-field.png" },
+  { concept: "2x2 Y Attached (Boundary)", label: "Deuce -", imageUrl: "/formations/2x2-y-attached-boundary.png" },
+  { concept: "2x2 2 TE Attached (Field)", label: "Queen +", imageUrl: "/formations/2x2-2te-attached-field.png" },
+  { concept: "2x2 2 TE Attached (Boundary)", label: "Queen -", imageUrl: "/formations/2x2-2te-attached-boundary.png" },
+  // 3x1 Formations
+  { concept: "3x1 Open (Field)", label: "Trips +", imageUrl: "/formations/3x1-open-field.png" },
+  { concept: "3x1 Open (Boundary)", label: "Trips -", imageUrl: "/formations/3x1-open-boundary.png" },
+  { concept: "3x1 Y Attached (Field)", label: "Trey +", imageUrl: "/formations/3x1-y-attached-field.png" },
+  { concept: "3x1 Y Attached (Boundary)", label: "Trey -", imageUrl: "/formations/3x1-y-attached-boundary.png" },
+  { concept: "3x1 2 TE Wing (Field)", label: "Sam +", imageUrl: "/formations/3x1-2te-wing-field.png" },
+  { concept: "3x1 2 TE Wing (Boundary)", label: "Sam -", imageUrl: "/formations/3x1-2te-wing-boundary.png" },
+  { concept: "3x1 Backside TE Attached (Field)", label: "Closed + ", imageUrl: "/formations/3x1-backside-te-attached-field.png" },
+  { concept: "3x1 Backside TE Attached (Boundary)", label: "Closed -", imageUrl: "/formations/3x1-backside-te-attached-boundary.png" },
+  { concept: "3x1 Bunch (Field)", label: "Bunch + ", imageUrl: "/formations/3x1-bunch-field.png" },
+  { concept: "3x1 Bunch (Boundary)", label: "Bunch -", imageUrl: "/formations/3x1-bunch-boundary.png" },
+ 
+  // 5WR Formations
+  { concept: "5 WR (Field)", label: "Empty +", imageUrl: "/formations/5wr-field.png" },
+  { concept: "5 WR (Boundary)", label: "Empty -", imageUrl: "/formations/5wr-boundary.png" },
+] as const
+
 export async function getTerminology(): Promise<Terminology[]> {
   const { data, error } = await supabase
     .from('terminology')
@@ -172,5 +198,84 @@ export async function testSupabaseConnection(): Promise<boolean> {
       stack: error instanceof Error ? error.stack : undefined
     })
     throw error // Let the calling code handle the error
+  }
+}
+
+// Function to update formation concepts to match predefined list
+export async function updateFormationConcepts(): Promise<void> {
+  try {
+    // Get all current formations
+    const { data: currentFormations, error: fetchError } = await supabase
+      .from('terminology')
+      .select('*')
+      .eq('category', 'formations')
+
+    if (fetchError) {
+      throw fetchError
+    }
+
+    if (!currentFormations) {
+      return
+    }
+
+    // Create a map of current formations by concept
+    const currentFormationsMap = new Map(
+      currentFormations.map(f => [f.concept, f])
+    )
+
+    // Prepare updates for existing formations
+    const updates: Array<{id: string, concept?: string, label?: string, is_enabled?: boolean}> = 
+      FORMATION_CONCEPTS
+        .map(formation => {
+          const existingFormation = currentFormationsMap.get(formation.concept)
+          if (existingFormation) {
+            return {
+              id: existingFormation.id,
+              concept: formation.concept,
+              label: formation.label
+            }
+          }
+          return null
+        })
+        .filter((update): update is {id: string, concept: string, label: string} => update !== null)
+
+    // Delete formations that are not in the predefined list
+    const formationsToDelete = currentFormations
+      .filter(f => !FORMATION_CONCEPTS.some(fc => fc.concept === f.concept))
+      .map(f => f.id)
+
+    // Add new formations that don't exist yet
+    const newFormations = FORMATION_CONCEPTS
+      .filter(formation => !currentFormationsMap.has(formation.concept))
+      .map(formation => ({
+        concept: formation.concept,
+        label: formation.label,
+        category: 'formations'
+      }))
+
+    // Execute updates
+    if (updates.length > 0) {
+      await batchUpdateTerminology(updates)
+    }
+
+    // Delete old formations
+    if (formationsToDelete.length > 0) {
+      await Promise.all(
+        formationsToDelete.map(id => deleteTerminology(id))
+      )
+    }
+
+    // Add new formations
+    if (newFormations.length > 0) {
+      await Promise.all(
+        newFormations.map(formation => addTerminology(formation))
+      )
+    }
+
+    // Update play pool to reflect changes
+    await updatePlayPoolTerminology()
+  } catch (error) {
+    console.error('Error updating formation concepts:', error)
+    throw error
   }
 } 

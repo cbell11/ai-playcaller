@@ -2,12 +2,18 @@
 
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Check, Trash2, Save } from "lucide-react"
+import { Plus, Pencil, Check, Trash2, Save, HelpCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { getTerminology, addTerminology, updateTerminology, batchUpdateTerminology, deleteTerminology, initializeDefaultTerminology, Terminology, testSupabaseConnection } from "@/lib/terminology"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getTerminology, addTerminology, updateTerminology, batchUpdateTerminology, deleteTerminology, initializeDefaultTerminology, Terminology, testSupabaseConnection, FORMATION_CONCEPTS, updateFormationConcepts } from "@/lib/terminology"
 import { updatePlayPoolTerminology } from "@/lib/playpool"
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card"
 
 // Extend Terminology interface to include UI state
 interface TerminologyWithUI extends Terminology {
@@ -23,11 +29,24 @@ interface TerminologySetProps {
 }
 
 const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate }) => {
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Get available formations that haven't been selected yet
+  const getAvailableFormations = () => {
+    const selectedConcepts = terms.map(term => term.concept)
+    return FORMATION_CONCEPTS.filter(formation => !selectedConcepts.includes(formation.concept))
+  }
+
   const addRow = async () => {
     try {
+      const availableFormations = getAvailableFormations()
+      if (availableFormations.length === 0) {
+        return // Don't add if no formations available
+      }
+
       const newTerm = await addTerminology({
-        concept: "New Concept",
-        label: "",
+        concept: availableFormations[0].concept,
+        label: availableFormations[0].label,
         category: category
       })
       onUpdate([...terms, { ...newTerm, isEditing: true, isDirty: true }])
@@ -37,7 +56,17 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const updateConcept = (term: TerminologyWithUI, newConcept: string) => {
-    onUpdate(terms.map(t => t.id === term.id ? { ...term, concept: newConcept, isDirty: true } : t))
+    // For formations, ensure the concept is from the predefined list and not already selected
+    if (category === "formations") {
+      const formation = FORMATION_CONCEPTS.find(f => f.concept === newConcept)
+      const isAlreadySelected = terms.some(t => t.id !== term.id && t.concept === newConcept)
+      
+      if (formation && !isAlreadySelected) {
+        onUpdate(terms.map(t => t.id === term.id ? { ...term, concept: formation.concept, label: formation.label, isDirty: true } : t))
+      }
+    } else {
+      onUpdate(terms.map(t => t.id === term.id ? { ...term, concept: newConcept, isDirty: true } : t))
+    }
   }
 
   const updateLabel = (term: TerminologyWithUI, newLabel: string) => {
@@ -45,11 +74,21 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const toggleEdit = (term: TerminologyWithUI) => {
+    // For formations, ensure the concept is from the predefined list when entering edit mode
+    if (category === "formations" && !FORMATION_CONCEPTS.some(f => f.concept === term.concept)) {
+      term.concept = FORMATION_CONCEPTS[0].concept
+      term.label = FORMATION_CONCEPTS[0].label
+    }
     onUpdate(terms.map(t => t.id === term.id ? { ...t, isEditing: !t.isEditing } : t))
   }
 
   const saveItem = async (term: TerminologyWithUI) => {
     try {
+      // For formations, ensure the concept is from the predefined list before saving
+      if (category === "formations" && !FORMATION_CONCEPTS.some(f => f.concept === term.concept)) {
+        term.concept = FORMATION_CONCEPTS[0].concept
+        term.label = FORMATION_CONCEPTS[0].label
+      }
       await updateTerminology(term.id, {
         concept: term.concept,
         label: term.label
@@ -69,14 +108,88 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     }
   }
 
+  const handleSaveAll = async () => {
+    try {
+      setIsSaving(true)
+      // Save all dirty terms
+      const dirtyTerms = terms.filter(term => term.isDirty)
+      if (dirtyTerms.length > 0) {
+        await batchUpdateTerminology(dirtyTerms.map(term => ({
+          id: term.id,
+          concept: term.concept,
+          label: term.label
+        })))
+        
+        // Update terms to remove dirty flags
+        onUpdate(terms.map(term => ({
+          ...term,
+          isDirty: false
+        })))
+      }
+    } catch (error) {
+      console.error('Error saving terms:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <Card className="mb-8">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-xl font-bold">{title}</CardTitle>
+        <div className="flex space-x-2 items-center">
+          {terms.some(term => term.isDirty) && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSaveAll}
+              disabled={isSaving}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isSaving ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-3 w-3 mr-1" />
+                  Save
+                </>
+              )}
+            </Button>
+          )}
+          {category === "formations" ? (
+            getAvailableFormations().length > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={addRow}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                Add Row
+              </Button>
+            ) : (
+              <span className="text-sm text-gray-500">All formations have been selected</span>
+            )
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={addRow}
+              className="text-blue-600 hover:text-blue-800"
+            >
+              Add Row
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="mb-6">
-          <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-4 font-medium mb-2 px-2">
+          <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-4 font-medium mb-2 px-2">
             <div>Concept</div>
             <div>Label</div>
             <div></div>
@@ -84,17 +197,77 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           </div>
 
           {terms.map((term) => (
-            <div key={`row-${term.id}`} className="grid grid-cols-[1fr_1fr_auto_auto] gap-4 items-center py-2 border-b">
+            <div key={`row-${term.id}`} className="grid grid-cols-[2fr_1fr_auto_auto] gap-4 items-center py-2 border-b">
               <div key={`concept-${term.id}`}>
-                {term.isEditing ? (
-                  <Input 
-                    key={`concept-input-${term.id}`}
-                    value={term.concept} 
-                    onChange={(e) => updateConcept(term, e.target.value)} 
-                    className="h-9" 
-                  />
+                {term.isEditing || category === "formations" ? (
+                  category === "formations" ? (
+                    <Select
+                      value={term.concept}
+                      onValueChange={(value) => updateConcept(term, value)}
+                    >
+                      <SelectTrigger className="h-9 w-full bg-white border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors duration-200">
+                        <SelectValue placeholder="Select formation" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200 shadow-lg rounded-md">
+                        {FORMATION_CONCEPTS.map((formation) => {
+                          const isSelected = terms.some(t => t.id !== term.id && t.concept === formation.concept)
+                          return (
+                            <SelectItem 
+                              key={formation.concept} 
+                              value={formation.concept}
+                              disabled={isSelected}
+                              className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{formation.concept}</span>
+                                  {formation.imageUrl && (
+                                    <HoverCard>
+                                      <HoverCardTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-4 w-4 text-gray-400 hover:text-gray-600"
+                                        >
+                                          <HelpCircle className="h-4 w-4" />
+                                        </Button>
+                                      </HoverCardTrigger>
+                                      <HoverCardContent className="w-80">
+                                        <div className="flex flex-col gap-2">
+                                          <h4 className="text-sm font-semibold">{formation.concept}</h4>
+                                          <img
+                                            src={formation.imageUrl}
+                                            alt={formation.concept}
+                                            className="w-full rounded-md"
+                                          />
+                                        </div>
+                                      </HoverCardContent>
+                                    </HoverCard>
+                                  )}
+                                </div>
+                                {isSelected && (
+                                  <span className="text-xs text-gray-400 ml-2">(selected)</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input 
+                      key={`concept-input-${term.id}`}
+                      value={term.concept} 
+                      onChange={(e) => updateConcept(term, e.target.value)} 
+                      className="h-9" 
+                    />
+                  )
                 ) : (
-                  <span key={`concept-text-${term.id}`} className="text-gray-600">{term.concept}</span>
+                  <span key={`concept-text-${term.id}`} className="text-gray-600">
+                    {category === "formations" && !FORMATION_CONCEPTS.some(f => f.concept === term.concept) 
+                      ? FORMATION_CONCEPTS[0].concept 
+                      : term.concept}
+                  </span>
                 )}
               </div>
               <div key={`label-${term.id}`}>
@@ -138,10 +311,23 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           ))}
         </div>
 
-        <Button variant="outline" onClick={addRow}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Row
-        </Button>
+        {category === "formations" ? (
+          getAvailableFormations().length > 0 ? (
+            <Button variant="outline" onClick={addRow}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Row
+            </Button>
+          ) : (
+            <div className="text-sm text-gray-500 text-center">
+              All formations have been selected
+            </div>
+          )
+        ) : (
+          <Button variant="outline" onClick={addRow}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Row
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
@@ -170,6 +356,8 @@ export default function SetupPage() {
 
         try {
           await initializeDefaultTerminology()
+          // Update formation concepts to match predefined list
+          await updateFormationConcepts()
         } catch (initError) {
           console.error('Initialization error:', initError)
           setError(`Error initializing terminology: ${initError instanceof Error ? initError.message : 'Unknown initialization error'}`)
@@ -236,11 +424,11 @@ export default function SetupPage() {
         {
           id: crypto.randomUUID(),
           category,
-          concept: '',
-          label: '',
+          concept: category === "formations" ? FORMATION_CONCEPTS[0].concept : '',
+          label: category === "formations" ? FORMATION_CONCEPTS[0].label : '',
           is_enabled: true,
           isDirty: true,
-          isEditing: false
+          isEditing: true
         }
       ]
     }))
@@ -362,147 +550,18 @@ export default function SetupPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {Object.entries(terminologySets).map(([key, { title, category }]) => (
-          <Card key={category} className="mb-0">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xl font-bold">{title}</CardTitle>
-              <div className="flex space-x-2 items-center">
-                {savedSections[category] && (
-                  <span className="text-green-600 text-xs font-medium flex items-center">
-                    <Check className="h-3 w-3 mr-1" />
-                    Saved!
-                  </span>
-                )}
-                {terminologyState[category]?.some(term => term.isDirty) && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        // Set loading state for this category
-                        setSavingCategories(prev => ({
-                          ...prev,
-                          [category]: true
-                        }));
-                        
-                        // Save dirty terms for this category only
-                        const dirtyTerms = terminologyState[category].filter(term => term.isDirty);
-                        await batchUpdateTerminology(dirtyTerms.map(term => ({
-                          id: term.id,
-                          concept: term.concept,
-                          label: term.label
-                        })));
-                        
-                        // Update only this category's terms to remove dirty flags
-                        setTerminologyState(prev => ({
-                          ...prev,
-                          [category]: prev[category].map(term => ({
-                            ...term,
-                            isDirty: false
-                          }))
-                        }));
-                        
-                        // Set flag that play pool needs to be updated
-                        setNeedsPlayPoolUpdate(true);
-                        
-                        // Mark this section as saved
-                        setSavedSections({
-                          ...savedSections,
-                          [category]: true
-                        });
-                        
-                        // Clear the saved indicator after 2 seconds
-                        setTimeout(() => {
-                          setSavedSections(prev => ({
-                            ...prev,
-                            [category]: false
-                          }));
-                        }, 2000);
-                      } catch (error) {
-                        console.error(`Error saving ${category}:`, error);
-                      } finally {
-                        // Clear loading state for this category
-                        setSavingCategories(prev => ({
-                          ...prev,
-                          [category]: false
-                        }));
-                      }
-                    }}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    disabled={savingCategories[category]}
-                  >
-                    {savingCategories[category] ? (
-                      <>
-                        <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-3 w-3 mr-1" />
-                        Save
-                      </>
-                    )}
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleAddRow(category)}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  Add Row
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 pb-1 px-2">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-700">Concept</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-700">Label</span>
-                  </div>
-                  <div className="w-8"></div>
-                </div>
-                {terminologyState[category]?.map((term, index) => (
-                  <div
-                    key={term.id}
-                    className={`flex items-center space-x-2 ${term.isDirty ? 'bg-blue-50 rounded p-1' : ''}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="text"
-                        value={term.concept}
-                        onChange={(e) => handleUpdateConcept(category, index, e.target.value)}
-                        className="w-full px-2 py-1 text-sm border rounded"
-                        placeholder="Concept"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="text"
-                        value={term.label}
-                        onChange={(e) => handleUpdateLabel(category, index, e.target.value)}
-                        className="w-full px-2 py-1 text-sm border rounded"
-                        placeholder="Label"
-                      />
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteRow(category, index)}
-                      className="text-red-600 hover:text-red-800 px-2"
-                    >
-                      ×
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <TerminologySet
+            key={category}
+            title={title}
+            terms={terminologyState[category] || []}
+            category={category}
+            onUpdate={(newTerms) => {
+              setTerminologyState(prev => ({
+                ...prev,
+                [category]: newTerms
+              }))
+            }}
+          />
         ))}
       </div>
 
