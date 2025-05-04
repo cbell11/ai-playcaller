@@ -28,6 +28,8 @@ export default function AuthPage() {
   const [teamCode, setTeamCode] = useState("");
   const [teamCodeValid, setTeamCodeValid] = useState<boolean | null>(null);
   const [teamCodeValidating, setTeamCodeValidating] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   const router = useRouter();
 
   // Create Supabase client in the browser
@@ -146,6 +148,9 @@ export default function AuthPage() {
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/setup`
+          }
         });
         
         if (authError) throw authError;
@@ -210,13 +215,16 @@ export default function AuthPage() {
           
         if (profileError) throw profileError;
         
-        setError("Account created successfully! Check your email for the confirmation link.");
+        // Sign in the user immediately after signup
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
         
-        // Reset form and go back to step 1
-        setSignupStep(1);
-        setTeamOption(null);
-        setTeamName("");
-        setTeamCode("");
+        if (signInError) throw signInError;
+        
+        // Redirect to setup page after successful sign in
+        window.location.href = "/setup";
         
       } catch (error: any) {
         setError(error.message || "An error occurred during sign up");
@@ -233,6 +241,31 @@ export default function AuthPage() {
       await handleLogin();
     } else {
       await handleSignup();
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Please enter your email address");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth?reset=true`,
+      });
+
+      if (error) throw error;
+
+      setResetEmailSent(true);
+      setError("");
+    } catch (error: any) {
+      setError(error.message || "Failed to send reset email");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -470,10 +503,10 @@ export default function AuthPage() {
         
         <div className="bg-white p-8 rounded-lg shadow-md">
           <h2 className="text-2xl font-semibold mb-6">
-            {isLogin ? "Sign In" : "Create Account"}
+            {showForgotPassword ? "Reset Password" : (isLogin ? "Sign In" : "Create Account")}
           </h2>
           
-          {!isLogin && (
+          {!isLogin && !showForgotPassword && (
             <div className="flex mb-6">
               <div className="flex items-center">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -500,9 +533,60 @@ export default function AuthPage() {
               {error}
             </div>
           )}
+
+          {resetEmailSent && (
+            <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-md text-sm">
+              Password reset email sent! Please check your inbox.
+            </div>
+          )}
           
           <form onSubmit={handleSubmit}>
-            {isLogin ? (
+            {showForgotPassword ? (
+              <>
+                <div className="mb-4">
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter your email"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={loading}
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 flex justify-center items-center"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-3"></div>
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    "Send Reset Link"
+                  )}
+                </button>
+                <div className="mt-4 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                      setResetEmailSent(false);
+                      setError("");
+                    }}
+                    className="text-blue-600 text-sm hover:underline"
+                  >
+                    Back to Sign In
+                  </button>
+                </div>
+              </>
+            ) : isLogin ? (
               <>
                 <div className="mb-4">
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
@@ -533,44 +617,60 @@ export default function AuthPage() {
                     placeholder="Enter your password"
                   />
                 </div>
+                <div className="mb-4 text-right">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForgotPassword(true);
+                      setError("");
+                    }}
+                    className="text-blue-600 text-sm hover:underline"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
               </>
             ) : (
               // Render the appropriate signup step
               signupStep === 1 ? renderSignupStep1() : renderSignupStep2()
             )}
             
-            <button
-              type="submit"
-              disabled={loading || (teamOption === "join" && teamCode.length === 6 && teamCodeValid === false)}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 flex justify-center items-center"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-3"></div>
-                  <span>Processing...</span>
-                </>
-              ) : (
-                isLogin ? "Sign In" : (signupStep === 1 ? "Continue" : "Create Account")
-              )}
-            </button>
+            {!showForgotPassword && (
+              <button
+                type="submit"
+                disabled={loading || (teamOption === "join" && teamCode.length === 6 && teamCodeValid === false)}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 flex justify-center items-center"
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-3"></div>
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  isLogin ? "Sign In" : (signupStep === 1 ? "Continue" : "Create Account")
+                )}
+              </button>
+            )}
           </form>
           
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setSignupStep(1);
-                setTeamOption(null);
-                setTeamName("");
-                setTeamCode("");
-                setTeamCodeValid(null);
-                setError("");
-              }}
-              className="text-blue-600 text-sm hover:underline"
-            >
-              {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
-            </button>
-          </div>
+          {!showForgotPassword && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setSignupStep(1);
+                  setTeamOption(null);
+                  setTeamName("");
+                  setTeamCode("");
+                  setTeamCodeValid(null);
+                  setError("");
+                }}
+                className="text-blue-600 text-sm hover:underline"
+              >
+                {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

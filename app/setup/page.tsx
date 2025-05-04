@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { getTerminology, addTerminology, updateTerminology, batchUpdateTerminology, deleteTerminology, initializeDefaultTerminology, Terminology, testSupabaseConnection, FORMATION_CONCEPTS, updateFormationConcepts } from "@/lib/terminology"
+import { getTerminology, addTerminology, updateTerminology, batchUpdateTerminology, deleteTerminology, initializeDefaultTerminology, Terminology, testSupabaseConnection, updateFormationConcepts, getDefaultTeamFormations } from "@/lib/terminology"
 import { updatePlayPoolTerminology } from "@/lib/playpool"
+import { supabase } from '@/lib/supabase'
 
 // Extend Terminology interface to include UI state
 interface TerminologyWithUI extends Terminology {
@@ -27,104 +28,236 @@ interface TerminologySetProps {
 const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate }) => {
   const [isSaving, setIsSaving] = useState(false)
   const [selectedImage, setSelectedImage] = useState<{url: string, concept: string} | null>(null)
+  const [defaultFormations, setDefaultFormations] = useState<Terminology[]>([])
+  const [localTerms, setLocalTerms] = useState<TerminologyWithUI[]>(terms)
+  const [userInfo, setUserInfo] = useState<{id: string | null, email: string | null}>({id: null, email: null})
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+
+  // Get user info when component mounts
+  useEffect(() => {
+    const getUserInfo = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      console.log('Session in useEffect:', session) // Debug log
+      if (session?.user) {
+        console.log('User ID:', session.user.id) // Debug log
+        console.log('User Email:', session.user.email) // Debug log
+        setUserInfo({
+          id: session.user.id || null,
+          email: session.user.email || null
+        })
+      } else {
+        console.log('No session found') // Debug log
+      }
+    }
+    getUserInfo()
+  }, [])
+
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setIsAuthenticated(!!session)
+    }
+    checkAuth()
+  }, [])
+
+  useEffect(() => {
+    if (category === "formations") {
+      getDefaultTeamFormations()
+        .then(setDefaultFormations)
+        .catch(error => console.error('Error loading default formations:', error))
+    }
+  }, [category])
+
+  // Update local terms when props change
+  useEffect(() => {
+    setLocalTerms(terms)
+  }, [terms])
 
   // Get available formations that haven't been selected yet
   const getAvailableFormations = () => {
-    const selectedConcepts = terms.map(term => term.concept)
-    return FORMATION_CONCEPTS.filter(formation => !selectedConcepts.includes(formation.concept))
+    const selectedConcepts = localTerms.map(term => term.concept)
+    return defaultFormations.filter(formation => !selectedConcepts.includes(formation.concept))
   }
 
-  const addRow = async () => {
-    try {
+  const addRow = () => {
+    if (category === "formations") {
       const availableFormations = getAvailableFormations()
       if (availableFormations.length === 0) {
         return // Don't add if no formations available
       }
 
-      const newTerm = await addTerminology({
-        concept: availableFormations[0].concept,
-        label: availableFormations[0].label,
-        category: category
-      })
-      onUpdate([...terms, { ...newTerm, isEditing: true, isDirty: true }])
-    } catch (error) {
-      console.error('Error adding new term:', error)
+      const newTerm: TerminologyWithUI = {
+        id: crypto.randomUUID(),
+        concept: availableFormations[0].concept || '',
+        label: availableFormations[0].label || '',
+        category: category,
+        is_enabled: true,
+        isDirty: true,
+        isEditing: true
+      }
+      setLocalTerms([...localTerms, newTerm])
+      onUpdate([...localTerms, newTerm])
+    } else {
+      const newTerm: TerminologyWithUI = {
+        id: crypto.randomUUID(),
+        concept: '',
+        label: '',
+        category: category,
+        is_enabled: true,
+        isDirty: true,
+        isEditing: true
+      }
+      setLocalTerms([...localTerms, newTerm])
+      onUpdate([...localTerms, newTerm])
     }
   }
 
   const updateConcept = (term: TerminologyWithUI, newConcept: string) => {
-    // For formations, ensure the concept is from the predefined list and not already selected
     if (category === "formations") {
-      const formation = FORMATION_CONCEPTS.find(f => f.concept === newConcept)
-      const isAlreadySelected = terms.some(t => t.id !== term.id && t.concept === newConcept)
+      const formation = defaultFormations.find(f => f.concept === newConcept)
+      const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === newConcept)
       
       if (formation && !isAlreadySelected) {
-        onUpdate(terms.map(t => t.id === term.id ? { ...term, concept: formation.concept, label: formation.label, isDirty: true } : t))
+        const updatedTerms = localTerms.map(t => t.id === term.id ? { 
+          ...term, 
+          concept: formation.concept || '', 
+          label: formation.label || '', 
+          isDirty: true 
+        } : t)
+        setLocalTerms(updatedTerms)
+        onUpdate(updatedTerms)
       }
     } else {
-      onUpdate(terms.map(t => t.id === term.id ? { ...term, concept: newConcept, isDirty: true } : t))
+      const updatedTerms = localTerms.map(t => t.id === term.id ? { ...term, concept: newConcept, isDirty: true } : t)
+      setLocalTerms(updatedTerms)
+      onUpdate(updatedTerms)
     }
   }
 
   const updateLabel = (term: TerminologyWithUI, newLabel: string) => {
-    onUpdate(terms.map(t => t.id === term.id ? { ...term, label: newLabel, isDirty: true } : t))
+    const updatedTerms = localTerms.map(t => t.id === term.id ? { ...term, label: newLabel, isDirty: true } : t)
+    setLocalTerms(updatedTerms)
+    onUpdate(updatedTerms)
   }
 
   const toggleEdit = (term: TerminologyWithUI) => {
-    // For formations, ensure the concept is from the predefined list when entering edit mode
-    if (category === "formations" && !FORMATION_CONCEPTS.some(f => f.concept === term.concept)) {
-      term.concept = FORMATION_CONCEPTS[0].concept
-      term.label = FORMATION_CONCEPTS[0].label
-    }
-    onUpdate(terms.map(t => t.id === term.id ? { ...t, isEditing: !t.isEditing } : t))
+    const updatedTerms = localTerms.map(t => t.id === term.id ? { ...t, isEditing: !t.isEditing } : t)
+    setLocalTerms(updatedTerms)
+    onUpdate(updatedTerms)
   }
 
-  const saveItem = async (term: TerminologyWithUI) => {
-    try {
-      // For formations, ensure the concept is from the predefined list before saving
-      if (category === "formations" && !FORMATION_CONCEPTS.some(f => f.concept === term.concept)) {
-        term.concept = FORMATION_CONCEPTS[0].concept
-        term.label = FORMATION_CONCEPTS[0].label
-      }
-      await updateTerminology(term.id, {
-        concept: term.concept,
-        label: term.label
-      })
-      onUpdate(terms.map(t => t.id === term.id ? { ...term, isEditing: false, isDirty: false } : t))
-    } catch (error) {
-      console.error('Error saving term:', error)
-    }
-  }
-
-  const deleteRow = async (term: TerminologyWithUI) => {
-    try {
-      await deleteTerminology(term.id)
-      onUpdate(terms.filter(t => t.id !== term.id))
-    } catch (error) {
-      console.error('Error deleting term:', error)
-    }
+  const deleteRow = (term: TerminologyWithUI) => {
+    const updatedTerms = localTerms.filter(t => t.id !== term.id)
+    setLocalTerms(updatedTerms)
+    onUpdate(updatedTerms)
   }
 
   const handleSaveAll = async () => {
     try {
       setIsSaving(true)
-      // Save all dirty terms
-      const dirtyTerms = terms.filter(term => term.isDirty)
-      if (dirtyTerms.length > 0) {
-        await batchUpdateTerminology(dirtyTerms.map(term => ({
-          id: term.id,
+      
+      // Get the current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      console.log('Session:', session) // Debug log
+      console.log('Session Error:', sessionError) // Debug log
+
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+        throw new Error('Authentication error: ' + sessionError.message)
+      }
+
+      if (!session?.user?.id) {
+        console.error('No user ID in session')
+        throw new Error('No authenticated user found')
+      }
+
+      // Get the user's team_id from the profiles table using the session's user ID
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('team_id')
+        .eq('id', session.user.id)
+        .single()
+
+      console.log('Profile Data:', profile) // Debug log
+      console.log('Profile Error:', profileError) // Debug log
+
+      if (profileError) {
+        console.error('Profile fetch error:', profileError)
+        throw new Error('Error fetching user profile: ' + profileError.message)
+      }
+
+      if (!profile?.team_id) {
+        console.error('No team_id found in profile')
+        throw new Error('No team ID found in user profile')
+      }
+
+      // Get all dirty terms
+      const dirtyTerms = localTerms.filter(term => term.isDirty)
+      if (dirtyTerms.length === 0) return
+
+      if (category === "formations") {
+        // For formations, we need to create new records with the team's ID
+        const newFormations = dirtyTerms.map(term => ({
           concept: term.concept,
-          label: term.label
-        })))
-        
-        // Update terms to remove dirty flags
-        onUpdate(terms.map(term => ({
+          label: term.label,
+          category: 'formations',
+          team_id: profile.team_id,
+          is_enabled: true
+        }))
+
+        console.log('New Formations:', newFormations) // Debug log
+
+        // Delete any existing formations for this team
+        const { error: deleteError } = await supabase
+          .from('terminology')
+          .delete()
+          .eq('category', 'formations')
+          .eq('team_id', profile.team_id)
+
+        if (deleteError) {
+          console.error('Delete error:', deleteError)
+          throw new Error('Error deleting existing formations: ' + deleteError.message)
+        }
+
+        // Insert new formations
+        const { error: insertError } = await supabase
+          .from('terminology')
+          .insert(newFormations)
+
+        if (insertError) {
+          console.error('Insert error:', insertError)
+          throw new Error('Error inserting new formations: ' + insertError.message)
+        }
+
+        // Update local state to remove dirty flags
+        const updatedTerms = localTerms.map(term => ({
           ...term,
           isDirty: false
-        })))
+        }))
+        setLocalTerms(updatedTerms)
+        onUpdate(updatedTerms)
+      } else {
+        // For non-formations, update existing records
+        await batchUpdateTerminology(
+          dirtyTerms.map(term => ({
+            id: term.id,
+            concept: term.concept,
+            label: term.label
+          }))
+        )
+        
+        // Update local state to remove dirty flags
+        const updatedTerms = localTerms.map(term => ({
+          ...term,
+          isDirty: false
+        }))
+        setLocalTerms(updatedTerms)
+        onUpdate(updatedTerms)
       }
     } catch (error) {
-      console.error('Error saving terms:', error)
+      console.error('Error in handleSaveAll:', error)
+      alert(error instanceof Error ? error.message : 'An error occurred while saving')
     } finally {
       setIsSaving(false)
     }
@@ -133,9 +266,22 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   return (
     <Card className="mb-8">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-xl font-bold">{title}</CardTitle>
+        <div>
+          <CardTitle className="text-xl font-bold">{title}</CardTitle>
+          {userInfo.id ? (
+            <div className="text-sm bg-blue-50 p-2 rounded mt-2">
+              <div className="font-medium text-blue-700">Debug Info:</div>
+              <div className="text-blue-600">User ID: {userInfo.id}</div>
+              {userInfo.email && <div className="text-blue-600">Email: {userInfo.email}</div>}
+            </div>
+          ) : (
+            <div className="text-sm bg-red-50 p-2 rounded mt-2">
+              <div className="text-red-600">No user session found</div>
+            </div>
+          )}
+        </div>
         <div className="flex space-x-2 items-center">
-          {terms.some(term => term.isDirty) && (
+          {localTerms.some(term => term.isDirty) && (
             <Button
               variant="default"
               size="sm"
@@ -167,7 +313,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 onClick={addRow}
                 className="text-blue-600 hover:text-blue-800"
               >
-                Add Row
+                <Plus className="h-4 w-4 mr-1" />
+                Add Formation
               </Button>
             ) : (
               <span className="text-sm text-gray-500">All formations have been selected</span>
@@ -179,6 +326,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               onClick={addRow}
               className="text-blue-600 hover:text-blue-800"
             >
+              <Plus className="h-4 w-4 mr-1" />
               Add Row
             </Button>
           )}
@@ -194,25 +342,25 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             <div></div>
           </div>
 
-          {terms.map((term) => (
+          {localTerms.map((term) => (
             <div key={`row-${term.id}`} className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 items-center py-2 border-b">
               <div key={`concept-${term.id}`}>
                 {term.isEditing || category === "formations" ? (
                   category === "formations" ? (
                     <Select
-                      value={term.concept}
+                      value={term.concept || ''}
                       onValueChange={(value) => updateConcept(term, value)}
                     >
                       <SelectTrigger className="h-9 w-full bg-white border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors duration-200">
                         <SelectValue placeholder="Select formation" />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-gray-200 shadow-lg rounded-md">
-                        {FORMATION_CONCEPTS.map((formation) => {
-                          const isSelected = terms.some(t => t.id !== term.id && t.concept === formation.concept)
+                        {defaultFormations.map((formation) => {
+                          const isSelected = localTerms.some(t => t.id !== term.id && t.concept === formation.concept)
                           return (
                             <SelectItem 
                               key={formation.concept} 
-                              value={formation.concept}
+                              value={formation.concept || ''}
                               disabled={isSelected}
                               className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
                             >
@@ -228,18 +376,16 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input 
-                      key={`concept-input-${term.id}`}
-                      value={term.concept} 
-                      onChange={(e) => updateConcept(term, e.target.value)} 
-                      className="h-9" 
-                    />
+                  <Input 
+                    key={`concept-input-${term.id}`}
+                    value={term.concept} 
+                    onChange={(e) => updateConcept(term, e.target.value)} 
+                    className="h-9" 
+                  />
                   )
                 ) : (
                   <span key={`concept-text-${term.id}`} className="text-gray-600">
-                    {category === "formations" && !FORMATION_CONCEPTS.some(f => f.concept === term.concept) 
-                      ? FORMATION_CONCEPTS[0].concept 
-                      : term.concept}
+                    {term.concept}
                   </span>
                 )}
               </div>
@@ -259,7 +405,11 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 key={`view-btn-${term.id}`}
                 variant="ghost"
                 size="icon"
-                onClick={() => term.image_url && setSelectedImage({url: term.image_url, concept: term.concept || ''})}
+                onClick={() => {
+                  if (term.image_url) {
+                    setSelectedImage({url: term.image_url, concept: term.concept || ''})
+                  }
+                }}
                 disabled={!term.image_url}
                 className="hover:bg-yellow-50"
               >
@@ -270,13 +420,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 key={`edit-btn-${term.id}`}
                 variant="ghost"
                 size="icon"
-                onClick={() => {
-                  if (term.isEditing) {
-                    saveItem(term)
-                  } else {
-                    toggleEdit(term)
-                  }
-                }}
+                onClick={() => toggleEdit(term)}
               >
                 {term.isEditing ? <Check className="h-4 w-4 text-green-500" /> : <Pencil className="h-4 w-4" />}
                 <span className="sr-only">{term.isEditing ? "Save" : "Edit"}</span>
@@ -307,10 +451,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             </div>
           )
         ) : (
-          <Button variant="outline" onClick={addRow}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Row
-          </Button>
+        <Button variant="outline" onClick={addRow}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Row
+        </Button>
         )}
       </CardContent>
 
@@ -345,6 +489,7 @@ export default function SetupPage() {
   const [savingCategories, setSavingCategories] = useState<Record<string, boolean>>({})
   const [needsPlayPoolUpdate, setNeedsPlayPoolUpdate] = useState(false)
   const [updatingPlayPool, setUpdatingPlayPool] = useState(false)
+  const [teamId, setTeamId] = useState<string | null>(null)
 
   useEffect(() => {
     const loadTerminology = async () => {
@@ -356,6 +501,10 @@ export default function SetupPage() {
           setIsLoading(false)
           return
         }
+
+        // Get the team ID from localStorage
+        const storedTeamId = localStorage.getItem('teamId')
+        setTeamId(storedTeamId)
 
         try {
           await initializeDefaultTerminology()
@@ -369,10 +518,11 @@ export default function SetupPage() {
         }
 
         try {
-          const terms = await getTerminology()
+          const terms = await getTerminology(storedTeamId || undefined)
           
           // Group terms by category
           const groupedTerms = terms.reduce((acc, term) => {
+            if (!term.category) return acc
             const category = term.category
             if (!acc[category]) {
               acc[category] = []
@@ -427,8 +577,8 @@ export default function SetupPage() {
         {
           id: crypto.randomUUID(),
           category,
-          concept: category === "formations" ? FORMATION_CONCEPTS[0].concept : '',
-          label: category === "formations" ? FORMATION_CONCEPTS[0].label : '',
+          concept: '',
+          label: '',
           is_enabled: true,
           isDirty: true,
           isEditing: true
@@ -559,8 +709,8 @@ export default function SetupPage() {
             terms={terminologyState[category] || []}
             category={category}
             onUpdate={(newTerms) => {
-              setTerminologyState(prev => ({
-                ...prev,
+                        setTerminologyState(prev => ({
+                          ...prev,
                 [category]: newTerms
               }))
             }}
