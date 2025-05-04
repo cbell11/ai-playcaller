@@ -1,9 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from '@supabase/ssr';
+
+// Helper function to generate a random 6-letter code
+function generateJoinCode() {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+}
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
@@ -16,6 +26,8 @@ export default function AuthPage() {
   const [teamOption, setTeamOption] = useState<"create" | "join" | null>(null);
   const [teamName, setTeamName] = useState("");
   const [teamCode, setTeamCode] = useState("");
+  const [teamCodeValid, setTeamCodeValid] = useState<boolean | null>(null);
+  const [teamCodeValidating, setTeamCodeValidating] = useState(false);
   const router = useRouter();
 
   // Create Supabase client in the browser
@@ -23,6 +35,47 @@ export default function AuthPage() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // Validate team code when it changes and has 6 characters
+  useEffect(() => {
+    const validateTeamCode = async () => {
+      // Only validate if we're at step 2, joining a team, and have a complete code
+      if (signupStep !== 2 || teamOption !== "join" || teamCode.length !== 6) {
+        setTeamCodeValid(null);
+        return;
+      }
+
+      setTeamCodeValidating(true);
+      console.log("Validating team code:", teamCode);
+      
+      try {
+        // Check if the team code exists in the database
+        const { data, error } = await supabase
+          .from('teams')
+          .select('id')
+          .eq('code', teamCode)
+          .single();
+        
+        console.log("Team code validation result:", { data, error });
+        setTeamCodeValid(!!data && !error);
+      } catch (error) {
+        console.error("Error validating team code:", error);
+        setTeamCodeValid(false);
+      } finally {
+        setTeamCodeValidating(false);
+      }
+    };
+
+    // Debounce the validation to avoid excessive database calls
+    const timeoutId = setTimeout(validateTeamCode, 500);
+    return () => clearTimeout(timeoutId);
+  }, [teamCode, teamOption, signupStep, supabase]);
+
+  const handleTeamCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Only allow uppercase letters
+    const newValue = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+    setTeamCode(newValue);
+  };
 
   const handleLogin = async () => {
     setLoading(true);
@@ -73,9 +126,16 @@ export default function AuthPage() {
         return;
       }
       
-      if (teamOption === "join" && !teamCode.trim()) {
-        setError("Please enter a team code");
-        return;
+      if (teamOption === "join") {
+        if (!teamCode || teamCode.length !== 6) {
+          setError("Please enter a valid 6-letter team code");
+          return;
+        }
+        
+        if (teamCodeValid === false) {
+          setError("Invalid team code. Please check and try again.");
+          return;
+        }
       }
       
       setLoading(true);
@@ -95,43 +155,60 @@ export default function AuthPage() {
           throw new Error("Failed to create user account");
         }
         
+        let teamId: string;
+        
         if (teamOption === "create") {
-          // Create a new team
+          // Generate a random code for the team
+          const joinCode = generateJoinCode();
+          
+          // Create a new team with timestamp fields and code
           const { data: teamData, error: teamError } = await supabase
             .from('teams')
-            .insert([{ name: teamName, created_by: userId }])
+            .insert([{
+              name: teamName,
+              code: joinCode,
+              created_by: userId,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }])
             .select();
           
           if (teamError) throw teamError;
           
-          const teamId = teamData[0]?.id;
+          if (!teamData || teamData.length === 0) {
+            throw new Error("Failed to create team");
+          }
           
-          // Update user profile with team_id
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({ team_id: teamId })
-            .eq('id', userId);
-            
-          if (profileError) throw profileError;
+          teamId = teamData[0].id;
           
-        } else if (teamOption === "join") {
+        } else {
           // Find team by join code
           const { data: teamData, error: teamError } = await supabase
             .from('teams')
             .select('id')
-            .eq('join_code', teamCode)
+            .eq('code', teamCode.toUpperCase())
             .single();
             
           if (teamError) throw new Error("Invalid team code");
           
-          // Update user profile with team_id
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({ team_id: teamData.id })
-            .eq('id', userId);
-            
-          if (profileError) throw profileError;
+          if (!teamData) {
+            throw new Error("Team not found");
+          }
+          
+          teamId = teamData.id;
         }
+        
+        // Create or update the user's profile with the team_id
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            email: email,
+            team_id: teamId,
+            created_at: new Date().toISOString()
+          });
+          
+        if (profileError) throw profileError;
         
         setError("Account created successfully! Check your email for the confirmation link.");
         
@@ -208,6 +285,29 @@ export default function AuthPage() {
     </>
   );
 
+  const renderJoinCodeInput = () => {
+    return (
+      <div className="flex justify-between mb-2">
+        {Array(6).fill(0).map((_, index) => (
+          <div 
+            key={index} 
+            className={`w-12 h-12 border-2 flex items-center justify-center text-xl font-bold rounded ${
+              index < teamCode.length 
+                ? teamCodeValid === true 
+                  ? 'border-green-500 bg-green-50' 
+                  : teamCodeValid === false && teamCode.length === 6
+                    ? 'border-red-500 bg-red-50'
+                    : 'border-blue-500 bg-blue-50'
+                : 'border-gray-300'
+            }`}
+          >
+            {teamCode[index] || ''}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const renderSignupStep2 = () => (
     <>
       <div className="mb-4">
@@ -262,15 +362,55 @@ export default function AuthPage() {
           <label htmlFor="teamCode" className="block text-sm font-medium text-gray-700 mb-1">
             Team Join Code
           </label>
+          
+          {/* Styled character boxes for join code */}
+          {renderJoinCodeInput()}
+          
           <input
             id="teamCode"
             type="text"
             required
             value={teamCode}
-            onChange={(e) => setTeamCode(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter team join code"
+            onChange={handleTeamCodeChange}
+            className="sr-only"
+            maxLength={6}
+            autoComplete="off"
           />
+          
+          <div className="mt-3 flex items-center">
+            {teamCodeValidating && (
+              <div className="text-xs text-blue-600 flex items-center">
+                <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                Validating code...
+              </div>
+            )}
+            
+            {!teamCodeValidating && teamCode.length === 6 && (
+              teamCodeValid ? (
+                <div className="text-xs text-green-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Valid team code
+                </div>
+              ) : (
+                <div className="text-xs text-red-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Invalid team code
+                </div>
+              )
+            )}
+          </div>
+          
+          <p className="mt-2 text-xs text-gray-500">
+            Enter the 6-letter code provided by your team administrator
+          </p>
+          
+          <div className="mt-3 p-2 bg-blue-50 rounded-md text-xs text-blue-700">
+            Tip: Click on the boxes above to focus and type the 6-letter team code
+          </div>
         </div>
       )}
       
@@ -286,8 +426,42 @@ export default function AuthPage() {
     </>
   );
 
+  // Add focus handler for the join code input boxes
+  const handleJoinCodeBoxClick = () => {
+    document.getElementById('teamCode')?.focus();
+  };
+
+  // Inside the component, add a function to check database structure
+  useEffect(() => {
+    // This will run once when the component mounts
+    const checkDatabaseStructure = async () => {
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          // Check the structure of the teams table
+          const { data, error } = await supabase
+            .from('teams')
+            .select('*')
+            .limit(1);
+          
+          if (error) {
+            console.error('Error fetching teams table structure:', error);
+          } else if (data && data.length > 0) {
+            console.log('Teams table structure:', Object.keys(data[0]));
+            console.log('Sample team record:', data[0]);
+          } else {
+            console.log('Teams table exists but no records found');
+          }
+        } catch (err) {
+          console.error('Error checking database structure:', err);
+        }
+      }
+    };
+    
+    checkDatabaseStructure();
+  }, [supabase]);
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4" onClick={teamOption === "join" ? handleJoinCodeBoxClick : undefined}>
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
           <h1 className="text-4xl font-bold mb-2">AI Playcaller</h1>
@@ -367,7 +541,7 @@ export default function AuthPage() {
             
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (teamOption === "join" && teamCode.length === 6 && teamCodeValid === false)}
               className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 flex justify-center items-center"
             >
               {loading ? (
@@ -387,6 +561,9 @@ export default function AuthPage() {
                 setIsLogin(!isLogin);
                 setSignupStep(1);
                 setTeamOption(null);
+                setTeamName("");
+                setTeamCode("");
+                setTeamCodeValid(null);
                 setError("");
               }}
               className="text-blue-600 text-sm hover:underline"
