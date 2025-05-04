@@ -3,36 +3,43 @@ import { updatePlayPoolTerminology } from './playpool'
 
 export interface Terminology {
   id: string
-  concept: string
-  label: string
-  category: string
-  isEditing?: boolean  // Optional property for UI state
+  concept?: string
+  label?: string
+  category?: string
+  is_enabled?: boolean
+  image_url?: string
+}
+
+export interface TerminologyWithUI extends Terminology {
+  isEditing?: boolean
+  isNew?: boolean
+  isDirty?: boolean
 }
 
 // Define available formation concepts
 export const FORMATION_CONCEPTS = [
   // 2x2 Formations
-  { concept: "2x2 Open (Field)", label: "Spread +", imageUrl: "https://res.cloudinary.com/dfvzvbygc/image/upload/v1746348062/Screenshot_2025-05-04_at_10.40.57_AM_jfs2an.png" },
-  { concept: "2x2 Open (Boundary)", label: "Spread -", imageUrl: "https://res.cloudinary.com/dfvzvbygc/image/upload/v1746348062/Screenshot_2025-05-04_at_10.40.57_AM_jfs2an.png" },
-  { concept: "2x2 Y Attached (Field)", label: "Deuce +", imageUrl: "/formations/2x2-y-attached-field.png" },
-  { concept: "2x2 Y Attached (Boundary)", label: "Deuce -", imageUrl: "/formations/2x2-y-attached-boundary.png" },
-  { concept: "2x2 2 TE Attached (Field)", label: "Queen +", imageUrl: "/formations/2x2-2te-attached-field.png" },
-  { concept: "2x2 2 TE Attached (Boundary)", label: "Queen -", imageUrl: "/formations/2x2-2te-attached-boundary.png" },
+  { concept: "2x2 Open (Field)", label: "Spread +" },
+  { concept: "2x2 Open (Boundary)", label: "Spread -" },
+  { concept: "2x2 Y Attached (Field)", label: "Deuce +" },
+  { concept: "2x2 Y Attached (Boundary)", label: "Deuce -" },
+  { concept: "2x2 2 TE Attached (Field)", label: "Queen +" },
+  { concept: "2x2 2 TE Attached (Boundary)", label: "Queen -" },
   // 3x1 Formations
-  { concept: "3x1 Open (Field)", label: "Trips +", imageUrl: "/formations/3x1-open-field.png" },
-  { concept: "3x1 Open (Boundary)", label: "Trips -", imageUrl: "/formations/3x1-open-boundary.png" },
-  { concept: "3x1 Y Attached (Field)", label: "Trey +", imageUrl: "/formations/3x1-y-attached-field.png" },
-  { concept: "3x1 Y Attached (Boundary)", label: "Trey -", imageUrl: "/formations/3x1-y-attached-boundary.png" },
-  { concept: "3x1 2 TE Wing (Field)", label: "Sam +", imageUrl: "/formations/3x1-2te-wing-field.png" },
-  { concept: "3x1 2 TE Wing (Boundary)", label: "Sam -", imageUrl: "/formations/3x1-2te-wing-boundary.png" },
-  { concept: "3x1 Backside TE Attached (Field)", label: "Closed + ", imageUrl: "/formations/3x1-backside-te-attached-field.png" },
-  { concept: "3x1 Backside TE Attached (Boundary)", label: "Closed -", imageUrl: "/formations/3x1-backside-te-attached-boundary.png" },
-  { concept: "3x1 Bunch (Field)", label: "Bunch + ", imageUrl: "/formations/3x1-bunch-field.png" },
-  { concept: "3x1 Bunch (Boundary)", label: "Bunch -", imageUrl: "/formations/3x1-bunch-boundary.png" },
+  { concept: "3x1 Open (Field)", label: "Trips +" },
+  { concept: "3x1 Open (Boundary)", label: "Trips -" },
+  { concept: "3x1 Y Attached (Field)", label: "Trey +" },
+  { concept: "3x1 Y Attached (Boundary)", label: "Trey -" },
+  { concept: "3x1 2 TE Wing (Field)", label: "Sam +" },
+  { concept: "3x1 2 TE Wing (Boundary)", label: "Sam -" },
+  { concept: "3x1 Backside TE Attached (Field)", label: "Closed + " },
+  { concept: "3x1 Backside TE Attached (Boundary)", label: "Closed -" },
+  { concept: "3x1 Bunch (Field)", label: "Bunch + " },
+  { concept: "3x1 Bunch (Boundary)", label: "Bunch -" },
  
   // 5WR Formations
-  { concept: "5 WR (Field)", label: "Empty +", imageUrl: "/formations/5wr-field.png" },
-  { concept: "5 WR (Boundary)", label: "Empty -", imageUrl: "/formations/5wr-boundary.png" },
+  { concept: "5 WR (Field)", label: "Empty +" },
+  { concept: "5 WR (Boundary)", label: "Empty -" },
 ] as const
 
 export async function getTerminology(): Promise<Terminology[]> {

@@ -2,18 +2,14 @@
 
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Check, Trash2, Save, HelpCircle } from "lucide-react"
+import { Plus, Pencil, Check, Trash2, Save, Eye, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { getTerminology, addTerminology, updateTerminology, batchUpdateTerminology, deleteTerminology, initializeDefaultTerminology, Terminology, testSupabaseConnection, FORMATION_CONCEPTS, updateFormationConcepts } from "@/lib/terminology"
 import { updatePlayPoolTerminology } from "@/lib/playpool"
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card"
 
 // Extend Terminology interface to include UI state
 interface TerminologyWithUI extends Terminology {
@@ -30,6 +26,7 @@ interface TerminologySetProps {
 
 const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate }) => {
   const [isSaving, setIsSaving] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<{url: string, concept: string} | null>(null)
 
   // Get available formations that haven't been selected yet
   const getAvailableFormations = () => {
@@ -189,15 +186,16 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       </CardHeader>
       <CardContent>
         <div className="mb-6">
-          <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-4 font-medium mb-2 px-2">
+          <div className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 font-medium mb-2 px-2">
             <div>Concept</div>
             <div>Label</div>
+            <div></div>
             <div></div>
             <div></div>
           </div>
 
           {terms.map((term) => (
-            <div key={`row-${term.id}`} className="grid grid-cols-[2fr_1fr_auto_auto] gap-4 items-center py-2 border-b">
+            <div key={`row-${term.id}`} className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 items-center py-2 border-b">
               <div key={`concept-${term.id}`}>
                 {term.isEditing || category === "formations" ? (
                   category === "formations" ? (
@@ -219,32 +217,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                               className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
                             >
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{formation.concept}</span>
-                                  {formation.imageUrl && (
-                                    <HoverCard>
-                                      <HoverCardTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-4 w-4 text-gray-400 hover:text-gray-600"
-                                        >
-                                          <HelpCircle className="h-4 w-4" />
-                                        </Button>
-                                      </HoverCardTrigger>
-                                      <HoverCardContent className="w-80">
-                                        <div className="flex flex-col gap-2">
-                                          <h4 className="text-sm font-semibold">{formation.concept}</h4>
-                                          <img
-                                            src={formation.imageUrl}
-                                            alt={formation.concept}
-                                            className="w-full rounded-md"
-                                          />
-                                        </div>
-                                      </HoverCardContent>
-                                    </HoverCard>
-                                  )}
-                                </div>
+                                <span className="font-medium">{formation.concept}</span>
                                 {isSelected && (
                                   <span className="text-xs text-gray-400 ml-2">(selected)</span>
                                 )}
@@ -282,6 +255,17 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <span key={`label-text-${term.id}`} className={term.isDirty ? "text-yellow-600 font-medium" : ""}>{term.label}</span>
                 )}
               </div>
+              <Button
+                key={`view-btn-${term.id}`}
+                variant="ghost"
+                size="icon"
+                onClick={() => term.image_url && setSelectedImage({url: term.image_url, concept: term.concept || ''})}
+                disabled={!term.image_url}
+                className="hover:bg-yellow-50"
+              >
+                <Eye className="h-4 w-4 text-yellow-500" />
+                <span className="sr-only">View concept</span>
+              </Button>
               <Button
                 key={`edit-btn-${term.id}`}
                 variant="ghost"
@@ -329,6 +313,25 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           </Button>
         )}
       </CardContent>
+
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-center">
+              {selectedImage?.concept}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center items-center p-4">
+            {selectedImage && (
+              <img 
+                src={selectedImage.url} 
+                alt={selectedImage.concept} 
+                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg border-2 border-black"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
