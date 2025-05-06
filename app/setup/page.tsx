@@ -13,6 +13,16 @@ import { updatePlaysWithTerminology } from "@/lib/playpool"
 import { createBrowserClient } from '@supabase/ssr'
 import { SupabaseClient } from '@supabase/supabase-js'
 
+// Helper function to generate a random 6-letter code
+function generateJoinCode() {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+}
+
 // Default team that contains base terminology
 const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683';
 
@@ -30,9 +40,11 @@ interface TerminologySetProps {
   onUpdate: (terms: TerminologyWithUI[]) => void
   supabase: SupabaseClient
   setProfileInfo?: (info: {team_id: string | null}) => void
+  setTeamCode?: (code: string | null) => void
+  setTeamName?: (name: string | null) => void
 }
 
-const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate, supabase, setProfileInfo }) => {
+const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate, supabase, setProfileInfo, setTeamCode, setTeamName }) => {
   const [isSaving, setIsSaving] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
@@ -286,10 +298,19 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       if (teamIdToUse === DEFAULT_TEAM_ID) {
         console.log('Creating new team instead of modifying default team');
         
+        // Generate a random code for the team
+        const joinCode = generateJoinCode();
+        
         // Create a new team
         const { data: newTeam, error: teamError } = await supabase
           .from('teams')
-          .insert([{ name: `${session.user.email || 'User'}'s Team` }])
+          .insert([{ 
+            name: `${session.user.email || 'User'}'s Team`,
+            code: joinCode,
+            created_by: session.user.id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }])
           .select()
           .single();
           
@@ -318,6 +339,20 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         if (setProfileInfo) {
           setProfileInfo({ team_id: teamIdToUse });
         }
+        
+        // Update team code and name in the UI
+        if (setTeamCode) setTeamCode(joinCode);
+        if (setTeamName) setTeamName(newTeam.name);
+        
+        // Show team code in success message
+        setSaveSuccess(`Team created with Join Code: ${joinCode}. You can share this code with others to join your team.`);
+        
+        // Clear success message after 10 seconds
+        const timeout = setTimeout(() => {
+          setSaveSuccess(null);
+        }, 10000);
+        
+        setSaveTimeout(timeout);
       }
 
       // Check if we have any changes (either dirty terms or deletions)
@@ -904,6 +939,9 @@ export default function SetupPage() {
   const [teamId, setTeamId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [profileInfo, setProfileInfo] = useState<{team_id: string | null}>({team_id: null})
+  const [teamCode, setTeamCode] = useState<string | null>(null)
+  const [teamName, setTeamName] = useState<string | null>(null)
+  const [codeCopied, setCodeCopied] = useState(false)
 
   // Create Supabase client in the browser
   const supabase = createBrowserClient(
@@ -1090,7 +1128,22 @@ export default function SetupPage() {
             console.log('Found profile:', profile);
             setProfileInfo({team_id: profile?.team_id || null});
             
-            if (!profile?.team_id) {
+            // If user has a team, fetch the team details
+            if (profile?.team_id) {
+              const { data: teamData, error: teamError } = await supabase
+                .from('teams')
+                .select('name, code')
+                .eq('id', profile.team_id)
+                .single();
+                
+              if (teamError) {
+                console.error('Error fetching team details:', teamError);
+              } else if (teamData) {
+                console.log('Found team details:', teamData);
+                setTeamName(teamData.name);
+                setTeamCode(teamData.code);
+              }
+            } else {
               console.log('User has no team ID, consider assigning one');
             }
           }
@@ -1104,6 +1157,19 @@ export default function SetupPage() {
     
     getUserProfileInfo();
   }, [userId, supabase]);
+
+  // Function to copy team code to clipboard
+  const copyTeamCode = async () => {
+    if (teamCode) {
+      try {
+        await navigator.clipboard.writeText(teamCode);
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2000); // Reset after 2 seconds
+      } catch (err) {
+        console.error('Failed to copy team code:', err);
+      }
+    }
+  };
 
   const updateSetTerms = (category: string, newTerms: TerminologyWithUI[]) => {
     setTerminologyState(prev => ({
@@ -1173,10 +1239,19 @@ export default function SetupPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const userEmail = session?.user?.email || 'User';
       
+      // Generate a random code for the team
+      const joinCode = generateJoinCode();
+      
       // Create a new team
       const { data: newTeam, error: teamError } = await supabase
         .from('teams')
-        .insert([{ name: `${userEmail}'s Team` }])
+        .insert([{ 
+          name: `${userEmail}'s Team`,
+          code: joinCode,
+          created_by: userId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
         .select()
         .single();
         
@@ -1203,11 +1278,13 @@ export default function SetupPage() {
       // Update local state
       setProfileInfo({ team_id: newTeam.id });
       setTeamId(newTeam.id);
+      setTeamCode(joinCode);
+      setTeamName(newTeam.name);
       
       // Refresh the terminology for the new team
       await loadTerminology();
       
-      alert(`Team created successfully! You now have your own team (${newTeam.id}) and can customize terminology.`);
+      alert(`Team created successfully! Your Team Join Code is: ${joinCode}\nYou can share this code with others to join your team.`);
     } catch (error) {
       console.error('Unexpected error creating team:', error);
       alert('An error occurred while creating the team.');
@@ -1263,6 +1340,33 @@ export default function SetupPage() {
             {profileInfo.team_id === DEFAULT_TEAM_ID && <span className="ml-1 text-green-600">(Default Team)</span>}
             {!profileInfo.team_id && <span className="ml-1 text-yellow-600">(Using Default Team)</span>}
           </div>
+          
+          {teamName && (
+            <div className="text-sm text-blue-700 mt-1">
+              Team Name: {teamName}
+            </div>
+          )}
+          
+          {teamCode && (
+            <div className="mt-3 bg-white p-3 rounded-md border border-blue-200 shadow-sm">
+              <div className="text-sm font-medium text-blue-800 mb-1">Team Join Code:</div>
+              <div 
+                onClick={copyTeamCode}
+                className="py-2 px-3 bg-blue-50 border border-blue-300 rounded-md flex items-center justify-between cursor-pointer hover:bg-blue-100 transition-colors"
+              >
+                <span className="font-mono text-base font-bold text-blue-700 tracking-wider">{teamCode}</span>
+                <span className={`text-xs font-medium ml-2 px-2 py-1 rounded-full ${codeCopied ? 'bg-green-100 text-green-600' : 'bg-blue-200 text-blue-600'}`}>
+                  {codeCopied ? 'Copied!' : 'Click to copy'}
+                </span>
+              </div>
+              <div className="text-xs text-blue-600 mt-2 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Share this code with others to join your team
+              </div>
+            </div>
+          )}
           
           {userId && !profileInfo.team_id && (
             <Button 
@@ -1340,6 +1444,8 @@ export default function SetupPage() {
             }}
             supabase={supabase}
             setProfileInfo={setProfileInfo}
+            setTeamCode={setTeamCode}
+            setTeamName={setTeamName}
           />
         ))}
       </div>
