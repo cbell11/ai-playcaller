@@ -690,15 +690,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             </Button>
           )}
           {category === "formations" ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={addRow}
-              className="text-blue-600 hover:text-blue-800"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add Formation
-            </Button>
+            <div>
+              {/* Formation info, but no button here */}
+            </div>
           ) : (
             <Button
               variant="ghost"
@@ -846,20 +840,27 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         </div>
 
         {category === "formations" ? (
-          <div className="text-center text-sm text-gray-600 mt-4">
-            {defaultFormations.length === 0 ? (
-              <div className="text-red-600">
-                No default formations available
-              </div>
-            ) : getAvailableFormations().length === 0 ? (
-              <div className="text-amber-600">
-                All formations have been selected (you can still add duplicates)
-              </div>
-            ) : (
-              <div>
-                {getAvailableFormations().length} more formation{getAvailableFormations().length !== 1 ? 's' : ''} available
-              </div>
-            )}
+          <div>
+            <Button variant="outline" onClick={addRow}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Formation
+            </Button>
+            
+            <div className="text-center text-sm text-gray-600 mt-2">
+              {defaultFormations.length === 0 ? (
+                <div className="text-red-600">
+                  No default formations available
+                </div>
+              ) : getAvailableFormations().length === 0 ? (
+                <div className="text-amber-600">
+                  All formations have been selected (you can still add duplicates)
+                </div>
+              ) : (
+                <div>
+                  {getAvailableFormations().length} more formation{getAvailableFormations().length !== 1 ? 's' : ''} available
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <Button variant="outline" onClick={addRow}>
