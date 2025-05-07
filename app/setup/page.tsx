@@ -1041,7 +1041,7 @@ export default function SetupPage() {
         }
         
         // Get terminology
-        const terms = await getTerminology(supabase, userTeamId)
+        const terms = await getTerminology(userTeamId)
         console.log('Fetched terminology:', terms)
         
         // Group terms by category
