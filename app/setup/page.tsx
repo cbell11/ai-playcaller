@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { getTerminology, addTerminology, updateTerminology, batchUpdateTerminology, deleteTerminology, initializeDefaultTerminology, Terminology, testSupabaseConnection, updateFormationConcepts, getDefaultTeamFormations } from "@/lib/terminology"
-import { updatePlaysWithTerminology } from "@/lib/playpool"
+import { updatePlayPoolTerminology } from "@/lib/playpool"
 import { createBrowserClient } from '@supabase/ssr'
 import { SupabaseClient } from '@supabase/supabase-js'
 
@@ -50,6 +50,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [selectedImage, setSelectedImage] = useState<{url: string, concept: string} | null>(null)
   const [defaultFormations, setDefaultFormations] = useState<Terminology[]>([])
+  const [defaultFormTags, setDefaultFormTags] = useState<Terminology[]>([])
   const [localTerms, setLocalTerms] = useState<TerminologyWithUI[]>(terms)
   const [userInfo, setUserInfo] = useState<{id: string | null, email: string | null, team_id: string | null}>({id: null, email: null, team_id: null})
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -101,33 +102,44 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }, [supabase])
 
   useEffect(() => {
-    if (category === "formations") {
-      console.log('Getting default team formations for category:', category);
+    if (category === "formations" || category === "form_tags") {
+      console.log(`Getting default team ${category} for category:`, category);
       
-      const loadFormations = async () => {
+      const loadItems = async () => {
         try {
-          // Always load formations from default team
-          console.log('Loading all formations from default team ID:', DEFAULT_TEAM_ID);
-          
-          // Get formations for the default team
-          const formations = await getDefaultTeamFormations(supabase, DEFAULT_TEAM_ID);
-          console.log('Received formations from default team:', formations);
-          setDefaultFormations(formations);
+          // Get items for the default team
+          const { data: items, error: itemsError } = await supabase
+            .from('terminology')
+            .select('*')
+            .eq('category', category)
+            .eq('team_id', DEFAULT_TEAM_ID);
+
+          if (itemsError) {
+            console.error(`Error loading default ${category}:`, itemsError);
+            return;
+          }
+
+          console.log(`Received ${category} from default team:`, items);
+          if (category === "formations") {
+            setDefaultFormations(items || []);
+          } else if (category === "form_tags") {
+            setDefaultFormTags(items || []);
+          }
         } catch (error) {
-          console.error('Error loading team formations:', error);
+          console.error(`Error loading team ${category}:`, error);
         }
       };
       
-      loadFormations();
+      loadItems();
     }
-  }, [category, supabase, userInfo.team_id]);
+  }, [category, supabase]);
 
   // Update local terms when props change
   useEffect(() => {
     console.log(`Setting localTerms for ${category}:`, terms);
     
-    // For formations, mark terms that are associated with the user's team as selected
-    if (category === "formations") {
+    // For formations and form_tags, mark terms that are associated with the user's team as selected
+    if (category === "formations" || category === "form_tags") {
       const userTeamId = userInfo.team_id;
       const termsWithSelection = terms.map(term => ({
         ...term,
@@ -139,40 +151,51 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     }
   }, [terms, category, userInfo.team_id])
 
-  // Get available formations that haven't been selected yet
-  const getAvailableFormations = () => {
-    console.log('Current default formations:', defaultFormations);
-    const selectedConcepts = localTerms.map(term => term.concept);
-    console.log('Selected concepts:', selectedConcepts);
-    const available = defaultFormations.filter(formation => !selectedConcepts.includes(formation.concept));
-    console.log('Available formations:', available);
-    return available;
+  // Get available items that haven't been selected yet
+  const getAvailableItems = () => {
+    if (category === "formations") {
+      console.log('Current default formations:', defaultFormations);
+      const selectedConcepts = localTerms.map(term => term.concept);
+      console.log('Selected concepts:', selectedConcepts);
+      const available = defaultFormations.filter(formation => !selectedConcepts.includes(formation.concept));
+      console.log('Available formations:', available);
+      return available;
+    } else if (category === "form_tags") {
+      console.log('Current default form tags:', defaultFormTags);
+      const selectedConcepts = localTerms.map(term => term.concept);
+      console.log('Selected concepts:', selectedConcepts);
+      const available = defaultFormTags.filter((tag: Terminology) => !selectedConcepts.includes(tag.concept));
+      console.log('Available form tags:', available);
+      return available;
+    }
+    return [];
   }
 
   const addRow = () => {
-    if (category === "formations") {
-      // For formations, use default formations instead of only available ones
-      if (defaultFormations.length === 0) {
-        console.log("No default formations available");
-        return; // Don't add if no default formations exist at all
+    if (category === "formations" || category === "form_tags") {
+      const defaultItems = category === "formations" ? defaultFormations : defaultFormTags;
+      
+      if (defaultItems.length === 0) {
+        console.log(`No default ${category} available`);
+        return; // Don't add if no default items exist at all
       }
 
-      // Find the first unselected formation if possible
-      const availableFormations = getAvailableFormations();
-      const formationToUse = availableFormations.length > 0 
-        ? availableFormations[0] 
-        : defaultFormations[0]; // Use first default formation if all are selected
+      // Find the first unselected item if possible
+      const availableItems = getAvailableItems();
+      const itemToUse = availableItems.length > 0 
+        ? availableItems[0] 
+        : defaultItems[0]; // Use first default item if all are selected
       
       const newTerm: TerminologyWithUI = {
         id: crypto.randomUUID(),
-        concept: formationToUse.concept || '',
-        label: formationToUse.label || '',
+        concept: itemToUse.concept || '',
+        label: itemToUse.label || '',
         category: category,
         is_enabled: true,
         isDirty: true,
         isEditing: true,
         isSelected: true,
-        image_url: formationToUse.image_url, // Copy image_url for preview
+        ...(category === "formations" && itemToUse.image_url ? { image_url: itemToUse.image_url } : {})
       }
       setLocalTerms([...localTerms, newTerm])
       onUpdate([...localTerms, newTerm])
@@ -192,17 +215,18 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const updateConcept = (term: TerminologyWithUI, newConcept: string, isSelected: boolean) => {
-    if (category === "formations") {
-      const formation = defaultFormations.find(f => f.concept === newConcept)
+    if (category === "formations" || category === "form_tags") {
+      const defaultItems = category === "formations" ? defaultFormations : defaultFormTags;
+      const item = defaultItems.find(f => f.concept === newConcept)
       const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === newConcept)
       
-      if (formation && !isAlreadySelected) {
-        // Copy image_url from the default formation
+      if (item && !isAlreadySelected) {
+        // Copy properties from the default item
         const updatedTerms = localTerms.map(t => t.id === term.id ? { 
           ...term, 
-          concept: formation.concept || '', 
-          label: formation.label || '', 
-          image_url: formation.image_url, // Copy image_url from default formation
+          concept: item.concept || '', 
+          label: item.label || '', 
+          ...(category === "formations" && item.image_url ? { image_url: item.image_url } : {}),
           isDirty: true,
           isSelected: isSelected
         } : t)
@@ -359,104 +383,109 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       const dirtyTerms = localTerms.filter(term => term.isDirty);
       
       // Early return if there are no changes to save
-      if (category === "formations") {
-        // For formations, continue if there are either dirty terms or deletions
+      if (category === "formations" || category === "form_tags") {
+        // For formations and form_tags, continue if there are either dirty terms or deletions
         if (dirtyTerms.length === 0 && !hasDeleted) {
-          console.log("No changes to save for formations");
+          console.log(`No changes to save for ${category}`);
           return;
         }
       } else {
-        // For non-formations, still require dirty terms
+        // For other categories, still require dirty terms
         if (dirtyTerms.length === 0) {
           console.log("No changes to save for", category);
           return;
         }
       }
 
-      if (category === "formations") {
-        console.log('Saving formations for team:', teamIdToUse);
+      if (category === "formations" || category === "form_tags") {
+        console.log(`Saving ${category} for team:`, teamIdToUse);
         
-        // For formations, we're going to copy from the default team based on the user's current selection
+        // For formations and form_tags, we're going to copy from the default team based on the user's current selection
         
-        // 1. Get all the formation concepts the user wants to keep (whether dirty or not)
+        // 1. Get all the concepts the user wants to keep (whether dirty or not)
         // This properly handles deletions by only keeping what's in localTerms
-        const keepFormationConcepts = localTerms.map(term => term.concept);
-        console.log('Keeping formation concepts:', keepFormationConcepts);
+        const keepConcepts = localTerms.map(term => term.concept);
+        console.log(`Keeping ${category} concepts:`, keepConcepts);
         console.log('Current localTerms count:', localTerms.length);
         console.log('User had deleted items:', hasDeleted);
         
-        // 2. Get the complete formation data from the default team
-        const { data: defaultFormations, error: defaultFormationsError } = await supabase
+        // 2. Get the complete data from the default team
+        const { data: defaultItems, error: defaultItemsError } = await supabase
           .from('terminology')
           .select('*')
-          .eq('category', 'formations')
+          .eq('category', category)
           .eq('team_id', DEFAULT_TEAM_ID);
           
-        if (defaultFormationsError) {
-          console.error('Error fetching default formations:', defaultFormationsError);
-          throw new Error('Could not fetch default formations: ' + defaultFormationsError.message);
+        if (defaultItemsError) {
+          console.error(`Error fetching default ${category}:`, defaultItemsError);
+          throw new Error(`Could not fetch default ${category}: ` + defaultItemsError.message);
         }
         
-        if (!defaultFormations || defaultFormations.length === 0) {
-          console.error('No default formations found to copy from');
-          throw new Error('No default formations found to copy from');
+        if (!defaultItems || defaultItems.length === 0) {
+          console.error(`No default ${category} found to copy from`);
+          throw new Error(`No default ${category} found to copy from`);
         }
         
-        console.log(`Found ${defaultFormations.length} formations in default team`);
+        console.log(`Found ${defaultItems.length} ${category} in default team`);
         
-        // 3. Create new formation records by copying from default team and changing team_id
-        // Use all of the user's current formations, not just dirty ones
-        const formationsToSave = defaultFormations
-          .filter(formation => keepFormationConcepts.includes(formation.concept))
-          .map(formation => {
+        // 3. Create new records by copying from default team and changing team_id
+        // Use all of the user's current items, not just dirty ones
+        const itemsToSave = defaultItems
+          .filter(item => keepConcepts.includes(item.concept))
+          .map(item => {
             // Find the matching local term to get any customized label
-            const localTerm = localTerms.find(term => term.concept === formation.concept);
+            const localTerm = localTerms.find(term => term.concept === item.concept);
             
             // Only include essential fields that definitely exist in the database
-            return {
-              concept: formation.concept,
+            const saveItem = {
+              concept: item.concept,
               // Use the customized label if available, otherwise use the default
-              label: localTerm?.label || formation.label,
-              category: 'formations',
+              label: localTerm?.label || item.label,
+              category: category,
               team_id: teamIdToUse,
-              // Include image_url only if it exists
-              ...(formation.image_url ? { image_url: formation.image_url } : {})
             };
+            
+            // Add image_url only for formations and only if it exists
+            if (category === "formations" && item.image_url) {
+              return { ...saveItem, image_url: item.image_url };
+            }
+            
+            return saveItem;
           });
           
-        console.log(`Copying ${formationsToSave.length} formations from default team to user's team`);
+        console.log(`Copying ${itemsToSave.length} ${category} from default team to user's team`);
         
-        // 4. Delete any existing formations for this team
+        // 4. Delete any existing items for this team
         const { error: deleteError } = await supabase
           .from('terminology')
           .delete()
-          .eq('category', 'formations')
+          .eq('category', category)
           .eq('team_id', teamIdToUse)
 
         if (deleteError) {
           console.error('Delete error:', deleteError)
-          throw new Error('Error deleting existing formations: ' + deleteError.message)
+          throw new Error(`Error deleting existing ${category}: ` + deleteError.message)
         }
 
-        // 5. Insert the copied formations
-        const { data: insertedFormations, error: insertError } = await supabase
+        // 5. Insert the copied items
+        const { data: insertedItems, error: insertError } = await supabase
           .from('terminology')
-          .insert(formationsToSave)
+          .insert(itemsToSave)
           .select();
 
         if (insertError) {
           console.error('Insert error:', insertError)
-          throw new Error('Error inserting copied formations: ' + insertError.message)
+          throw new Error(`Error inserting copied ${category}: ` + insertError.message)
         }
         
-        console.log(`Successfully saved ${insertedFormations?.length || 0} formations for team ${teamIdToUse}`);
-        console.log('Saved formations:', insertedFormations?.map(f => f.concept) || []);
-        console.log('Expected to save formations:', keepFormationConcepts);
+        console.log(`Successfully saved ${insertedItems?.length || 0} ${category} for team ${teamIdToUse}`);
+        console.log(`Saved ${category}:`, insertedItems?.map(f => f.concept) || []);
+        console.log(`Expected to save ${category}:`, keepConcepts);
         
         // Show success message after saving
         const successMessage = hasDeleted 
-          ? `Successfully saved changes. ${insertedFormations?.length || 0} formations saved, formations were removed.`
-          : `Successfully saved ${insertedFormations?.length || 0} formations!`;
+          ? `Successfully saved changes. ${insertedItems?.length || 0} ${category} saved, items were removed.`
+          : `Successfully saved ${insertedItems?.length || 0} ${category}!`;
         
         setSaveSuccess(successMessage);
         
@@ -467,27 +496,27 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         
         setSaveTimeout(timeout);
         
-        // After saving, verify if any formations for this team remained
-        const { data: verifyFormations, error: verifyError } = await supabase
+        // After saving, verify if any items for this team remained
+        const { data: verifyItems, error: verifyError } = await supabase
           .from('terminology')
           .select('*')
-          .eq('category', 'formations')
+          .eq('category', category)
           .eq('team_id', teamIdToUse);
           
         if (verifyError) {
-          console.error('Error verifying saved formations:', verifyError);
+          console.error(`Error verifying saved ${category}:`, verifyError);
         } else {
-          console.log(`After save: Found ${verifyFormations?.length || 0} formations for team ${teamIdToUse}`);
-          console.log('Formation concepts after save:', verifyFormations?.map(f => f.concept) || []);
+          console.log(`After save: Found ${verifyItems?.length || 0} ${category} for team ${teamIdToUse}`);
+          console.log(`${category} concepts after save:`, verifyItems?.map(f => f.concept) || []);
         }
 
         // 6. Update local state to reflect the changes
         const updatedTerms = localTerms.map(term => {
-          // Find the matching formation we just copied
-          const matchingInserted = insertedFormations?.find(f => f.concept === term.concept);
+          // Find the matching item we just copied
+          const matchingInserted = insertedItems?.find(f => f.concept === term.concept);
           
           if (matchingInserted) {
-            // Return the copied formation with UI state
+            // Return the copied item with UI state
             return {
               ...matchingInserted,
               isDirty: false,
@@ -508,7 +537,6 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       } else {
         // For non-formations, update existing records
         await batchUpdateTerminology(
-          supabase,
           dirtyTerms.map(term => ({
             id: term.id,
             concept: term.concept,
@@ -537,7 +565,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       }
       
       // Force reload formations after save
-      if (category === "formations") {
+      if (category === "formations" || category === "form_tags") {
         setTimeout(() => {
           forceReloadFormations();
         }, 500);
@@ -551,70 +579,71 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const forceReloadFormations = async () => {
-    if (category === "formations") {
+    if (category === "formations" || category === "form_tags") {
       try {
-        console.log('Force reloading formations...');
+        console.log(`Force reloading ${category}...`);
         
         // Always use the default team ID
         const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683';
-        console.log('Using default team ID for formations:', DEFAULT_TEAM_ID);
+        console.log(`Using default team ID for ${category}:`, DEFAULT_TEAM_ID);
         
-        const formations = await getDefaultTeamFormations(supabase, DEFAULT_TEAM_ID);
-        console.log('Force reloaded formations:', formations);
-        setDefaultFormations(formations);
+        const items = await getDefaultTeamFormations();
+        console.log(`Force reloaded ${category}:`, items);
+        if (category === "formations") {
+          setDefaultFormations(items);
+        }
       } catch (error) {
-        console.error('Error force reloading formations:', error);
+        console.error(`Error force reloading ${category}:`, error);
       }
     }
   };
 
   // Handle resetting formations to default (deleting user's team formations)
   const handleResetToDefault = async () => {
-    if (category !== "formations" || !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
-      console.log('Cannot reset formations: not on formations tab, no team id, or already using default team');
+    if ((category !== "formations" && category !== "form_tags") || !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
+      console.log(`Cannot reset ${category}: not on formations/form_tags tab, no team id, or already using default team`);
       return;
     }
 
     try {
       setIsResetting(true);
-      console.log('Resetting formations for team', userInfo.team_id);
+      console.log(`Resetting ${category} for team`, userInfo.team_id);
 
-      // Delete all formations for the user's team
+      // Delete all items for the user's team
       const { error: deleteError } = await supabase
         .from('terminology')
         .delete()
-        .eq('category', 'formations')
+        .eq('category', category)
         .eq('team_id', userInfo.team_id);
 
       if (deleteError) {
-        console.error('Error deleting team formations:', deleteError);
-        throw new Error(`Failed to reset formations: ${deleteError.message}`);
+        console.error(`Error deleting ${category}:`, deleteError);
+        throw new Error(`Failed to reset ${category}: ` + deleteError.message);
       }
 
-      console.log('Successfully deleted team formations');
-
-      // Reload formations to show default team formations
+      // Force reload after reset
       await forceReloadFormations();
 
-      // Update UI
-      const updatedTerms = localTerms.map(term => ({
-        ...term,
-        isDirty: false,
-        isSelected: false,
-        team_id: "" // Using empty string instead of null or undefined
-      }));
+      // Show success message
+      setSaveSuccess(`Successfully reset ${category} to default!`);
       
-      setLocalTerms(updatedTerms);
-      setHasDeleted(false); // Reset hasDeleted flag
-      onUpdate(updatedTerms);
+      // Clear success message after 5 seconds
+      const timeout = setTimeout(() => {
+        setSaveSuccess(null);
+      }, 5000);
+      
+      setSaveTimeout(timeout);
 
-      // Close the confirmation dialog
-      setShowResetConfirm(false);
+      // Update local state
+      setLocalTerms([]);
+      onUpdate([]);
+      setHasDeleted(false);
     } catch (error) {
-      console.error('Error resetting formations:', error);
-      alert(error instanceof Error ? error.message : 'An error occurred while resetting formations');
+      console.error(`Error resetting ${category}:`, error);
+      alert(error instanceof Error ? error.message : `An error occurred while resetting ${category}`);
     } finally {
       setIsResetting(false);
+      setShowResetConfirm(false);
     }
   };
 
@@ -639,11 +668,11 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div>
           <CardTitle className="text-xl font-bold">{title}</CardTitle>
-          {category === "formations" && (
+          {(category === "formations" || category === "form_tags") && (
             <p className="text-sm text-gray-500 mt-1">
-              Select the formations you want to use in your playbook.
-              You can add any formation from the default team, including duplicates with different names.
-              <span className="block mt-1 italic">Click the edit button (pencil icon) or double-click on a name to customize formation names.</span>
+              Select the {category === "formations" ? "formations" : "formation tags"} you want to use in your playbook.
+              You can add any {category === "formations" ? "formation" : "tag"} from the default team, including duplicates with different names.
+              <span className="block mt-1 italic">Click the edit button (pencil icon) or double-click on a name to customize {category === "formations" ? "formation" : "tag"} names.</span>
             </p>
           )}
           {/* Display success message if present */}
@@ -724,7 +753,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               )}
             </Button>
           )}
-          {category === "formations" ? (
+          {category === "formations" || category === "form_tags" ? (
             <div>
               {/* Formation info, but no button here */}
             </div>
@@ -744,9 +773,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       <CardContent>
         <div className="mb-6">
           <div className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 font-medium mb-2 px-2">
-            {category === "formations" ? (
+            {category === "formations" || category === "form_tags" ? (
               <>
-                <div>Formation</div>
+                <div>{category === "formations" ? "Formation" : "Formation Tag"}</div>
                 <div>Customized Name</div>
               </>
             ) : (
@@ -763,8 +792,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           {localTerms.map((term) => (
             <div key={`row-${term.id}`} className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 items-center py-2 border-b">
               <div key={`concept-${term.id}`}>
-                {term.isEditing || category === "formations" ? (
-                  category === "formations" ? (
+                {term.isEditing || category === "formations" || category === "form_tags" ? (
+                  category === "formations" || category === "form_tags" ? (
                     <div>
                       <Select
                         value={term.concept || ''}
@@ -772,22 +801,48 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                         disabled={false}
                       >
                         <SelectTrigger className="h-9 w-full bg-white border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors duration-200">
-                          <SelectValue placeholder="Select formation" />
+                          <SelectValue placeholder={`Select ${category === "formations" ? "formation" : "tag"}`} />
                         </SelectTrigger>
                         <SelectContent className="bg-white border-gray-200 shadow-lg rounded-md">
-                          {defaultFormations && defaultFormations.length > 0 ? (
-                            defaultFormations.map((formation) => {
-                              // Check if this formation is selected by another row
-                              const isSelected = localTerms.some(t => t.id !== term.id && t.concept === formation.concept);
+                          {category === "formations" ? (
+                            defaultFormations && defaultFormations.length > 0 ? (
+                              defaultFormations.map((formation) => {
+                                // Check if this formation is selected by another row
+                                const isSelected = localTerms.some(t => t.id !== term.id && t.concept === formation.concept);
+                                return (
+                                  <SelectItem 
+                                    key={formation.concept} 
+                                    value={formation.concept || ''}
+                                    disabled={isSelected}
+                                    className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-medium">{formation.concept}</span>
+                                      {isSelected && (
+                                        <span className="text-xs text-gray-400 ml-2">(already selected)</span>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                )
+                              })
+                            ) : (
+                              <div className="p-3 text-red-500">
+                                No formations found. Please try reloading.
+                              </div>
+                            )
+                          ) : defaultFormTags && defaultFormTags.length > 0 ? (
+                            defaultFormTags.map((tag) => {
+                              // Check if this tag is selected by another row
+                              const isSelected = localTerms.some(t => t.id !== term.id && t.concept === tag.concept);
                               return (
                                 <SelectItem 
-                                  key={formation.concept} 
-                                  value={formation.concept || ''}
+                                  key={tag.concept} 
+                                  value={tag.concept || ''}
                                   disabled={isSelected}
                                   className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
                                 >
                                   <div className="flex items-center justify-between">
-                                    <span className="font-medium">{formation.concept}</span>
+                                    <span className="font-medium">{tag.concept}</span>
                                     {isSelected && (
                                       <span className="text-xs text-gray-400 ml-2">(already selected)</span>
                                     )}
@@ -797,19 +852,19 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                             })
                           ) : (
                             <div className="p-3 text-red-500">
-                              No formations found. Please try reloading.
+                              No form tags found. Please try reloading.
                             </div>
                           )}
                         </SelectContent>
                       </Select>
                     </div>
                   ) : (
-                  <Input 
-                    key={`concept-input-${term.id}`}
-                    value={term.concept} 
-                    onChange={(e) => updateConcept(term, e.target.value, false)} 
-                    className="h-9" 
-                  />
+                    <Input 
+                      key={`concept-input-${term.id}`}
+                      value={term.concept} 
+                      onChange={(e) => updateConcept(term, e.target.value, false)} 
+                      className="h-9" 
+                    />
                   )
                 ) : (
                   <span key={`concept-text-${term.id}`} className="text-gray-600">
@@ -874,26 +929,42 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           ))}
         </div>
 
-        {category === "formations" ? (
+        {category === "formations" || category === "form_tags" ? (
           <div>
             <Button variant="outline" onClick={addRow}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Formation
+              Add {category === "formations" ? "Formation" : "Formation Tag"}
             </Button>
             
             <div className="text-center text-sm text-gray-600 mt-2">
-              {defaultFormations.length === 0 ? (
-                <div className="text-red-600">
-                  No default formations available
-                </div>
-              ) : getAvailableFormations().length === 0 ? (
-                <div className="text-amber-600">
-                  All formations have been selected (you can still add duplicates)
-                </div>
+              {category === "formations" ? (
+                defaultFormations.length === 0 ? (
+                  <div className="text-red-600">
+                    No default formations available
+                  </div>
+                ) : getAvailableItems().length === 0 ? (
+                  <div className="text-amber-600">
+                    All formations have been selected (you can still add duplicates)
+                  </div>
+                ) : (
+                  <div>
+                    {getAvailableItems().length} more formation{getAvailableItems().length !== 1 ? 's' : ''} available
+                  </div>
+                )
               ) : (
-                <div>
-                  {getAvailableFormations().length} more formation{getAvailableFormations().length !== 1 ? 's' : ''} available
-                </div>
+                defaultFormTags.length === 0 ? (
+                  <div className="text-red-600">
+                    No default formation tags available
+                  </div>
+                ) : getAvailableItems().length === 0 ? (
+                  <div className="text-amber-600">
+                    All formation tags have been selected (you can still add duplicates)
+                  </div>
+                ) : (
+                  <div>
+                    {getAvailableItems().length} more formation tag{getAvailableItems().length !== 1 ? 's' : ''} available
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -971,7 +1042,7 @@ export default function SetupPage() {
       
       // Test connection first
       console.log('Testing Supabase connection...')
-      const isConnected = await testSupabaseConnection(supabase)
+      const isConnected = await testSupabaseConnection()
       if (!isConnected) {
         setError('Unable to connect to Supabase. Please check your database configuration.')
         setIsLoading(false)
@@ -1013,10 +1084,10 @@ export default function SetupPage() {
 
       try {
         console.log('Initializing default terminology...')
-        await initializeDefaultTerminology(supabase)
+        await initializeDefaultTerminology()
         // Update formation concepts to match predefined list
         console.log('Updating formation concepts...')
-        await updateFormationConcepts(supabase)
+        await updateFormationConcepts()
       } catch (initError) {
         console.error('Initialization error:', initError)
         setError(`Error initializing terminology: ${initError instanceof Error ? initError.message : 'Unknown initialization error'}`)
@@ -1027,17 +1098,61 @@ export default function SetupPage() {
       try {
         console.log('Fetching terminology with teamId:', userTeamId)
         
-        // Check if the team has formations
+        // Check if the team has formations and form_tags
         const { data: teamFormations, error: formationsError } = await supabase
           .from('terminology')
           .select('*')
           .eq('category', 'formations')
+          .eq('team_id', userTeamId)
+
+        const { data: teamFormTags, error: formTagsError } = await supabase
+          .from('terminology')
+          .select('*')
+          .eq('category', 'form_tags')
           .eq('team_id', userTeamId)
         
         if (formationsError) {
           console.error('Error checking for team formations:', formationsError);
         } else {
           console.log(`Team has ${teamFormations?.length || 0} formations`);
+        }
+
+        if (formTagsError) {
+          console.error('Error checking for team form tags:', formTagsError);
+        } else {
+          console.log(`Team has ${teamFormTags?.length || 0} form tags`);
+        }
+
+        // If user has no form tags, get them from default team
+        if (!teamFormTags || teamFormTags.length === 0) {
+          console.log('No form tags found for user team, getting from default team');
+          const { data: defaultFormTags, error: defaultFormTagsError } = await supabase
+            .from('terminology')
+            .select('*')
+            .eq('category', 'form_tags')
+            .eq('team_id', DEFAULT_TEAM_ID);
+
+          if (defaultFormTagsError) {
+            console.error('Error fetching default form tags:', defaultFormTagsError);
+          } else if (defaultFormTags && defaultFormTags.length > 0) {
+            console.log(`Found ${defaultFormTags.length} default form tags`);
+            // Add default form tags to the user's team
+            const formTagsToAdd = defaultFormTags.map(tag => ({
+              ...tag,
+              team_id: userTeamId,
+              id: crypto.randomUUID() // Generate new IDs for the copies
+            }));
+
+            const { error: insertError } = await supabase
+              .from('terminology')
+              .insert(formTagsToAdd);
+
+            if (insertError) {
+              console.error('Error copying default form tags:', insertError);
+            } else {
+              console.log('Successfully copied default form tags to user team');
+            }
+          }
         }
         
         // Get terminology
@@ -1316,7 +1431,7 @@ export default function SetupPage() {
 
   const terminologySets = {
     formations: { title: "Formations", category: "formations" },
-    tags: { title: "Formation Tags", category: "tags" },
+    form_tags: { title: "Formation Tags", category: "form_tags" },
     motions: { title: "Motions", category: "motions" },
     shifts: { title: "Shifts", category: "shifts" },
     pass_protections: { title: "Pass Protections", category: "pass_protections" },
@@ -1387,7 +1502,7 @@ export default function SetupPage() {
               onClick={async () => {
                 try {
                   setUpdatingPlayPool(true);
-                  await updatePlaysWithTerminology(supabase);
+                  await updatePlayPoolTerminology();
                   setNeedsPlayPoolUpdate(false);
                 } catch (error) {
                   console.error('Error updating play pool:', error);
@@ -1464,7 +1579,7 @@ export default function SetupPage() {
               onClick={async () => {
                 try {
                   setUpdatingPlayPool(true);
-                  await updatePlaysWithTerminology(supabase);
+                  await updatePlayPoolTerminology();
                   setNeedsPlayPoolUpdate(false);
                 } catch (error) {
                   console.error('Error updating play pool:', error);
