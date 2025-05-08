@@ -57,6 +57,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [hasDeleted, setHasDeleted] = useState(false) // Track if any items have been deleted
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null) // Track success message
   const [saveTimeout, setSaveTimeout] = useState<NodeJS.Timeout | null>(null) // Track timeout for message
+  const [showNoMoreItemsMessage, setShowNoMoreItemsMessage] = useState(false)
 
   // Get user info when component mounts
   useEffect(() => {
@@ -182,9 +183,17 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
 
       // Find the first unselected item if possible
       const availableItems = getAvailableItems();
-      const itemToUse = availableItems.length > 0 
-        ? availableItems[0] 
-        : defaultItems[0]; // Use first default item if all are selected
+      if (availableItems.length === 0) {
+        console.log(`No more ${category} available to add`);
+        setShowNoMoreItemsMessage(true);
+        // Hide the message after 3 seconds
+        setTimeout(() => {
+          setShowNoMoreItemsMessage(false);
+        }, 3000);
+        return; // Don't add if no available items
+      }
+
+      const itemToUse = availableItems[0];
       
       const newTerm: TerminologyWithUI = {
         id: crypto.randomUUID(),
@@ -671,7 +680,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           {(category === "formations" || category === "form_tags") && (
             <p className="text-sm text-gray-500 mt-1">
               Select the {category === "formations" ? "formations" : "formation tags"} you want to use in your playbook.
-              You can add any {category === "formations" ? "formation" : "tag"} from the default team, including duplicates with different names.
+              You can add any {category === "formations" ? "formation" : "tag"} from the default team.
               <span className="block mt-1 italic">Click the edit button (pencil icon) or double-click on a name to customize {category === "formations" ? "formation" : "tag"} names.</span>
             </p>
           )}
@@ -931,7 +940,12 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
 
         {category === "formations" || category === "form_tags" ? (
           <div>
-            <Button variant="outline" onClick={addRow}>
+            <Button 
+              variant="outline" 
+              onClick={addRow}
+              disabled={getAvailableItems().length === 0}
+              className={getAvailableItems().length === 0 ? "opacity-50 cursor-not-allowed" : ""}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add {category === "formations" ? "Formation" : "Formation Tag"}
             </Button>
@@ -942,9 +956,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <div className="text-red-600">
                     No default formations available
                   </div>
-                ) : getAvailableItems().length === 0 ? (
+                ) : showNoMoreItemsMessage ? (
                   <div className="text-amber-600">
-                    All formations have been selected (you can still add duplicates)
+                    There are no more formations available to add
                   </div>
                 ) : (
                   <div>
@@ -956,9 +970,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <div className="text-red-600">
                     No default formation tags available
                   </div>
-                ) : getAvailableItems().length === 0 ? (
+                ) : showNoMoreItemsMessage ? (
                   <div className="text-amber-600">
-                    All formation tags have been selected (you can still add duplicates)
+                    There are no more formation tags available to add
                   </div>
                 ) : (
                   <div>
