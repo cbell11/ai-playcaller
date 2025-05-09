@@ -54,6 +54,12 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [defaultShifts, setDefaultShifts] = useState<Terminology[]>([])
   const [defaultToMotions, setDefaultToMotions] = useState<Terminology[]>([])
   const [defaultFromMotions, setDefaultFromMotions] = useState<Terminology[]>([])
+  const [defaultRunGame, setDefaultRunGame] = useState<Terminology[]>([])
+  const [defaultPassProtections, setDefaultPassProtections] = useState<Terminology[]>([])
+  const [defaultQuickGame, setDefaultQuickGame] = useState<Terminology[]>([])
+  const [defaultDropbackGame, setDefaultDropbackGame] = useState<Terminology[]>([])
+  const [defaultScreenGame, setDefaultScreenGame] = useState<Terminology[]>([])
+  const [defaultShotPlays, setDefaultShotPlays] = useState<Terminology[]>([])
   const [localTerms, setLocalTerms] = useState<TerminologyWithUI[]>(terms || [])
   const [userInfo, setUserInfo] = useState<{id: string | null, email: string | null, team_id: string | null}>({id: null, email: null, team_id: null})
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -118,7 +124,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }, [supabase])
 
   useEffect(() => {
-    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
+    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
+        category === "run_game" || category === "pass_protections" || category === "quick_game" || category === "dropback_game" || 
+        category === "screen_game" || category === "shot_plays") {
       console.log(`Getting default team ${category} for category:`, category);
       
       const loadItems = async () => {
@@ -146,6 +154,18 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             setDefaultToMotions(items || []);
           } else if (category === "from_motions") {
             setDefaultFromMotions(items || []);
+          } else if (category === "run_game") {
+            setDefaultRunGame(items || []);
+          } else if (category === "pass_protections") {
+            setDefaultPassProtections(items || []);
+          } else if (category === "quick_game") {
+            setDefaultQuickGame(items || []);
+          } else if (category === "dropback_game") {
+            setDefaultDropbackGame(items || []);
+          } else if (category === "screen_game") {
+            setDefaultScreenGame(items || []);
+          } else if (category === "shot_plays") {
+            setDefaultShotPlays(items || []);
           }
         } catch (error) {
           console.error(`Error loading team ${category}:`, error);
@@ -178,7 +198,31 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       } else if (category === "from_motions") {
         const selectedConcepts = localTerms.map(term => term.concept);
         const available = defaultFromMotions.filter((motion: Terminology) => !selectedConcepts.includes(motion.concept));
-      return available;
+        return available;
+      } else if (category === "run_game") {
+        const selectedConcepts = localTerms.map(term => term.concept);
+        const available = defaultRunGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+        return available;
+      } else if (category === "pass_protections") {
+        const selectedConcepts = localTerms.map(term => term.concept);
+        const available = defaultPassProtections.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+        return available;
+      } else if (category === "quick_game") {
+        const selectedConcepts = localTerms.map(term => term.concept);
+        const available = defaultQuickGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+        return available;
+      } else if (category === "dropback_game") {
+        const selectedConcepts = localTerms.map(term => term.concept);
+        const available = defaultDropbackGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+        return available;
+      } else if (category === "screen_game") {
+        const selectedConcepts = localTerms.map(term => term.concept);
+        const available = defaultScreenGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+        return available;
+      } else if (category === "shot_plays") {
+        const selectedConcepts = localTerms.map(term => term.concept);
+        const available = defaultShotPlays.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+        return available;
     }
     return [];
     } catch (error) {
@@ -206,12 +250,20 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }, [terms, category, userInfo.team_id]);
 
   const addRow = () => {
-    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
+    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
+        category === "run_game" || category === "pass_protections" || category === "quick_game" || category === "dropback_game" || 
+        category === "screen_game" || category === "shot_plays") {
       const defaultItems = category === "formations" ? defaultFormations : 
                           category === "form_tags" ? defaultFormTags : 
                           category === "shifts" ? defaultShifts :
                           category === "to_motions" ? defaultToMotions :
-                          defaultFromMotions;
+                          category === "from_motions" ? defaultFromMotions :
+                          category === "run_game" ? defaultRunGame :
+                          category === "pass_protections" ? defaultPassProtections :
+                          category === "quick_game" ? defaultQuickGame :
+                          category === "dropback_game" ? defaultDropbackGame :
+                          category === "screen_game" ? defaultScreenGame :
+                          defaultShotPlays;
       
       if (defaultItems.length === 0) {
         console.log(`No default ${category} available`);
@@ -261,12 +313,20 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const updateConcept = (term: TerminologyWithUI, newConcept: string, isSelected: boolean) => {
-    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
+    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
+        category === "run_game" || category === "pass_protections" || category === "quick_game" || category === "dropback_game" || 
+        category === "screen_game" || category === "shot_plays") {
       const defaultItems = category === "formations" ? defaultFormations : 
                           category === "form_tags" ? defaultFormTags : 
                           category === "shifts" ? defaultShifts :
                           category === "to_motions" ? defaultToMotions :
-                          defaultFromMotions;
+                          category === "from_motions" ? defaultFromMotions :
+                          category === "run_game" ? defaultRunGame :
+                          category === "pass_protections" ? defaultPassProtections :
+                          category === "quick_game" ? defaultQuickGame :
+                          category === "dropback_game" ? defaultDropbackGame :
+                          category === "screen_game" ? defaultScreenGame :
+                          defaultShotPlays;
       const item = defaultItems.find(f => f.concept === newConcept)
       const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === newConcept)
       
@@ -635,7 +695,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const forceReloadFormations = async () => {
-    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
+    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
+        category === "run_game" || category === "pass_protections" || category === "quick_game" || category === "dropback_game" || 
+        category === "screen_game" || category === "shot_plays") {
       try {
         console.log(`Force reloading ${category}...`);
         
@@ -672,6 +734,18 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           setDefaultToMotions(items || []);
         } else if (category === "from_motions") {
           setDefaultFromMotions(items || []);
+        } else if (category === "run_game") {
+          setDefaultRunGame(items || []);
+        } else if (category === "pass_protections") {
+          setDefaultPassProtections(items || []);
+        } else if (category === "quick_game") {
+          setDefaultQuickGame(items || []);
+        } else if (category === "dropback_game") {
+          setDefaultDropbackGame(items || []);
+        } else if (category === "screen_game") {
+          setDefaultScreenGame(items || []);
+        } else if (category === "shot_plays") {
+          setDefaultShotPlays(items || []);
         }
       } catch (error) {
         console.error(`Error force reloading ${category}:`, error);
@@ -681,8 +755,11 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
 
   // Handle resetting formations to default (deleting user's team formations)
   const handleResetToDefault = async () => {
-    if ((category !== "formations" && category !== "form_tags" && category !== "shifts" && category !== "to_motions" && category !== "from_motions") || !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
-      console.log(`Cannot reset ${category}: not on formations/form_tags/shifts/to_motions/from_motions tab, no team id, or already using default team`);
+    if ((category !== "formations" && category !== "form_tags" && category !== "shifts" && category !== "to_motions" && category !== "from_motions" && 
+         category !== "run_game" && category !== "pass_protections" && category !== "quick_game" && category !== "dropback_game" && 
+         category !== "screen_game" && category !== "shot_plays") || 
+        !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
+      console.log(`Cannot reset ${category}: not on formations/form_tags/shifts/to_motions/from_motions/run_game/pass_protections/quick_game/dropback_game/screen_game/shot_plays tab, no team id, or already using default team`);
       return;
     }
 
@@ -782,7 +859,14 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             Add {category === "formations" ? "Formation" : 
                  category === "form_tags" ? "Formation Tag" : 
                  category === "shifts" ? "Shift" : 
-                 category === "to_motions" ? "To Motion" : "From Motion"}
+                 category === "to_motions" ? "To Motion" : 
+                 category === "from_motions" ? "From Motion" :
+                 category === "run_game" ? "Run Game" :
+                 category === "pass_protections" ? "Pass Protection" :
+                 category === "quick_game" ? "Quick Game" :
+                 category === "dropback_game" ? "Dropback Game" :
+                 category === "screen_game" ? "Screen Game" :
+                 category === "shot_plays" ? "Shot Play" : ""}
             </Button>
         </div>
       </CardHeader>
@@ -792,7 +876,14 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             <div>{category === "formations" ? "Formation" : 
                  category === "form_tags" ? "Formation Tag" : 
                  category === "shifts" ? "Shift" : 
-                 category === "to_motions" ? "To Motion" : "From Motion"}</div>
+                 category === "to_motions" ? "To Motion" : 
+                 category === "from_motions" ? "From Motion" :
+                 category === "run_game" ? "Run Game" :
+                 category === "pass_protections" ? "Pass Protection" :
+                 category === "quick_game" ? "Quick Game" :
+                 category === "dropback_game" ? "Dropback Game" :
+                 category === "screen_game" ? "Screen Game" :
+                 category === "shot_plays" ? "Shot Play" : ""}</div>
                 <div>Customized Name</div>
             <div></div>
             <div></div>
@@ -822,7 +913,13 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                       category === "form_tags" ? defaultFormTags : 
                       category === "shifts" ? defaultShifts :
                       category === "to_motions" ? defaultToMotions :
-                      defaultFromMotions)
+                      category === "from_motions" ? defaultFromMotions :
+                      category === "run_game" ? defaultRunGame :
+                      category === "pass_protections" ? defaultPassProtections :
+                      category === "quick_game" ? defaultQuickGame :
+                      category === "dropback_game" ? defaultDropbackGame :
+                      category === "screen_game" ? defaultScreenGame :
+                      defaultShotPlays)
                       .filter(item => item.concept !== term.concept) // Filter out current concept as it's already added above
                       .map(item => {
                         const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === item.concept);
@@ -908,7 +1005,14 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 {category === "formations" ? "Formation" : 
                  category === "form_tags" ? "Formation Tag" : 
                  category === "shifts" ? "Shift" : 
-                 category === "to_motions" ? "To Motion" : "From Motion"}: {selectedImage?.concept}
+                 category === "to_motions" ? "To Motion" : 
+                 category === "from_motions" ? "From Motion" :
+                 category === "run_game" ? "Run Game" :
+                 category === "pass_protections" ? "Pass Protection" :
+                 category === "quick_game" ? "Quick Game" :
+                 category === "dropback_game" ? "Dropback Game" :
+                 category === "screen_game" ? "Screen Game" :
+                 category === "shot_plays" ? "Shot Play" : ""}: {selectedImage?.concept}
               </DialogTitle>
             </DialogHeader>
             <div className="flex justify-center items-center p-0 h-full w-full">
@@ -950,6 +1054,12 @@ export default function SetupPage() {
   const [shiftsSet, setShiftsSet] = useState<TerminologyWithUI[]>([])
   const [toMotionsSet, setToMotionsSet] = useState<TerminologyWithUI[]>([])
   const [fromMotionsSet, setFromMotionsSet] = useState<TerminologyWithUI[]>([])
+  const [runGameSet, setRunGameSet] = useState<TerminologyWithUI[]>([])
+  const [passProtectionsSet, setPassProtectionsSet] = useState<TerminologyWithUI[]>([])
+  const [quickGameSet, setQuickGameSet] = useState<TerminologyWithUI[]>([])
+  const [dropbackGameSet, setDropbackGameSet] = useState<TerminologyWithUI[]>([])
+  const [screenGameSet, setScreenGameSet] = useState<TerminologyWithUI[]>([])
+  const [shotPlaysSet, setShotPlaysSet] = useState<TerminologyWithUI[]>([])
   const [profileInfo, setProfileInfo] = useState<{team_id: string | null}>({team_id: null})
   const [teamCode, setTeamCode] = useState<string | null>(null)
   const [teamName, setTeamName] = useState<string | null>(null)
@@ -1006,12 +1116,24 @@ export default function SetupPage() {
           const shifts = data.filter(term => term.category === 'shifts')
           const toMotions = data.filter(term => term.category === 'to_motions')
           const fromMotions = data.filter(term => term.category === 'from_motions')
+          const runGame = data.filter(term => term.category === 'run_game')
+          const passProtections = data.filter(term => term.category === 'pass_protections')
+          const quickGame = data.filter(term => term.category === 'quick_game')
+          const dropbackGame = data.filter(term => term.category === 'dropback_game')
+          const screenGame = data.filter(term => term.category === 'screen_game')
+          const shotPlays = data.filter(term => term.category === 'shot_plays')
           
           setFormationsSet(formations as TerminologyWithUI[])
           setFormTagsSet(formTags as TerminologyWithUI[])
           setShiftsSet(shifts as TerminologyWithUI[])
           setToMotionsSet(toMotions as TerminologyWithUI[])
           setFromMotionsSet(fromMotions as TerminologyWithUI[])
+          setRunGameSet(runGame as TerminologyWithUI[])
+          setPassProtectionsSet(passProtections as TerminologyWithUI[])
+          setQuickGameSet(quickGame as TerminologyWithUI[])
+          setDropbackGameSet(dropbackGame as TerminologyWithUI[])
+          setScreenGameSet(screenGame as TerminologyWithUI[])
+          setShotPlaysSet(shotPlays as TerminologyWithUI[])
       }
     } catch (error) {
         console.error('Error loading terminology:', error)
@@ -1042,6 +1164,30 @@ export default function SetupPage() {
   
   const handleUpdateFromMotions = (updatedTerms: TerminologyWithUI[]) => {
     setFromMotionsSet(updatedTerms)
+  }
+  
+  const handleUpdateRunGame = (updatedTerms: TerminologyWithUI[]) => {
+    setRunGameSet(updatedTerms)
+  }
+  
+  const handleUpdatePassProtections = (updatedTerms: TerminologyWithUI[]) => {
+    setPassProtectionsSet(updatedTerms)
+  }
+  
+  const handleUpdateQuickGame = (updatedTerms: TerminologyWithUI[]) => {
+    setQuickGameSet(updatedTerms)
+  }
+  
+  const handleUpdateDropbackGame = (updatedTerms: TerminologyWithUI[]) => {
+    setDropbackGameSet(updatedTerms)
+  }
+  
+  const handleUpdateScreenGame = (updatedTerms: TerminologyWithUI[]) => {
+    setScreenGameSet(updatedTerms)
+  }
+  
+  const handleUpdateShotPlays = (updatedTerms: TerminologyWithUI[]) => {
+    setShotPlaysSet(updatedTerms)
   }
   
   // Render all terminology sets
@@ -1111,6 +1257,75 @@ export default function SetupPage() {
             setTeamCode={setTeamCode}
             setTeamName={setTeamName}
           />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TerminologySet
+              title="Run Game"
+              terms={runGameSet}
+              category="run_game"
+              onUpdate={handleUpdateRunGame}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
+            <TerminologySet
+              title="Pass Protections"
+              terms={passProtectionsSet}
+              category="pass_protections"
+              onUpdate={handleUpdatePassProtections}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TerminologySet
+              title="Quick Game"
+              terms={quickGameSet}
+              category="quick_game"
+              onUpdate={handleUpdateQuickGame}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
+            <TerminologySet
+              title="Dropback Game"
+              terms={dropbackGameSet}
+              category="dropback_game"
+              onUpdate={handleUpdateDropbackGame}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TerminologySet
+              title="Screen Game"
+              terms={screenGameSet}
+              category="screen_game"
+              onUpdate={handleUpdateScreenGame}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
+            <TerminologySet
+              title="Shot Plays"
+              terms={shotPlaysSet}
+              category="shot_plays"
+              onUpdate={handleUpdateShotPlays}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
+          </div>
         </div>
       )}
     </div>
