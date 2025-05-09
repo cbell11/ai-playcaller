@@ -807,10 +807,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   value={term.concept || ''} 
                   onValueChange={(value) => updateConcept(term, value, true)}
                 >
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[280px]">
                     <SelectValue placeholder="Select..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="min-w-[280px]">
                     {/* Always add the current concept to ensure it's in the list */}
                     {term.concept && (
                       <SelectItem value={term.concept}>
@@ -841,20 +841,18 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   </SelectContent>
                 </Select>
                 
-                {/* View button - directly next to dropdown without gap */}
-                {category === "formations" && term.image_url && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="ml-1 p-1"
-                    onClick={() => setSelectedImage({url: term.image_url || '', concept: term.concept || ''})}
-                  >
-                    <Eye className="h-4 w-4 text-amber-500" />
-                  </Button>
-                )}
+                {/* View button - directly next to dropdown without gap - now for all categories */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-1 p-1"
+                  onClick={() => setSelectedImage({url: term.image_url || '', concept: term.concept || ''})}
+                >
+                  <Eye className={`h-4 w-4 ${term.image_url ? 'text-amber-500' : 'text-gray-400'}`} />
+                </Button>
               </div>
               
-              {/* Empty div to maintain grid structure when no view button */}
+              {/* Empty div to maintain grid structure when no view button - no longer needed */}
               <div></div>
               
               <div>
@@ -902,22 +900,36 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   </div>
         )}
         
-        {/* Add formation image preview dialog */}
+        {/* Add image preview dialog - now for all categories */}
         <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
-          <DialogContent className="max-w-5xl w-full">
-            <DialogHeader>
-              <DialogTitle className="text-xl">Formation: {selectedImage?.concept}</DialogTitle>
+          <DialogContent className="max-w-[75vw] w-full max-h-[98vh]">
+            <DialogHeader className="pb-1 text-center">
+              <DialogTitle className="text-xl text-center w-full">
+                {category === "formations" ? "Formation" : 
+                 category === "form_tags" ? "Formation Tag" : 
+                 category === "shifts" ? "Shift" : 
+                 category === "to_motions" ? "To Motion" : "From Motion"}: {selectedImage?.concept}
+              </DialogTitle>
             </DialogHeader>
-            <div className="flex justify-center p-6">
-              {selectedImage?.url && (
-                <img 
-                  src={selectedImage.url} 
-                  alt={selectedImage.concept} 
-                  className="max-h-[700px] max-w-full object-contain"
-                />
+            <div className="flex justify-center items-center p-0 h-full w-full">
+              {selectedImage?.url ? (
+                <div className="w-full h-full flex justify-center items-center">
+                  <img 
+                    src={selectedImage.url} 
+                    alt={selectedImage.concept} 
+                    className="max-h-[95vh] w-auto object-contain"
+                    style={{ maxWidth: '100%' }}
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 h-[95vh] w-full">
+                  <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Image Available</h3>
+                  <p className="text-gray-500">This formation doesn't have an image associated with it.</p>
+                </div>
               )}
             </div>
-            <DialogFooter>
+            <DialogFooter className="pt-1 justify-center">
               <Button variant="secondary" onClick={() => setSelectedImage(null)}>
                 Close
               </Button>
