@@ -1222,19 +1222,19 @@ export default function SetupPage() {
               setTeamCode={setTeamCode}
               setTeamName={setTeamName}
             />
-      </div>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <TerminologySet
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <TerminologySet
               title="To Motions"
               terms={toMotionsSet}
               category="to_motions"
               onUpdate={handleUpdateToMotions}
-            supabase={supabase}
-            setProfileInfo={setProfileInfo}
-            setTeamCode={setTeamCode}
-            setTeamName={setTeamName}
-          />
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
             <TerminologySet
               title="From Motions"
               terms={fromMotionsSet}
@@ -1245,18 +1245,17 @@ export default function SetupPage() {
               setTeamCode={setTeamCode}
               setTeamName={setTeamName}
             />
-      </div>
-
-          <TerminologySet
-            title="Shifts"
-            terms={shiftsSet}
-            category="shifts"
-            onUpdate={handleUpdateShifts}
-            supabase={supabase}
-            setProfileInfo={setProfileInfo}
-            setTeamCode={setTeamCode}
-            setTeamName={setTeamName}
-          />
+            <TerminologySet
+              title="Shifts"
+              terms={shiftsSet}
+              category="shifts"
+              onUpdate={handleUpdateShifts}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <TerminologySet
