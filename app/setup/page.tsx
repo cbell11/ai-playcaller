@@ -51,6 +51,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [selectedImage, setSelectedImage] = useState<{url: string, concept: string} | null>(null)
   const [defaultFormations, setDefaultFormations] = useState<Terminology[]>([])
   const [defaultFormTags, setDefaultFormTags] = useState<Terminology[]>([])
+  const [defaultShifts, setDefaultShifts] = useState<Terminology[]>([])
   const [localTerms, setLocalTerms] = useState<TerminologyWithUI[]>(terms)
   const [userInfo, setUserInfo] = useState<{id: string | null, email: string | null, team_id: string | null}>({id: null, email: null, team_id: null})
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -103,7 +104,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }, [supabase])
 
   useEffect(() => {
-    if (category === "formations" || category === "form_tags") {
+    if (category === "formations" || category === "form_tags" || category === "shifts") {
       console.log(`Getting default team ${category} for category:`, category);
       
       const loadItems = async () => {
@@ -125,6 +126,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             setDefaultFormations(items || []);
           } else if (category === "form_tags") {
             setDefaultFormTags(items || []);
+          } else if (category === "shifts") {
+            setDefaultShifts(items || []);
           }
         } catch (error) {
           console.error(`Error loading team ${category}:`, error);
@@ -140,7 +143,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     console.log(`Setting localTerms for ${category}:`, terms);
     
     // For formations and form_tags, mark terms that are associated with the user's team as selected
-    if (category === "formations" || category === "form_tags") {
+    if (category === "formations" || category === "form_tags" || category === "shifts") {
       const userTeamId = userInfo.team_id;
       const termsWithSelection = terms.map(term => ({
         ...term,
@@ -168,13 +171,22 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       const available = defaultFormTags.filter((tag: Terminology) => !selectedConcepts.includes(tag.concept));
       console.log('Available form tags:', available);
       return available;
+    } else if (category === "shifts") {
+      console.log('Current default shifts:', defaultShifts);
+      const selectedConcepts = localTerms.map(term => term.concept);
+      console.log('Selected concepts:', selectedConcepts);
+      const available = defaultShifts.filter((shift: Terminology) => !selectedConcepts.includes(shift.concept));
+      console.log('Available shifts:', available);
+      return available;
     }
     return [];
   }
 
   const addRow = () => {
-    if (category === "formations" || category === "form_tags") {
-      const defaultItems = category === "formations" ? defaultFormations : defaultFormTags;
+    if (category === "formations" || category === "form_tags" || category === "shifts") {
+      const defaultItems = category === "formations" ? defaultFormations : 
+                          category === "form_tags" ? defaultFormTags : 
+                          defaultShifts; // temporarily use formations for shifts
       
       if (defaultItems.length === 0) {
         console.log(`No default ${category} available`);
@@ -224,8 +236,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const updateConcept = (term: TerminologyWithUI, newConcept: string, isSelected: boolean) => {
-    if (category === "formations" || category === "form_tags") {
-      const defaultItems = category === "formations" ? defaultFormations : defaultFormTags;
+    if (category === "formations" || category === "form_tags" || category === "shifts") {
+      const defaultItems = category === "formations" ? defaultFormations : 
+                          category === "form_tags" ? defaultFormTags : 
+                          defaultShifts; // temporarily use formations for shifts
       const item = defaultItems.find(f => f.concept === newConcept)
       const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === newConcept)
       
@@ -392,7 +406,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       const dirtyTerms = localTerms.filter(term => term.isDirty);
       
       // Early return if there are no changes to save
-      if (category === "formations" || category === "form_tags") {
+      if (category === "formations" || category === "form_tags" || category === "shifts") {
         // For formations and form_tags, continue if there are either dirty terms or deletions
         if (dirtyTerms.length === 0 && !hasDeleted) {
           console.log(`No changes to save for ${category}`);
@@ -406,7 +420,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         }
       }
 
-      if (category === "formations" || category === "form_tags") {
+      if (category === "formations" || category === "form_tags" || category === "shifts") {
         console.log(`Saving ${category} for team:`, teamIdToUse);
         
         // For formations and form_tags, we're going to copy from the default team based on the user's current selection
@@ -574,7 +588,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       }
       
       // Force reload formations after save
-      if (category === "formations" || category === "form_tags") {
+      if (category === "formations" || category === "form_tags" || category === "shifts") {
         setTimeout(() => {
           forceReloadFormations();
         }, 500);
@@ -588,7 +602,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const forceReloadFormations = async () => {
-    if (category === "formations" || category === "form_tags") {
+    if (category === "formations" || category === "form_tags" || category === "shifts") {
       try {
         console.log(`Force reloading ${category}...`);
         
@@ -596,10 +610,25 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683';
         console.log(`Using default team ID for ${category}:`, DEFAULT_TEAM_ID);
         
-        const items = await getDefaultTeamFormations();
+        // Get items for the default team
+        const { data: items, error: itemsError } = await supabase
+          .from('terminology')
+          .select('*')
+          .eq('category', category)
+          .eq('team_id', DEFAULT_TEAM_ID);
+
+        if (itemsError) {
+          console.error(`Error loading default ${category}:`, itemsError);
+          return;
+        }
+        
         console.log(`Force reloaded ${category}:`, items);
         if (category === "formations") {
-          setDefaultFormations(items);
+          setDefaultFormations(items || []);
+        } else if (category === "form_tags") {
+          setDefaultFormTags(items || []);
+        } else if (category === "shifts") {
+          setDefaultShifts(items || []);
         }
       } catch (error) {
         console.error(`Error force reloading ${category}:`, error);
@@ -609,8 +638,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
 
   // Handle resetting formations to default (deleting user's team formations)
   const handleResetToDefault = async () => {
-    if ((category !== "formations" && category !== "form_tags") || !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
-      console.log(`Cannot reset ${category}: not on formations/form_tags tab, no team id, or already using default team`);
+    if ((category !== "formations" && category !== "form_tags" && category !== "shifts") || !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
+      console.log(`Cannot reset ${category}: not on formations/form_tags/shifts tab, no team id, or already using default team`);
       return;
     }
 
@@ -762,9 +791,17 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               )}
             </Button>
           )}
-          {category === "formations" || category === "form_tags" ? (
+          {category === "formations" || category === "form_tags" || category === "shifts" ? (
             <div>
-              {/* Formation info, but no button here */}
+              <Button 
+                variant="outline" 
+                onClick={addRow}
+                disabled={getAvailableItems().length === 0}
+                className={getAvailableItems().length === 0 ? "opacity-50 cursor-not-allowed" : ""}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add {category === "formations" ? "Formation" : category === "form_tags" ? "Formation Tag" : "Shift"}
+              </Button>
             </div>
           ) : (
             <Button
@@ -782,9 +819,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       <CardContent>
         <div className="mb-6">
           <div className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 font-medium mb-2 px-2">
-            {category === "formations" || category === "form_tags" ? (
+            {category === "formations" || category === "form_tags" || category === "shifts" ? (
               <>
-                <div>{category === "formations" ? "Formation" : "Formation Tag"}</div>
+                <div>{category === "formations" ? "Formation" : category === "form_tags" ? "Formation Tag" : "Shift"}</div>
                 <div>Customized Name</div>
               </>
             ) : (
@@ -801,8 +838,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           {localTerms.map((term) => (
             <div key={`row-${term.id}`} className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 items-center py-2 border-b">
               <div key={`concept-${term.id}`}>
-                {term.isEditing || category === "formations" || category === "form_tags" ? (
-                  category === "formations" || category === "form_tags" ? (
+                {term.isEditing || category === "formations" || category === "form_tags" || category === "shifts" ? (
+                  category === "formations" || category === "form_tags" || category === "shifts" ? (
                     <div>
                       <Select
                         value={term.concept || ''}
@@ -810,7 +847,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                         disabled={false}
                       >
                         <SelectTrigger className="h-9 w-full bg-white border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors duration-200">
-                          <SelectValue placeholder={`Select ${category === "formations" ? "formation" : "tag"}`} />
+                          <SelectValue placeholder={`Select ${category === "formations" ? "formation" : category === "form_tags" ? "tag" : "shift"}`} />
                         </SelectTrigger>
                         <SelectContent className="bg-white border-gray-200 shadow-lg rounded-md">
                           {category === "formations" ? (
@@ -839,30 +876,58 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                                 No formations found. Please try reloading.
                               </div>
                             )
-                          ) : defaultFormTags && defaultFormTags.length > 0 ? (
-                            defaultFormTags.map((tag) => {
-                              // Check if this tag is selected by another row
-                              const isSelected = localTerms.some(t => t.id !== term.id && t.concept === tag.concept);
-                              return (
-                                <SelectItem 
-                                  key={tag.concept} 
-                                  value={tag.concept || ''}
-                                  disabled={isSelected}
-                                  className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium">{tag.concept}</span>
-                                    {isSelected && (
-                                      <span className="text-xs text-gray-400 ml-2">(already selected)</span>
-                                    )}
-                                  </div>
-                                </SelectItem>
-                              )
-                            })
+                          ) : category === "form_tags" ? (
+                            defaultFormTags && defaultFormTags.length > 0 ? (
+                              defaultFormTags.map((tag) => {
+                                // Check if this tag is selected by another row
+                                const isSelected = localTerms.some(t => t.id !== term.id && t.concept === tag.concept);
+                                return (
+                                  <SelectItem 
+                                    key={tag.concept} 
+                                    value={tag.concept || ''}
+                                    disabled={isSelected}
+                                    className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-medium">{tag.concept}</span>
+                                      {isSelected && (
+                                        <span className="text-xs text-gray-400 ml-2">(already selected)</span>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                )
+                              })
+                            ) : (
+                              <div className="p-3 text-red-500">
+                                No form tags found. Please try reloading.
+                              </div>
+                            )
                           ) : (
-                            <div className="p-3 text-red-500">
-                              No form tags found. Please try reloading.
-                            </div>
+                            defaultShifts && defaultShifts.length > 0 ? (
+                              defaultShifts.map((shift) => {
+                                // Check if this shift is selected by another row
+                                const isSelected = localTerms.some(t => t.id !== term.id && t.concept === shift.concept);
+                                return (
+                                  <SelectItem 
+                                    key={shift.concept} 
+                                    value={shift.concept || ''}
+                                    disabled={isSelected}
+                                    className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-medium">{shift.concept}</span>
+                                      {isSelected && (
+                                        <span className="text-xs text-gray-400 ml-2">(already selected)</span>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                )
+                              })
+                            ) : (
+                              <div className="p-3 text-red-500">
+                                No shifts found. Please try reloading.
+                              </div>
+                            )
                           )}
                         </SelectContent>
                       </Select>
@@ -938,7 +1003,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           ))}
         </div>
 
-        {category === "formations" || category === "form_tags" ? (
+        {category === "formations" || category === "form_tags" || category === "shifts" ? (
           <div>
             <Button 
               variant="outline" 
@@ -947,7 +1012,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               className={getAvailableItems().length === 0 ? "opacity-50 cursor-not-allowed" : ""}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add {category === "formations" ? "Formation" : "Formation Tag"}
+              Add {category === "formations" ? "Formation" : category === "form_tags" ? "Formation Tag" : "Shift"}
             </Button>
             
             <div className="text-center text-sm text-gray-600 mt-2">
@@ -966,17 +1031,23 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   </div>
                 )
               ) : (
-                defaultFormTags.length === 0 ? (
-                  <div className="text-red-600">
-                    No default formation tags available
-                  </div>
-                ) : showNoMoreItemsMessage ? (
-                  <div className="text-amber-600">
-                    There are no more formation tags available to add
-                  </div>
+                category === "form_tags" ? (
+                  defaultFormTags.length === 0 ? (
+                    <div className="text-red-600">
+                      No default formation tags available
+                    </div>
+                  ) : showNoMoreItemsMessage ? (
+                    <div className="text-amber-600">
+                      There are no more formation tags available to add
+                    </div>
+                  ) : (
+                    <div>
+                      {getAvailableItems().length} more formation tag{getAvailableItems().length !== 1 ? 's' : ''} available
+                    </div>
+                  )
                 ) : (
                   <div>
-                    {getAvailableItems().length} more formation tag{getAvailableItems().length !== 1 ? 's' : ''} available
+                    {getAvailableItems().length} more shift{getAvailableItems().length !== 1 ? 'es' : ''} available
                   </div>
                 )
               )}
@@ -1446,14 +1517,7 @@ export default function SetupPage() {
   const terminologySets = {
     formations: { title: "Formations", category: "formations" },
     form_tags: { title: "Formation Tags", category: "form_tags" },
-    motions: { title: "Motions", category: "motions" },
     shifts: { title: "Shifts", category: "shifts" },
-    pass_protections: { title: "Pass Protections", category: "pass_protections" },
-    run_game: { title: "Run Game", category: "run_game" },
-    quick_game: { title: "Quick Game", category: "quick_game" },
-    dropback: { title: "Dropback Game", category: "dropback" },
-    shot_plays: { title: "Shot Plays", category: "shot_plays" },
-    screens: { title: "Screen Game", category: "screens" },
   }
 
   return (

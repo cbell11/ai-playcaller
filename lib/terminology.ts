@@ -19,50 +19,102 @@ export interface TerminologyWithUI extends Terminology {
 
 export async function getTerminology(teamId?: string): Promise<Terminology[]> {
   try {
-    // First, check if the team has any formations
-    if (teamId) {
-      const { data: teamFormations, error: formationsError } = await supabase
+    const defaultTeamId = '8feef3dc-942f-4bc5-b526-0b39e14cb683'
+    
+    // If no team ID provided, use default team immediately
+    if (!teamId) {
+      const { data, error } = await supabase
         .from('terminology')
         .select('*')
-        .eq('category', 'formations')
-        .eq('team_id', teamId)
+        .eq('team_id', defaultTeamId)
+        .order('category')
 
-      if (formationsError) {
-        console.error('Error checking team formations:', formationsError)
-        throw formationsError
+      if (error) {
+        console.error('Error fetching default team terminology:', error)
+        throw error
       }
 
-      // If the team has formations, get all their terminology
-      if (teamFormations && teamFormations.length > 0) {
-        const { data, error } = await supabase
-          .from('terminology')
-          .select('*')
-          .eq('team_id', teamId)
-          .order('category')
-
-        if (error) {
-          console.error('Error fetching team terminology:', error)
-          throw error
-        }
-
-        return data || []
-      }
+      return data || []
     }
-
-    // If no team ID provided or no formations found, use default team
-    const defaultTeamId = '8feef3dc-942f-4bc5-b526-0b39e14cb683'
-    const { data, error } = await supabase
+    
+    // Check which categories the team has
+    const categories = ['formations', 'form_tags', 'shifts']
+    const teamEntries: Record<string, Terminology[]> = {}
+    const defaultEntries: Record<string, Terminology[]> = {}
+    
+    // Fetch all team's terminology
+    const { data: allTeamTerminology, error: teamError } = await supabase
+      .from('terminology')
+      .select('*')
+      .eq('team_id', teamId)
+      .order('category')
+      
+    if (teamError) {
+      console.error('Error fetching team terminology:', teamError)
+      throw teamError
+    }
+    
+    // Group by category
+    allTeamTerminology?.forEach(term => {
+      if (term.category) {
+        if (!teamEntries[term.category]) {
+          teamEntries[term.category] = []
+        }
+        teamEntries[term.category].push(term)
+      }
+    })
+    
+    // Fetch all default team terminology
+    const { data: allDefaultTerminology, error: defaultError } = await supabase
       .from('terminology')
       .select('*')
       .eq('team_id', defaultTeamId)
       .order('category')
-
-    if (error) {
-      console.error('Error fetching default team terminology:', error)
-      throw error
+      
+    if (defaultError) {
+      console.error('Error fetching default terminology:', defaultError)
+      throw defaultError
     }
-
-    return data || []
+    
+    // Group by category
+    allDefaultTerminology?.forEach(term => {
+      if (term.category) {
+        if (!defaultEntries[term.category]) {
+          defaultEntries[term.category] = []
+        }
+        defaultEntries[term.category].push(term)
+      }
+    })
+    
+    // For each category, use team's entries if they exist, otherwise use default
+    const result: Terminology[] = []
+    
+    // Check each category
+    categories.forEach(category => {
+      // If team has entries for this category, use them
+      if (teamEntries[category] && teamEntries[category].length > 0) {
+        result.push(...teamEntries[category])
+      } 
+      // Otherwise use default entries
+      else if (defaultEntries[category]) {
+        result.push(...defaultEntries[category])
+      }
+    })
+    
+    // Add any other categories the team might have
+    Object.keys(teamEntries).forEach(category => {
+      if (!categories.includes(category)) {
+        result.push(...teamEntries[category])
+      }
+    })
+    
+    // Sort by category
+    result.sort((a, b) => {
+      if (!a.category || !b.category) return 0
+      return a.category.localeCompare(b.category)
+    })
+    
+    return result
   } catch (error) {
     console.error('Error in getTerminology:', error)
     throw error
