@@ -12,9 +12,10 @@ import { getTerminology, addTerminology, updateTerminology, batchUpdateTerminolo
 import { updatePlayPoolTerminology } from "@/lib/playpool"
 import { createBrowserClient } from '@supabase/ssr'
 import { SupabaseClient } from '@supabase/supabase-js'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 // Helper function to generate a random 6-letter code
-function generateJoinCode() {
+const generateJoinCode = () => {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let result = '';
   for (let i = 0; i < 6; i++) {
@@ -42,6 +43,75 @@ interface TerminologySetProps {
   setProfileInfo?: (info: {team_id: string | null}) => void
   setTeamCode?: (code: string | null) => void
   setTeamName?: (name: string | null) => void
+}
+
+// Function to get available items that haven't been selected yet
+const getAvailableItemsHelper = (
+  category: string, 
+  localTerms: TerminologyWithUI[], 
+  defaultFormations: Terminology[], 
+  defaultFormTags: Terminology[], 
+  defaultShifts: Terminology[],
+  defaultToMotions: Terminology[],
+  defaultFromMotions: Terminology[],
+  defaultRunGame: Terminology[],
+  defaultPassProtections: Terminology[],
+  defaultQuickGame: Terminology[],
+  defaultDropbackGame: Terminology[],
+  defaultScreenGame: Terminology[],
+  defaultShotPlays: Terminology[]
+) => {
+  try {
+    if (category === "formations") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultFormations.filter(formation => !selectedConcepts.includes(formation.concept));
+      return available;
+    } else if (category === "form_tags") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultFormTags.filter((tag: Terminology) => !selectedConcepts.includes(tag.concept));
+      return available;
+    } else if (category === "shifts") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultShifts.filter((shift: Terminology) => !selectedConcepts.includes(shift.concept));
+      return available;
+    } else if (category === "to_motions") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultToMotions.filter((motion: Terminology) => !selectedConcepts.includes(motion.concept));
+      return available;
+    } else if (category === "from_motions") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultFromMotions.filter((motion: Terminology) => !selectedConcepts.includes(motion.concept));
+      return available;
+    } else if (category === "run_game") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultRunGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+      return available;
+    } else if (category === "pass_protections") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultPassProtections.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+      return available;
+    } else if (category === "quick_game") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultQuickGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+      return available;
+    } else if (category === "dropback_game") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultDropbackGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+      return available;
+    } else if (category === "screen_game") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultScreenGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+      return available;
+    } else if (category === "shot_plays") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultShotPlays.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
+      return available;
+    }
+    return [];
+  } catch (error) {
+    console.error("Error in getAvailableItems:", error);
+    return [];
+  }
 }
 
 const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate, supabase, setProfileInfo, setTeamCode, setTeamName }) => {
@@ -178,57 +248,21 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
 
   // Get available items that haven't been selected yet
   const getAvailableItems = () => {
-    try {
-    if (category === "formations") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultFormations.filter(formation => !selectedConcepts.includes(formation.concept));
-      return available;
-    } else if (category === "form_tags") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultFormTags.filter((tag: Terminology) => !selectedConcepts.includes(tag.concept));
-        return available;
-      } else if (category === "shifts") {
-        const selectedConcepts = localTerms.map(term => term.concept);
-        const available = defaultShifts.filter((shift: Terminology) => !selectedConcepts.includes(shift.concept));
-        return available;
-      } else if (category === "to_motions") {
-        const selectedConcepts = localTerms.map(term => term.concept);
-        const available = defaultToMotions.filter((motion: Terminology) => !selectedConcepts.includes(motion.concept));
-        return available;
-      } else if (category === "from_motions") {
-        const selectedConcepts = localTerms.map(term => term.concept);
-        const available = defaultFromMotions.filter((motion: Terminology) => !selectedConcepts.includes(motion.concept));
-        return available;
-      } else if (category === "run_game") {
-        const selectedConcepts = localTerms.map(term => term.concept);
-        const available = defaultRunGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-        return available;
-      } else if (category === "pass_protections") {
-        const selectedConcepts = localTerms.map(term => term.concept);
-        const available = defaultPassProtections.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-        return available;
-      } else if (category === "quick_game") {
-        const selectedConcepts = localTerms.map(term => term.concept);
-        const available = defaultQuickGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-        return available;
-      } else if (category === "dropback_game") {
-        const selectedConcepts = localTerms.map(term => term.concept);
-        const available = defaultDropbackGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-        return available;
-      } else if (category === "screen_game") {
-        const selectedConcepts = localTerms.map(term => term.concept);
-        const available = defaultScreenGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-        return available;
-      } else if (category === "shot_plays") {
-        const selectedConcepts = localTerms.map(term => term.concept);
-        const available = defaultShotPlays.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-        return available;
-    }
-    return [];
-    } catch (error) {
-      console.error("Error in getAvailableItems:", error);
-      return [];
-    }
+    return getAvailableItemsHelper(
+      category, 
+      localTerms, 
+      defaultFormations, 
+      defaultFormTags, 
+      defaultShifts,
+      defaultToMotions,
+      defaultFromMotions,
+      defaultRunGame,
+      defaultPassProtections,
+      defaultQuickGame,
+      defaultDropbackGame,
+      defaultScreenGame,
+      defaultShotPlays
+    );
   }
 
   // Update local terms when props change
@@ -499,193 +533,152 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       const dirtyTerms = localTerms.filter(term => term.isDirty);
       
       // Early return if there are no changes to save
-      if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
-        // For formations and form_tags, continue if there are either dirty terms or deletions
-        if (dirtyTerms.length === 0 && !hasDeleted) {
-          console.log(`No changes to save for ${category}`);
-          return;
-        }
-      } else {
-        // For other categories, still require dirty terms
-        if (dirtyTerms.length === 0) {
-          console.log("No changes to save for", category);
-          return;
-        }
+      if (dirtyTerms.length === 0 && !hasDeleted) {
+        console.log(`No changes to save for ${category}`);
+        return;
       }
 
-      if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
-        console.log(`Saving ${category} for team:`, teamIdToUse);
+      console.log(`Saving ${category} for team:`, teamIdToUse);
+      
+      // For all categories, we're going to copy from the default team based on the user's current selection
+      
+      // 1. Get all the concepts the user wants to keep (whether dirty or not)
+      // This properly handles deletions by only keeping what's in localTerms
+      const keepConcepts = localTerms.map(term => term.concept);
+      console.log(`Keeping ${category} concepts:`, keepConcepts);
+      console.log('Current localTerms count:', localTerms.length);
+      console.log('User had deleted items:', hasDeleted);
+      
+      // 2. Get the complete data from the default team
+      const { data: defaultItems, error: defaultItemsError } = await supabase
+        .from('terminology')
+        .select('*')
+        .eq('category', category)
+        .eq('team_id', DEFAULT_TEAM_ID);
         
-        // For formations and form_tags, we're going to copy from the default team based on the user's current selection
-        
-        // 1. Get all the concepts the user wants to keep (whether dirty or not)
-        // This properly handles deletions by only keeping what's in localTerms
-        const keepConcepts = localTerms.map(term => term.concept);
-        console.log(`Keeping ${category} concepts:`, keepConcepts);
-        console.log('Current localTerms count:', localTerms.length);
-        console.log('User had deleted items:', hasDeleted);
-        
-        // 2. Get the complete data from the default team
-        const { data: defaultItems, error: defaultItemsError } = await supabase
-          .from('terminology')
-          .select('*')
-          .eq('category', category)
-          .eq('team_id', DEFAULT_TEAM_ID);
-          
-        if (defaultItemsError) {
-          console.error(`Error fetching default ${category}:`, defaultItemsError);
-          throw new Error(`Could not fetch default ${category}: ` + defaultItemsError.message);
-        }
-        
-        if (!defaultItems || defaultItems.length === 0) {
-          console.error(`No default ${category} found to copy from`);
-          throw new Error(`No default ${category} found to copy from`);
-        }
-        
-        console.log(`Found ${defaultItems.length} ${category} in default team`);
-        
-        // 3. Create new records by copying from default team and changing team_id
-        // Use all of the user's current items, not just dirty ones
-        const itemsToSave = defaultItems
-          .filter(item => keepConcepts.includes(item.concept))
-          .map(item => {
-            // Find the matching local term to get any customized label
-            const localTerm = localTerms.find(term => term.concept === item.concept);
-            
-            // Only include essential fields that definitely exist in the database
-            const saveItem = {
-              concept: item.concept,
-              // Use the customized label if available, otherwise use the default
-              label: localTerm?.label || item.label,
-              category: category,
-              team_id: teamIdToUse,
-            };
-            
-            // Add image_url only for formations and only if it exists
-            if (category === "formations" && item.image_url) {
-              return { ...saveItem, image_url: item.image_url };
-            }
-            
-            return saveItem;
-          });
-          
-        console.log(`Copying ${itemsToSave.length} ${category} from default team to user's team`);
-        
-        // 4. Delete any existing items for this team
-        const { error: deleteError } = await supabase
-          .from('terminology')
-          .delete()
-          .eq('category', category)
-          .eq('team_id', teamIdToUse)
-
-        if (deleteError) {
-          console.error('Delete error:', deleteError)
-          throw new Error(`Error deleting existing ${category}: ` + deleteError.message)
-        }
-
-        // 5. Insert the copied items
-        const { data: insertedItems, error: insertError } = await supabase
-          .from('terminology')
-          .insert(itemsToSave)
-          .select();
-
-        if (insertError) {
-          console.error('Insert error:', insertError)
-          throw new Error(`Error inserting copied ${category}: ` + insertError.message)
-        }
-        
-        console.log(`Successfully saved ${insertedItems?.length || 0} ${category} for team ${teamIdToUse}`);
-        console.log(`Saved ${category}:`, insertedItems?.map(f => f.concept) || []);
-        console.log(`Expected to save ${category}:`, keepConcepts);
-        
-        // Show success message after saving
-        const successMessage = hasDeleted 
-          ? `Successfully saved changes. ${insertedItems?.length || 0} ${category} saved, items were removed.`
-          : `Successfully saved ${insertedItems?.length || 0} ${category}!`;
-        
-        setSaveSuccess(successMessage);
-        
-        // Clear success message after 5 seconds
-        const timeout = setTimeout(() => {
-          setSaveSuccess(null);
-        }, 5000);
-        
-        setSaveTimeout(timeout);
-        
-        // After saving, verify if any items for this team remained
-        const { data: verifyItems, error: verifyError } = await supabase
-          .from('terminology')
-          .select('*')
-          .eq('category', category)
-          .eq('team_id', teamIdToUse);
-          
-        if (verifyError) {
-          console.error(`Error verifying saved ${category}:`, verifyError);
-        } else {
-          console.log(`After save: Found ${verifyItems?.length || 0} ${category} for team ${teamIdToUse}`);
-          console.log(`${category} concepts after save:`, verifyItems?.map(f => f.concept) || []);
-        }
-
-        // 6. Update local state to reflect the changes
-        const updatedTerms = localTerms.map(term => {
-          // Find the matching item we just copied
-          const matchingInserted = insertedItems?.find(f => f.concept === term.concept);
-          
-          if (matchingInserted) {
-            // Return the copied item with UI state
-            return {
-              ...matchingInserted,
-              isDirty: false,
-              isEditing: false
-            };
-          } else {
-            // Just clear dirty flag for other items
-            return {
-              ...term,
-              isDirty: false
-            };
-          }
-        });
-        
-        setLocalTerms(updatedTerms);
-        setHasDeleted(false); // Reset delete flag after saving
-        onUpdate(updatedTerms);
-      } else {
-        // For non-formations, update existing records
-        await batchUpdateTerminology(
-          dirtyTerms.map(term => ({
-            id: term.id,
-            concept: term.concept,
-            label: term.label
-          }))
-        )
-        
-        // Update local state to remove dirty flags
-        const updatedTerms = localTerms.map(term => ({
-          ...term,
-          isDirty: false
-        }))
-        setLocalTerms(updatedTerms)
-        setHasDeleted(false); // Reset delete flag after saving
-        onUpdate(updatedTerms)
-
-        // Show success message
-        setSaveSuccess(`Successfully saved changes to ${category}!`);
-        
-        // Clear success message after 5 seconds
-        const timeout = setTimeout(() => {
-          setSaveSuccess(null);
-        }, 5000);
-        
-        setSaveTimeout(timeout);
+      if (defaultItemsError) {
+        console.error(`Error fetching default ${category}:`, defaultItemsError);
+        throw new Error(`Could not fetch default ${category}: ` + defaultItemsError.message);
       }
       
-      // Force reload formations after save
-      if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
-        setTimeout(() => {
-          forceReloadFormations();
-        }, 500);
+      if (!defaultItems || defaultItems.length === 0) {
+        console.error(`No default ${category} found to copy from`);
+        throw new Error(`No default ${category} found to copy from`);
       }
+      
+      console.log(`Found ${defaultItems.length} ${category} in default team`);
+      
+      // 3. Create new records by copying from default team and changing team_id
+      // Use all of the user's current items, not just dirty ones
+      const itemsToSave = defaultItems
+        .filter(item => keepConcepts.includes(item.concept))
+        .map(item => {
+          // Find the matching local term to get any customized label
+          const localTerm = localTerms.find(term => term.concept === item.concept);
+          
+          // Only include essential fields that definitely exist in the database
+          const saveItem = {
+            concept: item.concept,
+            // Use the customized label if available, otherwise use the default
+            label: localTerm?.label || item.label,
+            category: category,
+            team_id: teamIdToUse,
+          };
+          
+          // Add image_url only for formations and only if it exists
+          if (category === "formations" && item.image_url) {
+            return { ...saveItem, image_url: item.image_url };
+          }
+          
+          return saveItem;
+        });
+        
+      console.log(`Copying ${itemsToSave.length} ${category} from default team to user's team`);
+      
+      // 4. Delete any existing items for this team
+      const { error: deleteError } = await supabase
+        .from('terminology')
+        .delete()
+        .eq('category', category)
+        .eq('team_id', teamIdToUse)
+
+      if (deleteError) {
+        console.error('Delete error:', deleteError)
+        throw new Error(`Error deleting existing ${category}: ` + deleteError.message)
+      }
+
+      // 5. Insert the copied items
+      const { data: insertedItems, error: insertError } = await supabase
+        .from('terminology')
+        .insert(itemsToSave)
+        .select();
+
+      if (insertError) {
+        console.error('Insert error:', insertError)
+        throw new Error(`Error inserting copied ${category}: ` + insertError.message)
+      }
+      
+      console.log(`Successfully saved ${insertedItems?.length || 0} ${category} for team ${teamIdToUse}`);
+      console.log(`Saved ${category}:`, insertedItems?.map(f => f.concept) || []);
+      console.log(`Expected to save ${category}:`, keepConcepts);
+      
+      // Show success message after saving
+      const successMessage = hasDeleted 
+        ? `Successfully saved changes. ${insertedItems?.length || 0} ${category} saved, items were removed.`
+        : `Successfully saved ${insertedItems?.length || 0} ${category}!`;
+      
+      setSaveSuccess(successMessage);
+      
+      // Clear success message after 5 seconds
+      const timeout = setTimeout(() => {
+        setSaveSuccess(null);
+      }, 5000);
+      
+      setSaveTimeout(timeout);
+      
+      // After saving, verify if any items for this team remained
+      const { data: verifyItems, error: verifyError } = await supabase
+        .from('terminology')
+        .select('*')
+        .eq('category', category)
+        .eq('team_id', teamIdToUse);
+        
+      if (verifyError) {
+        console.error(`Error verifying saved ${category}:`, verifyError);
+      } else {
+        console.log(`After save: Found ${verifyItems?.length || 0} ${category} for team ${teamIdToUse}`);
+        console.log(`${category} concepts after save:`, verifyItems?.map(f => f.concept) || []);
+      }
+
+      // 6. Update local state to reflect the changes
+      const updatedTerms = localTerms.map(term => {
+        // Find the matching item we just copied
+        const matchingInserted = insertedItems?.find(f => f.concept === term.concept);
+        
+        if (matchingInserted) {
+          // Return the copied item with UI state
+          return {
+            ...matchingInserted,
+            isDirty: false,
+            isEditing: false
+          };
+        } else {
+          // Just clear dirty flag for other items
+          return {
+            ...term,
+            isDirty: false
+          };
+        }
+      });
+      
+      setLocalTerms(updatedTerms);
+      setHasDeleted(false); // Reset delete flag after saving
+      onUpdate(updatedTerms);
+      
+      // Force reload after save
+      setTimeout(() => {
+        forceReloadFormations();
+      }, 500);
     } catch (error) {
       console.error('Error in handleSaveAll:', error)
       alert(error instanceof Error ? error.message : 'An error occurred while saving')
@@ -695,61 +688,57 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const forceReloadFormations = async () => {
-    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
-        category === "run_game" || category === "pass_protections" || category === "quick_game" || category === "dropback_game" || 
-        category === "screen_game" || category === "shot_plays") {
-      try {
-        console.log(`Force reloading ${category}...`);
-        
-        // Check if supabase client is available
-        if (!supabase) {
-          console.error('Supabase client is not initialized');
-          return;
-        }
-        
-        // Always use the default team ID
-        const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683';
-        console.log(`Using default team ID for ${category}:`, DEFAULT_TEAM_ID);
-        
-        // Get items for the default team
-        const { data: items, error: itemsError } = await supabase
-          .from('terminology')
-          .select('*')
-          .eq('category', category)
-          .eq('team_id', DEFAULT_TEAM_ID);
-
-        if (itemsError) {
-          console.error(`Error loading default ${category}:`, itemsError);
-          return;
-        }
-        
-        console.log(`Force reloaded ${category}:`, items);
-        if (category === "formations") {
-          setDefaultFormations(items || []);
-        } else if (category === "form_tags") {
-          setDefaultFormTags(items || []);
-        } else if (category === "shifts") {
-          setDefaultShifts(items || []);
-        } else if (category === "to_motions") {
-          setDefaultToMotions(items || []);
-        } else if (category === "from_motions") {
-          setDefaultFromMotions(items || []);
-        } else if (category === "run_game") {
-          setDefaultRunGame(items || []);
-        } else if (category === "pass_protections") {
-          setDefaultPassProtections(items || []);
-        } else if (category === "quick_game") {
-          setDefaultQuickGame(items || []);
-        } else if (category === "dropback_game") {
-          setDefaultDropbackGame(items || []);
-        } else if (category === "screen_game") {
-          setDefaultScreenGame(items || []);
-        } else if (category === "shot_plays") {
-          setDefaultShotPlays(items || []);
-        }
-      } catch (error) {
-        console.error(`Error force reloading ${category}:`, error);
+    try {
+      console.log(`Force reloading ${category}...`);
+      
+      // Check if supabase client is available
+      if (!supabase) {
+        console.error('Supabase client is not initialized');
+        return;
       }
+      
+      // Always use the default team ID
+      const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683';
+      console.log(`Using default team ID for ${category}:`, DEFAULT_TEAM_ID);
+      
+      // Get items for the default team
+      const { data: items, error: itemsError } = await supabase
+        .from('terminology')
+        .select('*')
+        .eq('category', category)
+        .eq('team_id', DEFAULT_TEAM_ID);
+
+      if (itemsError) {
+        console.error(`Error loading default ${category}:`, itemsError);
+        return;
+      }
+      
+      console.log(`Force reloaded ${category}:`, items);
+      if (category === "formations") {
+        setDefaultFormations(items || []);
+      } else if (category === "form_tags") {
+        setDefaultFormTags(items || []);
+      } else if (category === "shifts") {
+        setDefaultShifts(items || []);
+      } else if (category === "to_motions") {
+        setDefaultToMotions(items || []);
+      } else if (category === "from_motions") {
+        setDefaultFromMotions(items || []);
+      } else if (category === "run_game") {
+        setDefaultRunGame(items || []);
+      } else if (category === "pass_protections") {
+        setDefaultPassProtections(items || []);
+      } else if (category === "quick_game") {
+        setDefaultQuickGame(items || []);
+      } else if (category === "dropback_game") {
+        setDefaultDropbackGame(items || []);
+      } else if (category === "screen_game") {
+        setDefaultScreenGame(items || []);
+      } else if (category === "shot_plays") {
+        setDefaultShotPlays(items || []);
+      }
+    } catch (error) {
+      console.error(`Error force reloading ${category}:`, error);
     }
   };
 
@@ -892,7 +881,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           </div>
 
           {localTerms && localTerms.map((term) => (
-            <div key={`${term.id}-${term.concept}`} className={`grid grid-cols-[2fr_auto_1fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} items-center py-2 border-b border-gray-100`}>
+            <div key={term.id} className={`grid grid-cols-[2fr_auto_1fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} items-center py-2 border-b border-gray-100`}>
               <div className="flex items-center">
                 <Select 
                   value={term.concept || ''} 
@@ -904,7 +893,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <SelectContent className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "min-w-[220px]" : "min-w-[280px]"}>
                     {/* Always add the current concept to ensure it's in the list */}
                     {term.concept && (
-                      <SelectItem value={term.concept}>
+                      <SelectItem key={`current-${term.concept}`} value={term.concept}>
                         {term.concept}
                       </SelectItem>
                     )}
@@ -921,11 +910,11 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                       category === "screen_game" ? defaultScreenGame :
                       defaultShotPlays)
                       .filter(item => item.concept !== term.concept) // Filter out current concept as it's already added above
-                      .map(item => {
+                      .map((item, index) => {
                         const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === item.concept);
                         return (
                           <SelectItem 
-                            key={item.concept} 
+                            key={`${item.concept}-${index}`} 
                             value={item.concept || ''} 
                             disabled={isAlreadySelected}
                             className={isAlreadySelected ? "text-gray-400" : ""}
@@ -1065,6 +1054,9 @@ export default function SetupPage() {
   const [profileInfo, setProfileInfo] = useState<{team_id: string | null}>({team_id: null})
   const [teamCode, setTeamCode] = useState<string | null>(null)
   const [teamName, setTeamName] = useState<string | null>(null)
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
+  const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null)
 
   // Create Supabase client
   const supabase = createBrowserClient(
@@ -1192,15 +1184,99 @@ export default function SetupPage() {
     setShotPlaysSet(updatedTerms)
   }
   
+  // Handle restoring all terminology to default
+  const handleRestoreToDefault = async () => {
+    if (!profileInfo.team_id || profileInfo.team_id === DEFAULT_TEAM_ID) {
+      console.log("Cannot restore: no team id or already using default team");
+      return;
+    }
+
+    try {
+      setIsRestoring(true);
+      console.log("Restoring all terminology for team", profileInfo.team_id);
+
+      // Check if supabase client is available
+      if (!supabase) {
+        console.error('Supabase client is not initialized');
+        throw new Error('Authentication client is not available');
+      }
+
+      // Delete all terminology for the user's team
+      const { error: deleteError } = await supabase
+        .from('terminology')
+        .delete()
+        .eq('team_id', profileInfo.team_id);
+
+      if (deleteError) {
+        console.error("Error deleting terminology:", deleteError);
+        throw new Error("Failed to restore terminology: " + deleteError.message);
+      }
+
+      // Show success message
+      setRestoreSuccess("Successfully restored all terminology to default!");
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setRestoreSuccess(null);
+      }, 5000);
+
+      // Reload the page to show default terminology
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error) {
+      console.error("Error restoring terminology:", error);
+      alert(error instanceof Error ? error.message : "An error occurred while restoring terminology");
+    } finally {
+      setIsRestoring(false);
+      setShowRestoreConfirm(false);
+    }
+  };
+  
   // Render all terminology sets
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-8">Terminology Setup</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Terminology Setup</h1>
+        <div className="flex items-center">
+          {restoreSuccess && (
+            <div className="mr-4 text-sm bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center">
+              <Check className="h-4 w-4 mr-2 text-green-600" />
+              {restoreSuccess}
+            </div>
+          )}
+          <Button
+            variant="destructive"
+            onClick={() => setShowRestoreConfirm(true)}
+            disabled={isRestoring || !profileInfo.team_id || profileInfo.team_id === DEFAULT_TEAM_ID}
+          >
+            {isRestoring ? "Restoring..." : "Restore to Default Terminology"}
+          </Button>
+        </div>
+      </div>
+      
+      <AlertDialog open={showRestoreConfirm} onOpenChange={setShowRestoreConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete all saved terminology labels and concepts you have edited. 
+              All terminology will be restored to the default values. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreToDefault} className="bg-red-600 hover:bg-red-700">
+              Yes, Restore to Default
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       {isLoading ? (
         <div className="flex justify-center p-8">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
+        </div>
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
