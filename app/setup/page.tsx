@@ -52,7 +52,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [defaultFormations, setDefaultFormations] = useState<Terminology[]>([])
   const [defaultFormTags, setDefaultFormTags] = useState<Terminology[]>([])
   const [defaultShifts, setDefaultShifts] = useState<Terminology[]>([])
-  const [localTerms, setLocalTerms] = useState<TerminologyWithUI[]>(terms)
+  const [defaultToMotions, setDefaultToMotions] = useState<Terminology[]>([])
+  const [defaultFromMotions, setDefaultFromMotions] = useState<Terminology[]>([])
+  const [localTerms, setLocalTerms] = useState<TerminologyWithUI[]>(terms || [])
   const [userInfo, setUserInfo] = useState<{id: string | null, email: string | null, team_id: string | null}>({id: null, email: null, team_id: null})
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [hasDeleted, setHasDeleted] = useState(false) // Track if any items have been deleted
@@ -63,12 +65,14 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   // Get user info when component mounts
   useEffect(() => {
     const getUserInfo = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      console.log('Session in useEffect:', session) // Debug log
-      if (session?.user) {
-        console.log('User ID:', session.user.id) // Debug log
-        console.log('User Email:', session.user.email) // Debug log
+      try {
+        if (!supabase) {
+          console.error('Supabase client is not initialized');
+          return;
+        }
         
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
         // Get the user's team_id from profiles table
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -76,35 +80,45 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           .eq('id', session.user.id)
           .single()
         
-        if (profileError) {
-          console.error('Error fetching profile:', profileError)
-        }
-        
-        console.log('Profile Data:', profileData)
-        
         setUserInfo({
           id: session.user.id || null,
           email: session.user.email || null,
           team_id: profileData?.team_id || null
         })
-      } else {
-        console.log('No session found') // Debug log
       }
+      } catch (error) {
+        console.error('Error getting user info:', error);
     }
+    }
+    
+    if (supabase) {
     getUserInfo()
+    }
   }, [supabase])
 
   // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
+      try {
+        if (!supabase) {
+          console.error('Supabase client is not initialized');
+          return;
+        }
+        
       const { data: { session } } = await supabase.auth.getSession()
       setIsAuthenticated(!!session)
+      } catch (error) {
+        console.error('Error checking authentication:', error);
     }
+    }
+    
+    if (supabase) {
     checkAuth()
+    }
   }, [supabase])
 
   useEffect(() => {
-    if (category === "formations" || category === "form_tags" || category === "shifts") {
+    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
       console.log(`Getting default team ${category} for category:`, category);
       
       const loadItems = async () => {
@@ -128,6 +142,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             setDefaultFormTags(items || []);
           } else if (category === "shifts") {
             setDefaultShifts(items || []);
+          } else if (category === "to_motions") {
+            setDefaultToMotions(items || []);
+          } else if (category === "from_motions") {
+            setDefaultFromMotions(items || []);
           }
         } catch (error) {
           console.error(`Error loading team ${category}:`, error);
@@ -138,55 +156,62 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     }
   }, [category, supabase]);
 
+  // Get available items that haven't been selected yet
+  const getAvailableItems = () => {
+    try {
+    if (category === "formations") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultFormations.filter(formation => !selectedConcepts.includes(formation.concept));
+      return available;
+    } else if (category === "form_tags") {
+      const selectedConcepts = localTerms.map(term => term.concept);
+      const available = defaultFormTags.filter((tag: Terminology) => !selectedConcepts.includes(tag.concept));
+        return available;
+      } else if (category === "shifts") {
+        const selectedConcepts = localTerms.map(term => term.concept);
+        const available = defaultShifts.filter((shift: Terminology) => !selectedConcepts.includes(shift.concept));
+        return available;
+      } else if (category === "to_motions") {
+        const selectedConcepts = localTerms.map(term => term.concept);
+        const available = defaultToMotions.filter((motion: Terminology) => !selectedConcepts.includes(motion.concept));
+        return available;
+      } else if (category === "from_motions") {
+        const selectedConcepts = localTerms.map(term => term.concept);
+        const available = defaultFromMotions.filter((motion: Terminology) => !selectedConcepts.includes(motion.concept));
+      return available;
+    }
+    return [];
+    } catch (error) {
+      console.error("Error in getAvailableItems:", error);
+      return [];
+    }
+  }
+
   // Update local terms when props change
   useEffect(() => {
-    console.log(`Setting localTerms for ${category}:`, terms);
+    if (!terms) {
+      setLocalTerms([]);
+      return;
+    }
     
-    // For formations and form_tags, mark terms that are associated with the user's team as selected
-    if (category === "formations" || category === "form_tags" || category === "shifts") {
-      const userTeamId = userInfo.team_id;
+    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
       const termsWithSelection = terms.map(term => ({
         ...term,
-        isSelected: term.team_id === userTeamId // Mark as selected if it's already saved to user's team
+        isSelected: term.team_id === userInfo.team_id
       }));
       setLocalTerms(termsWithSelection);
     } else {
       setLocalTerms(terms);
     }
-  }, [terms, category, userInfo.team_id])
-
-  // Get available items that haven't been selected yet
-  const getAvailableItems = () => {
-    if (category === "formations") {
-      console.log('Current default formations:', defaultFormations);
-      const selectedConcepts = localTerms.map(term => term.concept);
-      console.log('Selected concepts:', selectedConcepts);
-      const available = defaultFormations.filter(formation => !selectedConcepts.includes(formation.concept));
-      console.log('Available formations:', available);
-      return available;
-    } else if (category === "form_tags") {
-      console.log('Current default form tags:', defaultFormTags);
-      const selectedConcepts = localTerms.map(term => term.concept);
-      console.log('Selected concepts:', selectedConcepts);
-      const available = defaultFormTags.filter((tag: Terminology) => !selectedConcepts.includes(tag.concept));
-      console.log('Available form tags:', available);
-      return available;
-    } else if (category === "shifts") {
-      console.log('Current default shifts:', defaultShifts);
-      const selectedConcepts = localTerms.map(term => term.concept);
-      console.log('Selected concepts:', selectedConcepts);
-      const available = defaultShifts.filter((shift: Terminology) => !selectedConcepts.includes(shift.concept));
-      console.log('Available shifts:', available);
-      return available;
-    }
-    return [];
-  }
+  }, [terms, category, userInfo.team_id]);
 
   const addRow = () => {
-    if (category === "formations" || category === "form_tags" || category === "shifts") {
+    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
       const defaultItems = category === "formations" ? defaultFormations : 
                           category === "form_tags" ? defaultFormTags : 
-                          defaultShifts; // temporarily use formations for shifts
+                          category === "shifts" ? defaultShifts :
+                          category === "to_motions" ? defaultToMotions :
+                          defaultFromMotions;
       
       if (defaultItems.length === 0) {
         console.log(`No default ${category} available`);
@@ -236,10 +261,12 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const updateConcept = (term: TerminologyWithUI, newConcept: string, isSelected: boolean) => {
-    if (category === "formations" || category === "form_tags" || category === "shifts") {
+    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
       const defaultItems = category === "formations" ? defaultFormations : 
                           category === "form_tags" ? defaultFormTags : 
-                          defaultShifts; // temporarily use formations for shifts
+                          category === "shifts" ? defaultShifts :
+                          category === "to_motions" ? defaultToMotions :
+                          defaultFromMotions;
       const item = defaultItems.find(f => f.concept === newConcept)
       const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === newConcept)
       
@@ -278,7 +305,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const deleteRow = (term: TerminologyWithUI) => {
     const updatedTerms = localTerms.filter(t => t.id !== term.id)
     setLocalTerms(updatedTerms)
-    setHasDeleted(true) // Mark that we've deleted something
+    setHasDeleted(true)
     onUpdate(updatedTerms)
   }
 
@@ -290,6 +317,12 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       if (saveTimeout) {
         clearTimeout(saveTimeout)
         setSaveTimeout(null)
+      }
+      
+      // Check if supabase client is available
+      if (!supabase) {
+        console.error('Supabase client is not initialized');
+        throw new Error('Authentication client is not available');
       }
       
       // Get the current session
@@ -406,7 +439,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       const dirtyTerms = localTerms.filter(term => term.isDirty);
       
       // Early return if there are no changes to save
-      if (category === "formations" || category === "form_tags" || category === "shifts") {
+      if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
         // For formations and form_tags, continue if there are either dirty terms or deletions
         if (dirtyTerms.length === 0 && !hasDeleted) {
           console.log(`No changes to save for ${category}`);
@@ -420,7 +453,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         }
       }
 
-      if (category === "formations" || category === "form_tags" || category === "shifts") {
+      if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
         console.log(`Saving ${category} for team:`, teamIdToUse);
         
         // For formations and form_tags, we're going to copy from the default team based on the user's current selection
@@ -588,7 +621,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       }
       
       // Force reload formations after save
-      if (category === "formations" || category === "form_tags" || category === "shifts") {
+      if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
         setTimeout(() => {
           forceReloadFormations();
         }, 500);
@@ -602,9 +635,15 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }
 
   const forceReloadFormations = async () => {
-    if (category === "formations" || category === "form_tags" || category === "shifts") {
+    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
       try {
         console.log(`Force reloading ${category}...`);
+        
+        // Check if supabase client is available
+        if (!supabase) {
+          console.error('Supabase client is not initialized');
+          return;
+        }
         
         // Always use the default team ID
         const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683';
@@ -629,6 +668,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           setDefaultFormTags(items || []);
         } else if (category === "shifts") {
           setDefaultShifts(items || []);
+        } else if (category === "to_motions") {
+          setDefaultToMotions(items || []);
+        } else if (category === "from_motions") {
+          setDefaultFromMotions(items || []);
         }
       } catch (error) {
         console.error(`Error force reloading ${category}:`, error);
@@ -638,14 +681,20 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
 
   // Handle resetting formations to default (deleting user's team formations)
   const handleResetToDefault = async () => {
-    if ((category !== "formations" && category !== "form_tags" && category !== "shifts") || !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
-      console.log(`Cannot reset ${category}: not on formations/form_tags/shifts tab, no team id, or already using default team`);
+    if ((category !== "formations" && category !== "form_tags" && category !== "shifts" && category !== "to_motions" && category !== "from_motions") || !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
+      console.log(`Cannot reset ${category}: not on formations/form_tags/shifts/to_motions/from_motions tab, no team id, or already using default team`);
       return;
     }
 
     try {
       setIsResetting(true);
       console.log(`Resetting ${category} for team`, userInfo.team_id);
+
+      // Check if supabase client is available
+      if (!supabase) {
+        console.error('Supabase client is not initialized');
+        throw new Error('Authentication client is not available');
+      }
 
       // Delete all items for the user's team
       const { error: deleteError } = await supabase
@@ -685,13 +734,6 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     }
   };
 
-  // Force loading of formations as soon as component mounts
-  useEffect(() => {
-    if (category === "formations") {
-      forceReloadFormations();
-    }
-  }, []);
-
   // Add this cleanup effect to clear the timeout when component unmounts
   useEffect(() => {
     return () => {
@@ -709,65 +751,18 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           {(category === "formations" || category === "form_tags") && (
             <p className="text-sm text-gray-500 mt-1">
               Select the {category === "formations" ? "formations" : "formation tags"} you want to use in your playbook.
-              You can add any {category === "formations" ? "formation" : "tag"} from the default team.
-              <span className="block mt-1 italic">Click the edit button (pencil icon) or double-click on a name to customize {category === "formations" ? "formation" : "tag"} names.</span>
+              <span className="block mt-1 italic">Click the edit button to customize names.</span>
             </p>
           )}
-          {/* Display success message if present */}
           {saveSuccess && (
             <div className="mt-2 text-sm bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center">
               <Check className="h-4 w-4 mr-2 text-green-600" />
               {saveSuccess}
             </div>
           )}
-          {userInfo.id ? (
-            <div className="text-sm bg-blue-50 p-2 rounded mt-2">
-              <div className="font-medium text-blue-700">Debug Info:</div>
-              <div className="text-blue-600">User ID: {userInfo.id}</div>
-              {userInfo.email && <div className="text-blue-600">Email: {userInfo.email}</div>}
-              <div className="text-blue-600">
-                Team ID: {userInfo.team_id || 'Not assigned'}
-                {userInfo.team_id === DEFAULT_TEAM_ID && <span className="ml-1 text-green-600">(Default Team)</span>}
-                {!userInfo.team_id && <span className="ml-1 text-yellow-600">(Using Default Team)</span>}
-              </div>
-              {category === "formations" && (
-                <div className="text-blue-600 border-t border-blue-200 mt-1 pt-1">
-                  <div className="font-medium">Formations Debug:</div>
-                  <div>Available formations: {defaultFormations.length}</div>
-                  <details className="mt-1">
-                    <summary className="cursor-pointer font-medium">Formation List</summary>
-                    <div className="pl-2 mt-1 text-xs max-h-40 overflow-y-auto">
-                      {defaultFormations.map((f, idx) => (
-                        <div key={idx} className="mb-1">
-                          <span className="font-medium">{f.concept}:</span> {f.label}
-                          {f.team_id === DEFAULT_TEAM_ID && <span className="ml-1 text-green-600">(Default Team)</span>}
-                          {f.team_id && f.team_id !== DEFAULT_TEAM_ID && <span className="ml-1 text-blue-600">(Team: {f.team_id.substring(0,8)}...)</span>}
-                          {!f.team_id && <span className="ml-1 text-gray-600">(Global)</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                  <div className="mt-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={forceReloadFormations}
-                      className="bg-blue-100"
-                    >
-                      Reload Formations
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-sm bg-red-50 p-2 rounded mt-2">
-              <div className="text-red-600">No user session found</div>
-            </div>
-          )}
         </div>
         <div className="flex space-x-2 items-center">
-          {(localTerms.some(term => term.isDirty) || hasDeleted) && (
+          {((localTerms?.some && localTerms.some(term => term.isDirty)) || hasDeleted) && (
             <Button
               variant="default"
               size="sm"
@@ -775,910 +770,337 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               disabled={isSaving}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isSaving ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-3 w-3 mr-1" />
-                  Save
-                </>
-              )}
+              {isSaving ? "Saving..." : "Save"}
             </Button>
           )}
-          {category === "formations" || category === "form_tags" || category === "shifts" ? (
-            <div>
-              <Button 
-                variant="outline" 
-                onClick={addRow}
-                disabled={getAvailableItems().length === 0}
-                className={getAvailableItems().length === 0 ? "opacity-50 cursor-not-allowed" : ""}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add {category === "formations" ? "Formation" : category === "form_tags" ? "Formation Tag" : "Shift"}
-              </Button>
-            </div>
-          ) : (
             <Button
-              variant="ghost"
-              size="sm"
+            variant="outline" 
               onClick={addRow}
-              className="text-blue-600 hover:text-blue-800"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add Row
+            disabled={getAvailableItems().length === 0}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add {category === "formations" ? "Formation" : 
+                 category === "form_tags" ? "Formation Tag" : 
+                 category === "shifts" ? "Shift" : 
+                 category === "to_motions" ? "To Motion" : "From Motion"}
             </Button>
-          )}
         </div>
       </CardHeader>
       <CardContent>
         <div className="mb-6">
           <div className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 font-medium mb-2 px-2">
-            {category === "formations" || category === "form_tags" || category === "shifts" ? (
-              <>
-                <div>{category === "formations" ? "Formation" : category === "form_tags" ? "Formation Tag" : "Shift"}</div>
+            <div>{category === "formations" ? "Formation" : 
+                 category === "form_tags" ? "Formation Tag" : 
+                 category === "shifts" ? "Shift" : 
+                 category === "to_motions" ? "To Motion" : "From Motion"}</div>
                 <div>Customized Name</div>
-              </>
-            ) : (
-              <>
-                <div>Concept</div>
-                <div>Label</div>
-              </>
-            )}
             <div></div>
             <div></div>
             <div></div>
+            {category === "formations" && <div></div>}
           </div>
 
-          {localTerms.map((term) => (
-            <div key={`row-${term.id}`} className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 items-center py-2 border-b">
-              <div key={`concept-${term.id}`}>
-                {term.isEditing || category === "formations" || category === "form_tags" || category === "shifts" ? (
-                  category === "formations" || category === "form_tags" || category === "shifts" ? (
-                    <div>
-                      <Select
-                        value={term.concept || ''}
-                        onValueChange={(value) => updateConcept(term, value, true)}
-                        disabled={false}
-                      >
-                        <SelectTrigger className="h-9 w-full bg-white border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors duration-200">
-                          <SelectValue placeholder={`Select ${category === "formations" ? "formation" : category === "form_tags" ? "tag" : "shift"}`} />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border-gray-200 shadow-lg rounded-md">
-                          {category === "formations" ? (
-                            defaultFormations && defaultFormations.length > 0 ? (
-                              defaultFormations.map((formation) => {
-                                // Check if this formation is selected by another row
-                                const isSelected = localTerms.some(t => t.id !== term.id && t.concept === formation.concept);
-                                return (
-                                  <SelectItem 
-                                    key={formation.concept} 
-                                    value={formation.concept || ''}
-                                    disabled={isSelected}
-                                    className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium">{formation.concept}</span>
-                                      {isSelected && (
-                                        <span className="text-xs text-gray-400 ml-2">(already selected)</span>
-                                      )}
-                                    </div>
-                                  </SelectItem>
-                                )
-                              })
-                            ) : (
-                              <div className="p-3 text-red-500">
-                                No formations found. Please try reloading.
-                              </div>
-                            )
-                          ) : category === "form_tags" ? (
-                            defaultFormTags && defaultFormTags.length > 0 ? (
-                              defaultFormTags.map((tag) => {
-                                // Check if this tag is selected by another row
-                                const isSelected = localTerms.some(t => t.id !== term.id && t.concept === tag.concept);
-                                return (
-                                  <SelectItem 
-                                    key={tag.concept} 
-                                    value={tag.concept || ''}
-                                    disabled={isSelected}
-                                    className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium">{tag.concept}</span>
-                                      {isSelected && (
-                                        <span className="text-xs text-gray-400 ml-2">(already selected)</span>
-                                      )}
-                                    </div>
-                                  </SelectItem>
-                                )
-                              })
-                            ) : (
-                              <div className="p-3 text-red-500">
-                                No form tags found. Please try reloading.
-                              </div>
-                            )
-                          ) : (
-                            defaultShifts && defaultShifts.length > 0 ? (
-                              defaultShifts.map((shift) => {
-                                // Check if this shift is selected by another row
-                                const isSelected = localTerms.some(t => t.id !== term.id && t.concept === shift.concept);
-                                return (
-                                  <SelectItem 
-                                    key={shift.concept} 
-                                    value={shift.concept || ''}
-                                    disabled={isSelected}
-                                    className="cursor-pointer px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150 data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed data-[state=checked]:bg-green-50 [&>span]:pl-6"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium">{shift.concept}</span>
-                                      {isSelected && (
-                                        <span className="text-xs text-gray-400 ml-2">(already selected)</span>
-                                      )}
-                                    </div>
-                                  </SelectItem>
-                                )
-                              })
-                            ) : (
-                              <div className="p-3 text-red-500">
-                                No shifts found. Please try reloading.
-                              </div>
-                            )
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    <Input 
-                      key={`concept-input-${term.id}`}
-                      value={term.concept} 
-                      onChange={(e) => updateConcept(term, e.target.value, false)} 
-                      className="h-9" 
-                    />
-                  )
-                ) : (
-                  <span key={`concept-text-${term.id}`} className="text-gray-600">
-                    {term.concept}
-                  </span>
+          {localTerms && localTerms.map((term) => (
+            <div key={`${term.id}-${term.concept}`} className="grid grid-cols-[2fr_auto_1fr_auto_auto] gap-4 items-center py-2 border-b border-gray-100">
+              <div className="flex items-center">
+                <Select 
+                  value={term.concept || ''} 
+                  onValueChange={(value) => updateConcept(term, value, true)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Always add the current concept to ensure it's in the list */}
+                    {term.concept && (
+                      <SelectItem value={term.concept}>
+                        {term.concept}
+                      </SelectItem>
+                    )}
+                    {/* Show all default items with proper disabled states */}
+                    {(category === "formations" ? defaultFormations : 
+                      category === "form_tags" ? defaultFormTags : 
+                      category === "shifts" ? defaultShifts :
+                      category === "to_motions" ? defaultToMotions :
+                      defaultFromMotions)
+                      .filter(item => item.concept !== term.concept) // Filter out current concept as it's already added above
+                      .map(item => {
+                        const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === item.concept);
+                        return (
+                          <SelectItem 
+                            key={item.concept} 
+                            value={item.concept || ''} 
+                            disabled={isAlreadySelected}
+                            className={isAlreadySelected ? "text-gray-400" : ""}
+                          >
+                            {item.concept} {isAlreadySelected ? "(already selected)" : ""}
+                          </SelectItem>
+                        );
+                      })
+                    }
+                  </SelectContent>
+                </Select>
+                
+                {/* View button - directly next to dropdown without gap */}
+                {category === "formations" && term.image_url && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-1 p-1"
+                    onClick={() => setSelectedImage({url: term.image_url || '', concept: term.concept || ''})}
+                  >
+                    <Eye className="h-4 w-4 text-amber-500" />
+                  </Button>
                 )}
               </div>
-              <div key={`label-${term.id}`}>
+              
+              {/* Empty div to maintain grid structure when no view button */}
+              <div></div>
+              
+              <div>
                 {term.isEditing ? (
-                  <Input 
-                    key={`label-input-${term.id}`}
-                    value={term.label} 
-                    onChange={(e) => updateLabel(term, e.target.value)} 
-                    className="h-9" 
-                    placeholder={category === "formations" ? "Customize formation name" : "Enter label"}
+                  <Input
+                    value={term.label || ''}
+                    onChange={(e) => updateLabel(term, e.target.value)}
+                    className="h-8"
                   />
                 ) : (
-                  <span 
-                    key={`label-text-${term.id}`} 
-                    className={`${term.isDirty ? "text-yellow-600 font-medium" : ""} cursor-pointer`}
-                    onDoubleClick={() => toggleEdit(term)}
-                  >
-                    {term.label}
-                  </span>
+                  <span>{term.label}</span>
                 )}
               </div>
-              <Button
-                key={`view-btn-${term.id}`}
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  if (term.image_url) {
-                    setSelectedImage({url: term.image_url, concept: term.concept || ''})
-                  }
-                }}
-                disabled={!term.image_url}
-                className="hover:bg-yellow-50"
-              >
-                <Eye className="h-4 w-4 text-yellow-500" />
-                <span className="sr-only">View concept</span>
-              </Button>
-              <Button
-                key={`edit-btn-${term.id}`}
-                variant="ghost"
-                size="icon"
-                onClick={() => toggleEdit(term)}
-              >
-                {term.isEditing ? <Check className="h-4 w-4 text-green-500" /> : <Pencil className="h-4 w-4" />}
-                <span className="sr-only">{term.isEditing ? "Save" : "Edit"}</span>
-              </Button>
-              <Button
-                key={`delete-btn-${term.id}`}
-                variant="ghost"
-                size="icon"
-                onClick={() => deleteRow(term)}
-                className="text-red-500 hover:text-red-700 hover:bg-red-50"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Delete</span>
-              </Button>
+              
+              {/* Edit button */}
+              <div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleEdit(term)}
+                >
+                  <Pencil className="h-4 w-4 text-blue-500" />
+                </Button>
+              </div>
+              
+              {/* Delete button */}
+              <div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => deleteRow(term)}
+                >
+                  <Trash2 className="h-4 w-4 text-rose-500" />
+                </Button>
+              </div>
             </div>
           ))}
-        </div>
+                  </div>
 
-        {category === "formations" || category === "form_tags" || category === "shifts" ? (
-          <div>
-            <Button 
-              variant="outline" 
-              onClick={addRow}
-              disabled={getAvailableItems().length === 0}
-              className={getAvailableItems().length === 0 ? "opacity-50 cursor-not-allowed" : ""}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add {category === "formations" ? "Formation" : category === "form_tags" ? "Formation Tag" : "Shift"}
-            </Button>
-            
-            <div className="text-center text-sm text-gray-600 mt-2">
-              {category === "formations" ? (
-                defaultFormations.length === 0 ? (
-                  <div className="text-red-600">
-                    No default formations available
+        {/* Show a message when there are no more items available */}
+        {showNoMoreItemsMessage && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded relative mb-4 flex items-center">
+            <AlertTriangle className="h-5 w-5 mr-2 text-yellow-600" />
+            <span>No more {category} available to add.</span>
                   </div>
-                ) : showNoMoreItemsMessage ? (
-                  <div className="text-amber-600">
-                    There are no more formations available to add
-                  </div>
-                ) : (
-                  <div>
-                    {getAvailableItems().length} more formation{getAvailableItems().length !== 1 ? 's' : ''} available
-                  </div>
-                )
-              ) : (
-                category === "form_tags" ? (
-                  defaultFormTags.length === 0 ? (
-                    <div className="text-red-600">
-                      No default formation tags available
-                    </div>
-                  ) : showNoMoreItemsMessage ? (
-                    <div className="text-amber-600">
-                      There are no more formation tags available to add
-                    </div>
-                  ) : (
-                    <div>
-                      {getAvailableItems().length} more formation tag{getAvailableItems().length !== 1 ? 's' : ''} available
-                    </div>
-                  )
-                ) : (
-                  <div>
-                    {getAvailableItems().length} more shift{getAvailableItems().length !== 1 ? 'es' : ''} available
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        ) : (
-          <Button variant="outline" onClick={addRow}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Row
-          </Button>
         )}
-      </CardContent>
-
-      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="max-w-3xl">
+        
+        {/* Add formation image preview dialog */}
+        <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
+          <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-center">
-              {selectedImage?.concept}
-            </DialogTitle>
+              <DialogTitle>Formation: {selectedImage?.concept}</DialogTitle>
           </DialogHeader>
-          <div className="flex justify-center items-center p-4">
-            {selectedImage && (
+            <div className="flex justify-center p-4">
+              {selectedImage?.url && (
               <img 
                 src={selectedImage.url} 
                 alt={selectedImage.concept} 
-                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg border-2 border-black"
+                  className="max-h-[400px] object-contain"
               />
             )}
           </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setSelectedImage(null)}>
+                Close
+              </Button>
+            </DialogFooter>
         </DialogContent>
       </Dialog>
+      </CardContent>
     </Card>
   )
 }
 
+// Parent component to manage all terminology sets
 export default function SetupPage() {
-  const router = useRouter()
-  const [terminologyState, setTerminologyState] = useState<Record<string, TerminologyWithUI[]>>({})
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [savedSections, setSavedSections] = useState<Record<string, boolean>>({})
-  const [savingCategories, setSavingCategories] = useState<Record<string, boolean>>({})
-  const [needsPlayPoolUpdate, setNeedsPlayPoolUpdate] = useState(false)
-  const [updatingPlayPool, setUpdatingPlayPool] = useState(false)
-  const [teamId, setTeamId] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
+  const [terminology, setTerminology] = useState<Terminology[]>([])
+  const [formationsSet, setFormationsSet] = useState<TerminologyWithUI[]>([])
+  const [formTagsSet, setFormTagsSet] = useState<TerminologyWithUI[]>([])
+  const [shiftsSet, setShiftsSet] = useState<TerminologyWithUI[]>([])
+  const [toMotionsSet, setToMotionsSet] = useState<TerminologyWithUI[]>([])
+  const [fromMotionsSet, setFromMotionsSet] = useState<TerminologyWithUI[]>([])
   const [profileInfo, setProfileInfo] = useState<{team_id: string | null}>({team_id: null})
   const [teamCode, setTeamCode] = useState<string | null>(null)
   const [teamName, setTeamName] = useState<string | null>(null)
-  const [codeCopied, setCodeCopied] = useState(false)
 
-  // Create Supabase client in the browser
+  // Create Supabase client
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  // Load terminology when component mounts
   useEffect(() => {
-    const getUserId = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      console.log('Supabase Session:', session) // Debug log
-      console.log('Session User:', session?.user) // Debug log
-      if (session?.user) {
-        console.log('User ID:', session.user.id) // Debug log
-        setUserId(session.user.id)
-      } else {
-        console.log('No session or user found') // Debug log
-      }
-    }
-    getUserId()
-  }, [supabase])
-
-  // Extract the loadTerminology function so it can be reused
   const loadTerminology = async () => {
     try {
-      setIsLoading(true);
-      
-      // Test connection first
-      console.log('Testing Supabase connection...')
-      const isConnected = await testSupabaseConnection()
-      if (!isConnected) {
-        setError('Unable to connect to Supabase. Please check your database configuration.')
-        setIsLoading(false)
-        return
-      }
-      console.log('Supabase connection successful')
-
-      // Get user session for team ID
+        setIsLoading(true)
+        
+        // Get session to check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession()
-      let userTeamId = null;
       
-      // First check profile for team ID
       if (session?.user?.id) {
-        console.log('Getting team_id for user:', session.user.id);
-        // Get the user's team_id from profiles
-        const { data: profileData, error: profileError } = await supabase
+          // Get the user's team_id from profiles table
+          const { data: profileData } = await supabase
           .from('profiles')
           .select('team_id')
           .eq('id', session.user.id)
           .single()
         
-        if (profileError) {
-          console.error('Error fetching profile:', profileError)
-        } else if (profileData?.team_id) {
-          console.log('Found team_id in profile:', profileData.team_id);
-          userTeamId = profileData.team_id;
-          setTeamId(userTeamId);
-          setProfileInfo({team_id: userTeamId});
-        }
-      }
-      
-      // If team ID not found in profile, use the known team ID
-      if (!userTeamId) {
-        userTeamId = DEFAULT_TEAM_ID;
-        console.log('Using default team ID:', userTeamId);
-        setTeamId(userTeamId);
-        setProfileInfo({team_id: userTeamId});
-      }
-
-      try {
-        console.log('Initializing default terminology...')
-        await initializeDefaultTerminology()
-        // Update formation concepts to match predefined list
-        console.log('Updating formation concepts...')
-        await updateFormationConcepts()
-      } catch (initError) {
-        console.error('Initialization error:', initError)
-        setError(`Error initializing terminology: ${initError instanceof Error ? initError.message : 'Unknown initialization error'}`)
-        setIsLoading(false)
-        return
-      }
-
-      try {
-        console.log('Fetching terminology with teamId:', userTeamId)
-        
-        // Check if the team has formations and form_tags
-        const { data: teamFormations, error: formationsError } = await supabase
-          .from('terminology')
-          .select('*')
-          .eq('category', 'formations')
-          .eq('team_id', userTeamId)
-
-        const { data: teamFormTags, error: formTagsError } = await supabase
-          .from('terminology')
-          .select('*')
-          .eq('category', 'form_tags')
-          .eq('team_id', userTeamId)
-        
-        if (formationsError) {
-          console.error('Error checking for team formations:', formationsError);
-        } else {
-          console.log(`Team has ${teamFormations?.length || 0} formations`);
-        }
-
-        if (formTagsError) {
-          console.error('Error checking for team form tags:', formTagsError);
-        } else {
-          console.log(`Team has ${teamFormTags?.length || 0} form tags`);
-        }
-
-        // If user has no form tags, get them from default team
-        if (!teamFormTags || teamFormTags.length === 0) {
-          console.log('No form tags found for user team, getting from default team');
-          const { data: defaultFormTags, error: defaultFormTagsError } = await supabase
-            .from('terminology')
-            .select('*')
-            .eq('category', 'form_tags')
-            .eq('team_id', DEFAULT_TEAM_ID);
-
-          if (defaultFormTagsError) {
-            console.error('Error fetching default form tags:', defaultFormTagsError);
-          } else if (defaultFormTags && defaultFormTags.length > 0) {
-            console.log(`Found ${defaultFormTags.length} default form tags`);
-            // Add default form tags to the user's team
-            const formTagsToAdd = defaultFormTags.map(tag => ({
-              ...tag,
-              team_id: userTeamId,
-              id: crypto.randomUUID() // Generate new IDs for the copies
-            }));
-
-            const { error: insertError } = await supabase
-              .from('terminology')
-              .insert(formTagsToAdd);
-
-            if (insertError) {
-              console.error('Error copying default form tags:', insertError);
-            } else {
-              console.log('Successfully copied default form tags to user team');
+          const teamId = profileData?.team_id || undefined
+          
+          // Update profile info state
+          setProfileInfo({team_id: teamId || null})
+          
+          // Get team info if user has a team
+          if (teamId) {
+            const { data: teamData } = await supabase
+              .from('teams')
+              .select('name, code')
+              .eq('id', teamId)
+              .single()
+              
+            if (teamData) {
+              setTeamCode(teamData.code)
+              setTeamName(teamData.name)
             }
           }
-        }
-        
-        // Get terminology
-        const terms = await getTerminology(userTeamId)
-        console.log('Fetched terminology:', terms)
-        
-        // Group terms by category
-        const groupedTerms = terms.reduce((acc, term) => {
-          if (!term.category) return acc
-          const category = term.category
-          if (!acc[category]) {
-            acc[category] = []
-          }
-          acc[category].push({ ...term, isEditing: false, isDirty: false })
-          return acc
-        }, {} as Record<string, TerminologyWithUI[]>)
-        
-        console.log('Grouped terms by category:', groupedTerms)
-        console.log('Formations category has:', groupedTerms['formations']?.length || 0, 'items');
-        
-        setTerminologyState(groupedTerms)
-        setIsLoading(false)
-      } catch (fetchError) {
-        console.error('Fetch error:', fetchError)
-        setError(`Error fetching terminology: ${fetchError instanceof Error ? fetchError.message : 'Unknown fetch error'}`)
-        setIsLoading(false)
+          
+          // Load terminology from API
+          const data = await getTerminology(teamId)
+          setTerminology(data)
+          
+          // Group terminology by category
+          const formations = data.filter(term => term.category === 'formations')
+          const formTags = data.filter(term => term.category === 'form_tags')
+          const shifts = data.filter(term => term.category === 'shifts')
+          const toMotions = data.filter(term => term.category === 'to_motions')
+          const fromMotions = data.filter(term => term.category === 'from_motions')
+          
+          setFormationsSet(formations as TerminologyWithUI[])
+          setFormTagsSet(formTags as TerminologyWithUI[])
+          setShiftsSet(shifts as TerminologyWithUI[])
+          setToMotionsSet(toMotions as TerminologyWithUI[])
+          setFromMotionsSet(fromMotions as TerminologyWithUI[])
       }
     } catch (error) {
-      console.error('Setup error:', error)
-      let errorMessage = 'An unexpected error occurred'
-      
-      if (error instanceof Error) {
-        errorMessage = `Error: ${error.message}`
-      } else if (typeof error === 'object' && error !== null) {
-        const supabaseError = error as any
-        if (supabaseError.code && supabaseError.message) {
-          errorMessage = `Database error (${supabaseError.code}): ${supabaseError.message}`
-          if (supabaseError.hint) {
-            errorMessage += `\nHint: ${supabaseError.hint}`
-          }
-        }
-      }
-      
-      setError(errorMessage)
+        console.error('Error loading terminology:', error)
+      } finally {
       setIsLoading(false)
     }
   }
 
-  useEffect(() => {
     loadTerminology()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase])  // We're disabling the rule because loadTerminology is defined in the component body
-
-  useEffect(() => {
-    const getUserProfileInfo = async () => {
-      if (userId) {
-        console.log('Fetching profile for user ID:', userId);
-        try {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('team_id, email')
-            .eq('id', userId)
-            .single();
-
-          if (profileError) {
-            console.error('Error fetching user profile:', profileError);
-            if (profileError.code === 'PGRST116') {
-              console.log('Profile not found, might need to create one');
-              
-              // Create a profile for this user
-              const { data: newProfile, error: createError } = await supabase
-                .from('profiles')
-                .insert([{ 
-                  id: userId, 
-                  email: (await supabase.auth.getSession()).data.session?.user?.email 
-                }])
-                .select()
-                .single();
-                
-                if (createError) {
-                  console.error('Error creating profile:', createError);
-                } else {
-                  console.log('Created new profile:', newProfile);
-                  setProfileInfo({team_id: newProfile?.team_id || null});
-                }
-            }
-          } else {
-            console.log('Found profile:', profile);
-            setProfileInfo({team_id: profile?.team_id || null});
-            
-            // If user has a team, fetch the team details
-            if (profile?.team_id) {
-              const { data: teamData, error: teamError } = await supabase
-                .from('teams')
-                .select('name, code')
-                .eq('id', profile.team_id)
-                .single();
-                
-              if (teamError) {
-                console.error('Error fetching team details:', teamError);
-              } else if (teamData) {
-                console.log('Found team details:', teamData);
-                setTeamName(teamData.name);
-                setTeamCode(teamData.code);
-              }
-            } else {
-              console.log('User has no team ID, consider assigning one');
-            }
-          }
-        } catch (error) {
-          console.error('Unexpected error fetching profile:', error);
-        }
-      } else {
-        console.log('No user ID available to fetch profile');
-      }
-    };
-    
-    getUserProfileInfo();
-  }, [userId, supabase]);
-
-  // Function to copy team code to clipboard
-  const copyTeamCode = async () => {
-    if (teamCode) {
-      try {
-        await navigator.clipboard.writeText(teamCode);
-        setCodeCopied(true);
-        setTimeout(() => setCodeCopied(false), 2000); // Reset after 2 seconds
-      } catch (err) {
-        console.error('Failed to copy team code:', err);
-      }
-    }
-  };
-
-  const updateSetTerms = (category: string, newTerms: TerminologyWithUI[]) => {
-    setTerminologyState(prev => ({
-      ...prev,
-      [category]: newTerms
-    }))
+  }, [supabase])
+  
+  // Handle updates to terminology sets
+  const handleUpdateFormations = (updatedTerms: TerminologyWithUI[]) => {
+    setFormationsSet(updatedTerms)
   }
-
-  const handleAddRow = (category: string) => {
-    setTerminologyState(prev => ({
-      ...prev,
-      [category]: [
-        ...(prev[category] || []),
-        {
-          id: crypto.randomUUID(),
-          category,
-          concept: '',
-          label: '',
-          is_enabled: true,
-          isDirty: true,
-          isEditing: true
-        }
-      ]
-    }))
+  
+  const handleUpdateFormTags = (updatedTerms: TerminologyWithUI[]) => {
+    setFormTagsSet(updatedTerms)
   }
-
-  const handleUpdateConcept = (category: string, index: number, value: string) => {
-    setTerminologyState(prev => ({
-      ...prev,
-      [category]: prev[category].map((term, i) => 
-        i === index ? { ...term, concept: value, isDirty: true } : term
-      )
-    }))
+  
+  const handleUpdateShifts = (updatedTerms: TerminologyWithUI[]) => {
+    setShiftsSet(updatedTerms)
   }
-
-  const handleUpdateLabel = (category: string, index: number, value: string) => {
-    setTerminologyState(prev => ({
-      ...prev,
-      [category]: prev[category].map((term, i) => 
-        i === index ? { ...term, label: value, isDirty: true } : term
-      )
-    }))
+  
+  const handleUpdateToMotions = (updatedTerms: TerminologyWithUI[]) => {
+    setToMotionsSet(updatedTerms)
   }
-
-  const handleDeleteRow = (category: string, index: number) => {
-    setTerminologyState(prev => ({
-      ...prev,
-      [category]: prev[category].filter((_, i) => i !== index)
-    }))
+  
+  const handleUpdateFromMotions = (updatedTerms: TerminologyWithUI[]) => {
+    setFromMotionsSet(updatedTerms)
   }
-
-  // Add a function to create a team for the user
-  const createTeamForUser = async () => {
-    if (!userId) {
-      console.error('Cannot create team: No user ID available');
-      return;
-    }
-    
-    try {
-      // Confirm user isn't already using the default team
-      if (profileInfo.team_id === DEFAULT_TEAM_ID) {
-        console.log('User is already assigned to the default team');
-        alert('You are already using the default team. Creating a new team will allow you to customize your own terminology.');
-      }
-      
-      // Get current user's email for team name
-      const { data: { session } } = await supabase.auth.getSession();
-      const userEmail = session?.user?.email || 'User';
-      
-      // Generate a random code for the team
-      const joinCode = generateJoinCode();
-      
-      // Create a new team
-      const { data: newTeam, error: teamError } = await supabase
-        .from('teams')
-        .insert([{ 
-          name: `${userEmail}'s Team`,
-          code: joinCode,
-          created_by: userId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }])
-        .select()
-        .single();
-        
-      if (teamError) {
-        console.error('Error creating team:', teamError);
-        alert('Failed to create team: ' + teamError.message);
-        return;
-      }
-      
-      console.log('Created new team:', newTeam);
-      
-      // Update the user's profile with the new team_id
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ team_id: newTeam.id })
-        .eq('id', userId);
-        
-      if (updateError) {
-        console.error('Error updating profile with team ID:', updateError);
-        alert('Failed to associate user with team: ' + updateError.message);
-        return;
-      }
-      
-      // Update local state
-      setProfileInfo({ team_id: newTeam.id });
-      setTeamId(newTeam.id);
-      setTeamCode(joinCode);
-      setTeamName(newTeam.name);
-      
-      // Refresh the terminology for the new team
-      await loadTerminology();
-      
-      alert(`Team created successfully! Your Team Join Code is: ${joinCode}\nYou can share this code with others to join your team.`);
-    } catch (error) {
-      console.error('Unexpected error creating team:', error);
-      alert('An error occurred while creating the team.');
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-lg">Loading...</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col justify-center items-center min-h-screen p-4">
-        <div className="text-red-500 text-lg mb-4">Error Loading Terminology</div>
-        <div className="text-gray-700 whitespace-pre-wrap text-center">{error}</div>
-        <Button 
-          onClick={() => window.location.reload()} 
-          className="mt-4"
-        >
-          Try Again
-        </Button>
-      </div>
-    )
-  }
-
-  const terminologySets = {
-    formations: { title: "Formations", category: "formations" },
-    form_tags: { title: "Formation Tags", category: "form_tags" },
-    shifts: { title: "Shifts", category: "shifts" },
-  }
-
+  
+  // Render all terminology sets
   return (
     <div className="container mx-auto py-8">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to AI Playcaller</h1>
-        <p className="text-gray-600 mb-4">Let's get your team set up</p>
-        <div className="bg-blue-50 p-4 rounded-lg mx-auto max-w-md mb-4">
-          <h2 className="font-bold text-blue-800">User Information</h2>
-          <p className="text-sm text-blue-700">User ID: {userId || 'Not logged in'}</p>
-          <div className="text-sm text-blue-700">
-            Team ID: {profileInfo.team_id || 'Not assigned'}
-            {profileInfo.team_id === DEFAULT_TEAM_ID && <span className="ml-1 text-green-600">(Default Team)</span>}
-            {!profileInfo.team_id && <span className="ml-1 text-yellow-600">(Using Default Team)</span>}
-          </div>
-          
-          {teamName && (
-            <div className="text-sm text-blue-700 mt-1">
-              Team Name: {teamName}
+      <h1 className="text-3xl font-bold mb-8">Terminology Setup</h1>
+      
+      {isLoading ? (
+        <div className="flex justify-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>
-          )}
-          
-          {teamCode && (
-            <div className="mt-3 bg-white p-3 rounded-md border border-blue-200 shadow-sm">
-              <div className="text-sm font-medium text-blue-800 mb-1">Team Join Code:</div>
-              <div 
-                onClick={copyTeamCode}
-                className="py-2 px-3 bg-blue-50 border border-blue-300 rounded-md flex items-center justify-between cursor-pointer hover:bg-blue-100 transition-colors"
-              >
-                <span className="font-mono text-base font-bold text-blue-700 tracking-wider">{teamCode}</span>
-                <span className={`text-xs font-medium ml-2 px-2 py-1 rounded-full ${codeCopied ? 'bg-green-100 text-green-600' : 'bg-blue-200 text-blue-600'}`}>
-                  {codeCopied ? 'Copied!' : 'Click to copy'}
-                </span>
-              </div>
-              <div className="text-xs text-blue-600 mt-2 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Share this code with others to join your team
-              </div>
-            </div>
-          )}
-          
-          {userId && !profileInfo.team_id && (
-            <Button 
-              onClick={createTeamForUser}
-              className="mt-2 bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Create Team
-            </Button>
-          )}
-        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TerminologySet
+              title="Formations"
+              terms={formationsSet}
+              category="formations"
+              onUpdate={handleUpdateFormations}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
+            <TerminologySet
+              title="Formation Tags"
+              terms={formTagsSet}
+              category="form_tags"
+              onUpdate={handleUpdateFormTags}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
       </div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Terminology Setup</h1>
-        <div className="flex gap-4">
-          {needsPlayPoolUpdate && (
-            <Button 
-              variant="outline"
-              onClick={async () => {
-                try {
-                  setUpdatingPlayPool(true);
-                  await updatePlayPoolTerminology();
-                  setNeedsPlayPoolUpdate(false);
-                } catch (error) {
-                  console.error('Error updating play pool:', error);
-                } finally {
-                  setUpdatingPlayPool(false);
-                }
-              }}
-              disabled={updatingPlayPool}
-              className="bg-yellow-50 border-yellow-300 text-yellow-800 hover:bg-yellow-100"
-            >
-              {updatingPlayPool ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-yellow-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <span className="mr-2">⚠️</span>
-                  Sync Changes to Play Pool
-                </>
-              )}
-            </Button>
-          )}
-          <Button 
-            variant="outline"
-            onClick={() => router.push('/playpool')}
-          >
-            Continue to Play Pool →
-          </Button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {Object.entries(terminologySets).map(([key, { title, category }]) => (
           <TerminologySet
-            key={category}
-            title={title}
-            terms={terminologyState[category] || []}
-            category={category}
-            onUpdate={(newTerms) => {
-              setTerminologyState(prev => ({
-                ...prev,
-                [category]: newTerms
-              }))
-            }}
+              title="To Motions"
+              terms={toMotionsSet}
+              category="to_motions"
+              onUpdate={handleUpdateToMotions}
             supabase={supabase}
             setProfileInfo={setProfileInfo}
             setTeamCode={setTeamCode}
             setTeamName={setTeamName}
           />
-        ))}
+            <TerminologySet
+              title="From Motions"
+              terms={fromMotionsSet}
+              category="from_motions"
+              onUpdate={handleUpdateFromMotions}
+              supabase={supabase}
+              setProfileInfo={setProfileInfo}
+              setTeamCode={setTeamCode}
+              setTeamName={setTeamName}
+            />
       </div>
 
-      <div className="flex justify-between mt-8">
-        <Button 
-          variant="outline" 
-          onClick={() => router.push('/')}
-        >
-          ← Back to Home
-        </Button>
-        <div className="flex gap-2">
-          {needsPlayPoolUpdate && (
-            <Button 
-              variant="outline"
-              onClick={async () => {
-                try {
-                  setUpdatingPlayPool(true);
-                  await updatePlayPoolTerminology();
-                  setNeedsPlayPoolUpdate(false);
-                } catch (error) {
-                  console.error('Error updating play pool:', error);
-                } finally {
-                  setUpdatingPlayPool(false);
-                }
-              }}
-              disabled={updatingPlayPool}
-              className="bg-yellow-50 border-yellow-300 text-yellow-800 hover:bg-yellow-100"
-            >
-              {updatingPlayPool ? "Updating..." : "Sync to Play Pool"}
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => router.push('/playpool')}
-          >
-            Continue to Play Pool →
-          </Button>
+          <TerminologySet
+            title="Shifts"
+            terms={shiftsSet}
+            category="shifts"
+            onUpdate={handleUpdateShifts}
+            supabase={supabase}
+            setProfileInfo={setProfileInfo}
+            setTeamCode={setTeamCode}
+            setTeamName={setTeamName}
+          />
         </div>
-      </div>
+      )}
     </div>
   )
 }

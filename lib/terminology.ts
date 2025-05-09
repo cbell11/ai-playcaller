@@ -38,7 +38,7 @@ export async function getTerminology(teamId?: string): Promise<Terminology[]> {
     }
     
     // Check which categories the team has
-    const categories = ['formations', 'form_tags', 'shifts']
+    const categories = ['formations', 'form_tags', 'shifts', 'to_motions', 'from_motions']
     const teamEntries: Record<string, Terminology[]> = {}
     const defaultEntries: Record<string, Terminology[]> = {}
     
