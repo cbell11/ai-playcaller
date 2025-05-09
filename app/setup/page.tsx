@@ -1057,6 +1057,8 @@ export default function SetupPage() {
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false)
   const [isRestoring, setIsRestoring] = useState(false)
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null)
+  const [isSavingAll, setIsSavingAll] = useState(false)
+  const [saveAllSuccess, setSaveAllSuccess] = useState<string | null>(null)
 
   // Create Supabase client
   const supabase = createBrowserClient(
@@ -1233,18 +1235,180 @@ export default function SetupPage() {
     }
   };
   
+  // Handle saving all terminology categories
+  const handleSaveAllTerminology = async () => {
+    if (!profileInfo.team_id) {
+      console.log("Cannot save: no team id");
+      return;
+    }
+
+    try {
+      setIsSavingAll(true);
+      console.log("Saving all terminology categories for team", profileInfo.team_id);
+
+      // Check if supabase client is available
+      if (!supabase) {
+        console.error('Supabase client is not initialized');
+        throw new Error('Authentication client is not available');
+      }
+
+      // Define all categories and their corresponding state sets
+      const categories = [
+        { name: "formations", set: formationsSet, setFunction: setFormationsSet },
+        { name: "form_tags", set: formTagsSet, setFunction: setFormTagsSet },
+        { name: "shifts", set: shiftsSet, setFunction: setShiftsSet },
+        { name: "to_motions", set: toMotionsSet, setFunction: setToMotionsSet },
+        { name: "from_motions", set: fromMotionsSet, setFunction: setFromMotionsSet },
+        { name: "run_game", set: runGameSet, setFunction: setRunGameSet },
+        { name: "pass_protections", set: passProtectionsSet, setFunction: setPassProtectionsSet },
+        { name: "quick_game", set: quickGameSet, setFunction: setQuickGameSet },
+        { name: "dropback_game", set: dropbackGameSet, setFunction: setDropbackGameSet },
+        { name: "screen_game", set: screenGameSet, setFunction: setScreenGameSet },
+        { name: "shot_plays", set: shotPlaysSet, setFunction: setShotPlaysSet }
+      ];
+
+      let totalSaved = 0;
+
+      // Process each category
+      for (const category of categories) {
+        console.log(`Processing ${category.name}...`);
+        
+        if (!category.set || category.set.length === 0) {
+          console.log(`No items in ${category.name}, skipping`);
+          continue;
+        }
+
+        // Get all the concepts the user wants to keep
+        const keepConcepts = category.set.map(term => term.concept);
+        
+        // Get the complete data from the default team
+        const { data: defaultItems, error: defaultItemsError } = await supabase
+          .from('terminology')
+          .select('*')
+          .eq('category', category.name)
+          .eq('team_id', DEFAULT_TEAM_ID);
+          
+        if (defaultItemsError) {
+          console.error(`Error fetching default ${category.name}:`, defaultItemsError);
+          continue;
+        }
+        
+        if (!defaultItems || defaultItems.length === 0) {
+          console.error(`No default ${category.name} found to copy from`);
+          continue;
+        }
+        
+        // Create new records by copying from default team and changing team_id
+        const itemsToSave = defaultItems
+          .filter(item => keepConcepts.includes(item.concept))
+          .map(item => {
+            // Find the matching local term to get any customized label
+            const localTerm = category.set.find(term => term.concept === item.concept);
+            
+            // Only include essential fields that definitely exist in the database
+            const saveItem = {
+              concept: item.concept,
+              // Use the customized label if available, otherwise use the default
+              label: localTerm?.label || item.label,
+              category: category.name,
+              team_id: profileInfo.team_id,
+            };
+            
+            // Add image_url only for formations and only if it exists
+            if (category.name === "formations" && item.image_url) {
+              return { ...saveItem, image_url: item.image_url };
+            }
+            
+            return saveItem;
+          });
+          
+        // Delete any existing items for this team and category
+        const { error: deleteError } = await supabase
+          .from('terminology')
+          .delete()
+          .eq('category', category.name)
+          .eq('team_id', profileInfo.team_id);
+
+        if (deleteError) {
+          console.error(`Delete error for ${category.name}:`, deleteError);
+          continue;
+        }
+
+        // Insert the copied items
+        const { data: insertedItems, error: insertError } = await supabase
+          .from('terminology')
+          .insert(itemsToSave)
+          .select();
+
+        if (insertError) {
+          console.error(`Insert error for ${category.name}:`, insertError);
+          continue;
+        }
+        
+        console.log(`Successfully saved ${insertedItems?.length || 0} ${category.name} for team ${profileInfo.team_id}`);
+        totalSaved += insertedItems?.length || 0;
+        
+        // Update local state to reflect the changes
+        const updatedTerms = category.set.map(term => {
+          // Find the matching item we just copied
+          const matchingInserted = insertedItems?.find(f => f.concept === term.concept);
+          
+          if (matchingInserted) {
+            // Return the copied item with UI state
+            return {
+              ...matchingInserted,
+              isDirty: false,
+              isEditing: false
+            };
+          } else {
+            // Just clear dirty flag for other items
+            return {
+              ...term,
+              isDirty: false
+            };
+          }
+        });
+        
+        // Update the state for this category
+        category.setFunction(updatedTerms);
+      }
+
+      // Show success message
+      setSaveAllSuccess(`Successfully saved ${totalSaved} terminology items across all categories!`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSaveAllSuccess(null);
+      }, 5000);
+
+    } catch (error) {
+      console.error("Error saving all terminology:", error);
+      alert(error instanceof Error ? error.message : "An error occurred while saving all terminology");
+    } finally {
+      setIsSavingAll(false);
+    }
+  };
+  
   // Render all terminology sets
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Terminology Setup</h1>
-        <div className="flex items-center">
-          {restoreSuccess && (
+        <div className="flex items-center space-x-4">
+          {(saveAllSuccess || restoreSuccess) && (
             <div className="mr-4 text-sm bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center">
               <Check className="h-4 w-4 mr-2 text-green-600" />
-              {restoreSuccess}
+              {saveAllSuccess || restoreSuccess}
             </div>
           )}
+          <Button
+            variant="default"
+            onClick={handleSaveAllTerminology}
+            disabled={isSavingAll || !profileInfo.team_id}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            {isSavingAll ? "Saving..." : "Save All Terminology"}
+          </Button>
           <Button
             variant="destructive"
             onClick={() => setShowRestoreConfirm(true)}
