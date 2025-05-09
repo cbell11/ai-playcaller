@@ -821,7 +821,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }, [saveTimeout]);
 
   return (
-    <Card className="mb-8">
+    <Card className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "mb-8 w-full" : "mb-8"}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div>
           <CardTitle className="text-xl font-bold">{title}</CardTitle>
@@ -872,7 +872,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       </CardHeader>
       <CardContent>
         <div className="mb-6">
-          <div className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-4 font-medium mb-2 px-2">
+          <div className={`grid grid-cols-[2fr_1fr_auto_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} font-medium mb-2 px-2`}>
             <div>{category === "formations" ? "Formation" : 
                  category === "form_tags" ? "Formation Tag" : 
                  category === "shifts" ? "Shift" : 
@@ -892,16 +892,16 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           </div>
 
           {localTerms && localTerms.map((term) => (
-            <div key={`${term.id}-${term.concept}`} className="grid grid-cols-[2fr_auto_1fr_auto_auto] gap-4 items-center py-2 border-b border-gray-100">
+            <div key={`${term.id}-${term.concept}`} className={`grid grid-cols-[2fr_auto_1fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} items-center py-2 border-b border-gray-100`}>
               <div className="flex items-center">
                 <Select 
                   value={term.concept || ''} 
                   onValueChange={(value) => updateConcept(term, value, true)}
                 >
-                  <SelectTrigger className="w-[280px]">
+                  <SelectTrigger className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "w-[220px]" : "w-[280px]"}>
                     <SelectValue placeholder="Select..." />
                   </SelectTrigger>
-                  <SelectContent className="min-w-[280px]">
+                  <SelectContent className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "min-w-[220px]" : "min-w-[280px]"}>
                     {/* Always add the current concept to ensure it's in the list */}
                     {term.concept && (
                       <SelectItem value={term.concept}>
@@ -942,7 +942,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="ml-1 p-1"
+                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "ml-0 p-0" : "ml-1 p-1"}
                   onClick={() => setSelectedImage({url: term.image_url || '', concept: term.concept || ''})}
                 >
                   <Eye className={`h-4 w-4 ${term.image_url ? 'text-amber-500' : 'text-gray-400'}`} />
@@ -957,10 +957,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <Input
                     value={term.label || ''}
                     onChange={(e) => updateLabel(term, e.target.value)}
-                    className="h-8"
+                    className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "h-8 w-full max-w-[180px]" : "h-8"}
                   />
                 ) : (
-                  <span>{term.label}</span>
+                  <span className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "truncate block max-w-[180px]" : ""}>{term.label}</span>
                 )}
               </div>
               
@@ -970,6 +970,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleEdit(term)}
+                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8" : ""}
                 >
                   <Pencil className="h-4 w-4 text-blue-500" />
                 </Button>
@@ -981,6 +982,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   variant="ghost"
                   size="sm"
                   onClick={() => deleteRow(term)}
+                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8" : ""}
                 >
                   <Trash2 className="h-4 w-4 text-rose-500" />
                 </Button>
@@ -1225,36 +1227,42 @@ export default function SetupPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <TerminologySet
-              title="To Motions"
-              terms={toMotionsSet}
-              category="to_motions"
-              onUpdate={handleUpdateToMotions}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
-            <TerminologySet
-              title="From Motions"
-              terms={fromMotionsSet}
-              category="from_motions"
-              onUpdate={handleUpdateFromMotions}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
-            <TerminologySet
-              title="Shifts"
-              terms={shiftsSet}
-              category="shifts"
-              onUpdate={handleUpdateShifts}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
+            <div className="w-full">
+              <TerminologySet
+                title="To Motions"
+                terms={toMotionsSet}
+                category="to_motions"
+                onUpdate={handleUpdateToMotions}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+            </div>
+            <div className="w-full">
+              <TerminologySet
+                title="From Motions"
+                terms={fromMotionsSet}
+                category="from_motions"
+                onUpdate={handleUpdateFromMotions}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+            </div>
+            <div className="w-full">
+              <TerminologySet
+                title="Shifts"
+                terms={shiftsSet}
+                category="shifts"
+                onUpdate={handleUpdateShifts}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
