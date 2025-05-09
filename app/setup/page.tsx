@@ -904,26 +904,26 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         
         {/* Add formation image preview dialog */}
         <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
-          <DialogContent className="max-w-2xl">
-          <DialogHeader>
-              <DialogTitle>Formation: {selectedImage?.concept}</DialogTitle>
-          </DialogHeader>
-            <div className="flex justify-center p-4">
+          <DialogContent className="max-w-5xl w-full">
+            <DialogHeader>
+              <DialogTitle className="text-xl">Formation: {selectedImage?.concept}</DialogTitle>
+            </DialogHeader>
+            <div className="flex justify-center p-6">
               {selectedImage?.url && (
-              <img 
-                src={selectedImage.url} 
-                alt={selectedImage.concept} 
-                  className="max-h-[400px] object-contain"
-              />
-            )}
-          </div>
+                <img 
+                  src={selectedImage.url} 
+                  alt={selectedImage.concept} 
+                  className="max-h-[700px] max-w-full object-contain"
+                />
+              )}
+            </div>
             <DialogFooter>
               <Button variant="secondary" onClick={() => setSelectedImage(null)}>
                 Close
               </Button>
             </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )
