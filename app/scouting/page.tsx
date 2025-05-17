@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation"
 import { createBrowserClient } from '@supabase/ssr'
 import { Plus, FileText, Loader2, X } from "lucide-react"
 import { load, save } from "@/lib/local"
-import { getMasterFronts, removeSpecificFronts } from "../actions/fronts"
-import { getMasterCoverages, removeDefaultCoverages } from "../actions/coverages"
+import { getMasterFronts } from "../actions/fronts"
+import { getMasterCoverages } from "../actions/coverages"
 import { 
   getMasterBlitzes, 
-  removeDefaultBlitzes, 
   listAllBlitzes,
   removeProblematicBlitzes
 } from "../actions/blitzes"
@@ -88,7 +87,7 @@ export default function ScoutingPage() {
   // Initialize state with data from localStorage, filtering out unwanted fronts
   const [fronts, setFronts] = useState<ScoutingOption[]>(() => {
     const storedFronts = load('fronts', []) as ScoutingOption[];
-    return storedFronts.filter(front => !['Even', 'Odd', 'Bear'].includes(front.name));
+    return storedFronts.filter(front => !['Even', 'Odd'].includes(front.name));
   })
 
   // Initialize state with data from localStorage, filtering out default coverages
@@ -165,7 +164,7 @@ export default function ScoutingPage() {
           // Update state with opponent-specific data if it exists, filtering out unwanted fronts/coverages/blitzes
           if (opponentFronts) {
             const filteredFronts = opponentFronts.filter(
-              (front) => !['Even', 'Odd', 'Bear'].includes(front.name)
+              (front) => !['Even', 'Odd'].includes(front.name)
             );
             setFronts(filteredFronts);
           }
@@ -190,7 +189,7 @@ export default function ScoutingPage() {
           if (opponentFrontPct) {
             // Remove percentages for unwanted fronts
             const filteredFrontPct = { ...opponentFrontPct };
-            ['Even', 'Odd', 'Bear'].forEach(frontName => {
+            ['Even', 'Odd'].forEach(frontName => {
               delete filteredFrontPct[frontName];
             });
             setFrontPct(filteredFrontPct);
@@ -259,13 +258,11 @@ export default function ScoutingPage() {
       setIsLoadingMasterFronts(true);
       
       try {
-        // First remove specific fronts
-        await removeSpecificFronts();
-        
-        // Then fetch all fronts
+        // Just fetch all fronts from the database without removing anything
         const result = await getMasterFronts();
         
         if (result.success && result.data) {
+          // Keep all fronts in masterFronts for selection, filtering happens only at UI level
           setMasterFronts(result.data);
         } else {
           setErrorMessage(result.error?.message || 'Failed to load master fronts');
@@ -288,13 +285,11 @@ export default function ScoutingPage() {
       setIsLoadingMasterCoverages(true);
       
       try {
-        // First remove default coverages
-        await removeDefaultCoverages();
-        
-        // Then fetch all coverages
+        // Just fetch all coverages from the database without removing anything
         const result = await getMasterCoverages();
         
         if (result.success && result.data) {
+          // Keep all coverages in masterCoverages for selection, filtering happens only at UI level
           setMasterCoverages(result.data);
         } else {
           setErrorMessage(result.error?.message || 'Failed to load master coverages');
@@ -425,7 +420,7 @@ export default function ScoutingPage() {
 
   const handleGenerateGamePlan = () => {
     // Filter out unwanted fronts, coverages, and blitzes before saving
-    const filteredFronts = fronts.filter(front => !['Even', 'Odd', 'Bear'].includes(front.name));
+    const filteredFronts = fronts.filter(front => !['Even', 'Odd'].includes(front.name));
     const filteredCoverages = coverages.filter(coverage => !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(coverage.name));
     
     // More thorough case-insensitive filtering for blitzes
@@ -441,7 +436,7 @@ export default function ScoutingPage() {
     
     // Clean up percentages for unwanted items
     const filteredFrontPct = { ...frontPct };
-    ['Even', 'Odd', 'Bear'].forEach(frontName => {
+    ['Even', 'Odd'].forEach(frontName => {
       delete filteredFrontPct[frontName];
     });
     
@@ -931,7 +926,11 @@ export default function ScoutingPage() {
               </SelectTrigger>
               <SelectContent className="z-[202]">
                 {masterFronts
-                  .filter(masterFront => !fronts.some(f => f.name === masterFront.name))
+                  // Filter out default fronts here at UI level, but keep 'Bear'
+                  .filter(masterFront => 
+                    !['Even', 'Odd'].includes(masterFront.name) && 
+                    !fronts.some(f => f.name === masterFront.name)
+                  )
                   .map(front => (
                     <SelectItem key={front.id} value={front.id}>
                       {front.name}
@@ -939,7 +938,9 @@ export default function ScoutingPage() {
                   ))
                 }
                 {masterFronts.length > 0 && 
-                  masterFronts.every(masterFront => fronts.some(f => f.name === masterFront.name)) && (
+                  masterFronts
+                    .filter(masterFront => !['Even', 'Odd'].includes(masterFront.name))
+                    .every(masterFront => fronts.some(f => f.name === masterFront.name)) && (
                     <div className="py-2 px-2 text-sm text-gray-500">
                       All fronts have been added
                     </div>
@@ -1011,7 +1012,11 @@ export default function ScoutingPage() {
               </SelectTrigger>
               <SelectContent className="z-[202]">
                 {masterCoverages
-                  .filter(masterCoverage => !coverages.some(c => c.name === masterCoverage.name))
+                  // Filter out default coverages here at UI level
+                  .filter(masterCoverage => 
+                    !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(masterCoverage.name) && 
+                    !coverages.some(c => c.name === masterCoverage.name)
+                  )
                   .map(coverage => (
                     <SelectItem key={coverage.id} value={coverage.id}>
                       {coverage.name}
@@ -1019,7 +1024,9 @@ export default function ScoutingPage() {
                   ))
                 }
                 {masterCoverages.length > 0 && 
-                  masterCoverages.every(masterCoverage => coverages.some(c => c.name === masterCoverage.name)) && (
+                  masterCoverages
+                    .filter(masterCoverage => !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(masterCoverage.name))
+                    .every(masterCoverage => coverages.some(c => c.name === masterCoverage.name)) && (
                     <div className="py-2 px-2 text-sm text-gray-500">
                       All coverages have been added
                     </div>

@@ -21,6 +21,7 @@ interface FetchMasterFrontsResult {
 
 interface RemoveFrontsResult {
   success: boolean;
+  data?: MasterFront[];
   error?: {
     message: string;
     details?: string;
@@ -80,17 +81,18 @@ export async function removeSpecificFronts(): Promise<RemoveFrontsResult> {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Fronts to be removed
-    const frontsToRemove = ['Even', 'Odd', 'Bear'];
+    // Fronts to be filtered out (but not deleted)
+    const frontsToFilter = ['Even', 'Odd', 'Bear'];
     
-    // Delete the specified fronts
-    const { error } = await supabase
+    // Instead of deleting, just fetch all fronts and return them
+    // We'll filter them out in the UI component
+    const { data, error } = await supabase
       .from('master_fronts')
-      .delete()
-      .in('name', frontsToRemove);
+      .select('*')
+      .not('name', 'in', `(${frontsToFilter.map(f => `'${f}'`).join(',')})`);
     
     if (error) {
-      console.error('Error removing fronts:', error);
+      console.error('Error fetching fronts:', error);
       return {
         success: false,
         error: {
@@ -101,9 +103,12 @@ export async function removeSpecificFronts(): Promise<RemoveFrontsResult> {
       };
     }
     
-    return { success: true };
+    return { 
+      success: true,
+      data: data as MasterFront[]
+    };
   } catch (error) {
-    console.error('Unexpected error when removing fronts:', error);
+    console.error('Unexpected error when filtering fronts:', error);
     return {
       success: false,
       error: {

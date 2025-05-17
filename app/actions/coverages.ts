@@ -21,6 +21,7 @@ interface FetchMasterCoveragesResult {
 
 interface RemoveCoveragesResult {
   success: boolean;
+  data?: MasterCoverage[];
   error?: {
     message: string;
     details?: string;
@@ -80,17 +81,18 @@ export async function removeDefaultCoverages(): Promise<RemoveCoveragesResult> {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Coverages to be removed
-    const coveragesToRemove = ['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'];
+    // Coverages to be filtered out (but not deleted)
+    const coveragesToFilter = ['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'];
     
-    // Delete the specified coverages
-    const { error } = await supabase
+    // Instead of deleting, just fetch all coverages and return them
+    // We'll filter them out in the UI component
+    const { data, error } = await supabase
       .from('master_coverages')
-      .delete()
-      .in('name', coveragesToRemove);
+      .select('*')
+      .not('name', 'in', `(${coveragesToFilter.map(c => `'${c}'`).join(',')})`);
     
     if (error) {
-      console.error('Error removing coverages:', error);
+      console.error('Error fetching coverages:', error);
       return {
         success: false,
         error: {
@@ -101,9 +103,12 @@ export async function removeDefaultCoverages(): Promise<RemoveCoveragesResult> {
       };
     }
     
-    return { success: true };
+    return { 
+      success: true,
+      data: data as MasterCoverage[]
+    };
   } catch (error) {
-    console.error('Unexpected error when removing coverages:', error);
+    console.error('Unexpected error when filtering coverages:', error);
     return {
       success: false,
       error: {
