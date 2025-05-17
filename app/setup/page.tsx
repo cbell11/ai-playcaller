@@ -834,7 +834,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               size="sm"
               onClick={handleSaveAll}
               disabled={isSaving}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
             >
               {isSaving ? "Saving..." : "Save"}
             </Button>
@@ -843,6 +843,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             variant="outline" 
               onClick={addRow}
             disabled={getAvailableItems().length === 0}
+            className="cursor-pointer"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add {category === "formations" ? "Formation" : 
@@ -887,7 +888,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   value={term.concept || ''} 
                   onValueChange={(value) => updateConcept(term, value, true)}
                 >
-                  <SelectTrigger className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "w-[220px]" : "w-[280px]"}>
+                  <SelectTrigger className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "w-[220px] cursor-pointer" : "w-[280px] cursor-pointer"}>
                     <SelectValue placeholder="Select..." />
                   </SelectTrigger>
                   <SelectContent className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "min-w-[220px]" : "min-w-[280px]"}>
@@ -931,7 +932,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 <Button
                   variant="ghost"
                   size="sm"
-                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "ml-0 p-0" : "ml-1 p-1"}
+                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "ml-0 p-0 cursor-pointer" : "ml-1 p-1 cursor-pointer"}
                   onClick={() => setSelectedImage({url: term.image_url || '', concept: term.concept || ''})}
                 >
                   <Eye className={`h-4 w-4 ${term.image_url ? 'text-amber-500' : 'text-gray-400'}`} />
@@ -959,7 +960,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleEdit(term)}
-                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8" : ""}
+                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8 cursor-pointer" : "cursor-pointer"}
                 >
                   <Pencil className="h-4 w-4 text-blue-500" />
                 </Button>
@@ -971,7 +972,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   variant="ghost"
                   size="sm"
                   onClick={() => deleteRow(term)}
-                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8" : ""}
+                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8 cursor-pointer" : "cursor-pointer"}
                 >
                   <Trash2 className="h-4 w-4 text-rose-500" />
                 </Button>
@@ -1025,7 +1026,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               )}
             </div>
             <DialogFooter className="pt-1 justify-center">
-              <Button variant="secondary" onClick={() => setSelectedImage(null)}>
+              <Button variant="secondary" onClick={() => setSelectedImage(null)} className="cursor-pointer">
                 Close
               </Button>
             </DialogFooter>
@@ -1405,7 +1406,7 @@ export default function SetupPage() {
             variant="default"
             onClick={handleSaveAllTerminology}
             disabled={isSavingAll || !profileInfo.team_id}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
           >
             {isSavingAll ? "Saving..." : "Save All Terminology"}
           </Button>
@@ -1413,6 +1414,7 @@ export default function SetupPage() {
             variant="destructive"
             onClick={() => setShowRestoreConfirm(true)}
             disabled={isRestoring || !profileInfo.team_id || profileInfo.team_id === DEFAULT_TEAM_ID}
+            className="cursor-pointer"
           >
             {isRestoring ? "Restoring..." : "Restore to Default Terminology"}
           </Button>
@@ -1429,8 +1431,8 @@ export default function SetupPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRestoreToDefault} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreToDefault} className="bg-red-600 hover:bg-red-700 cursor-pointer">
               Yes, Restore to Default
             </AlertDialogAction>
           </AlertDialogFooter>
