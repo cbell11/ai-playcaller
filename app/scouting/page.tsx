@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "../components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
-import { Input } from "../components/ui/input"
-import { Label } from "../components/ui/label"
-import { Textarea } from "../components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
-import { Slider } from "../components/ui/slider"
+import { createBrowserClient } from '@supabase/ssr'
 import { Plus, FileText, Loader2 } from "lucide-react"
 import { load, save } from "@/lib/local"
+
+import { Button } from "@/app/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Input } from "@/app/components/ui/input"
+import { Label } from "@/app/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select"
+import { Slider } from "@/app/components/ui/slider"
+import { Textarea } from "@/app/components/ui/textarea"
 
 // Define the option type with the new fields
 type ScoutingOption = {
@@ -21,6 +23,9 @@ type ScoutingOption = {
 
 export default function ScoutingPage() {
   const router = useRouter()
+  const [selectedOpponentId, setSelectedOpponentId] = useState<string | null>(null)
+  const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null)
+  const [supabaseClient, setSupabaseClient] = useState<any>(null)
 
   // Initialize state with data from localStorage
   const [fronts, setFronts] = useState<ScoutingOption[]>(() => 
@@ -65,6 +70,57 @@ export default function ScoutingPage() {
 
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [report, setReport] = useState<string | null>(null)
+
+  // Initialize Supabase client and load opponent data
+  useEffect(() => {
+    // Create Supabase client
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    setSupabaseClient(supabase)
+
+    // Get selected opponent from localStorage
+    const opponentId = localStorage.getItem('selectedOpponent')
+    if (opponentId) {
+      setSelectedOpponentId(opponentId)
+      
+      // Fetch opponent name
+      const fetchOpponentName = async () => {
+        const { data } = await supabase
+          .from('opponents')
+          .select('name')
+          .eq('id', opponentId)
+          .single()
+        
+        if (data) {
+          setSelectedOpponentName(data.name)
+          
+          // Load opponent-specific scouting data if it exists
+          const opponentFronts = load(`fronts_${opponentId}`, null)
+          const opponentCoverages = load(`coverages_${opponentId}`, null)
+          const opponentBlitzes = load(`blitz_${opponentId}`, null)
+          const opponentFrontPct = load(`fronts_pct_${opponentId}`, null)
+          const opponentCoverPct = load(`coverages_pct_${opponentId}`, null)
+          const opponentBlitzPct = load(`blitz_pct_${opponentId}`, null)
+          const opponentOverallBlitzPct = load(`overall_blitz_pct_${opponentId}`, null)
+          const opponentNotes = load(`notes_${opponentId}`, null)
+          
+          // Update state with opponent-specific data if it exists
+          if (opponentFronts) setFronts(opponentFronts)
+          if (opponentCoverages) setCoverages(opponentCoverages)
+          if (opponentBlitzes) setBlitzes(opponentBlitzes)
+          if (opponentFrontPct) setFrontPct(opponentFrontPct)
+          if (opponentCoverPct) setCoverPct(opponentCoverPct)
+          if (opponentBlitzPct) setBlitzPct(opponentBlitzPct)
+          if (opponentOverallBlitzPct) setOverallBlitzPct(opponentOverallBlitzPct)
+          if (opponentNotes) setNotes(opponentNotes)
+        }
+      }
+      
+      fetchOpponentName()
+    }
+  }, [])
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
@@ -157,6 +213,18 @@ export default function ScoutingPage() {
     save('coverages_pct', coverPct)
     save('blitz_pct', blitzPct)
     save('overall_blitz_pct', overallBlitzPct)
+    
+    // If we have a selected opponent, save data with opponent ID for future retrieval
+    if (selectedOpponentId) {
+      save(`fronts_${selectedOpponentId}`, fronts)
+      save(`coverages_${selectedOpponentId}`, coverages)
+      save(`blitz_${selectedOpponentId}`, blitzes)
+      save(`fronts_pct_${selectedOpponentId}`, frontPct)
+      save(`coverages_pct_${selectedOpponentId}`, coverPct)
+      save(`blitz_pct_${selectedOpponentId}`, blitzPct)
+      save(`overall_blitz_pct_${selectedOpponentId}`, overallBlitzPct)
+      save(`notes_${selectedOpponentId}`, notes)
+    }
     
     // Navigate to plan page
     router.push('/plan')
@@ -417,7 +485,38 @@ export default function ScoutingPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
+    <div className="container max-w-7xl space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Scouting Report</h1>
+          {selectedOpponentName && (
+            <p className="text-gray-500">Opponent: {selectedOpponentName}</p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleGenerateReport}
+            disabled={isGeneratingReport}
+            className="w-full bg-green-600 hover:bg-green-700 text-white"
+          >
+            {isGeneratingReport ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Generating...</span>
+              </div>
+            ) : (
+              'Generate Scouting Report'
+            )}
+          </Button>
+          <Button
+            onClick={handleGenerateGamePlan}
+            variant="outline"
+          >
+            Save & Continue
+          </Button>
+        </div>
+      </div>
+
       {(report || isGeneratingReport) && (
         <Card className="mb-8 bg-white shadow-lg border-2 border-green-600">
           <CardHeader className="border-b border-slate-200">
@@ -490,32 +589,6 @@ export default function ScoutingPage() {
           </CardContent>
         </Card>
       )}
-
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Scouting Report</h1>
-        <div className="flex gap-2">
-          <Button 
-            onClick={handleGenerateReport}
-            disabled={isGeneratingReport}
-            className="w-full bg-green-600 hover:bg-green-700 text-white"
-          >
-            {isGeneratingReport ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Generating...</span>
-              </div>
-            ) : (
-              'Generate Scouting Report'
-            )}
-          </Button>
-          <Button
-            onClick={handleGenerateGamePlan}
-            variant="outline"
-          >
-            Save & Continue
-          </Button>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {renderCategoryCard("Fronts", "fronts", fronts, frontPct)}
