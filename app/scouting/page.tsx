@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createBrowserClient } from '@supabase/ssr'
-import { Plus, FileText, Loader2, X } from "lucide-react"
+import { Plus, FileText, Loader2, X, ChevronDown, ChevronUp } from "lucide-react"
 import { load, save } from "@/lib/local"
 import { getMasterFronts } from "../actions/fronts"
 import { getMasterCoverages } from "../actions/coverages"
@@ -12,6 +12,10 @@ import {
   listAllBlitzes,
   removeProblematicBlitzes
 } from "../actions/blitzes"
+import {
+  saveScoutingReport,
+  getScoutingReport
+} from "../actions/scouting-reports"
 
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
@@ -28,6 +32,13 @@ import {
   DialogHighZTitle, 
   DialogHighZFooter 
 } from "../components/ui/dialog-high-z"
+import {
+  SelectSafeDialog,
+  SelectSafeDialogContent,
+  SelectSafeDialogHeader,
+  SelectSafeDialogFooter,
+  SelectSafeDialogTitle,
+} from "../components/ui/dialog-select-fix"
 
 // Define the option type with the new fields
 type ScoutingOption = {
@@ -60,9 +71,18 @@ type MasterBlitz = {
 
 export default function ScoutingPage() {
   const router = useRouter()
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+  const [selectedTeamName, setSelectedTeamName] = useState<string | null>(null)
+  
   const [selectedOpponentId, setSelectedOpponentId] = useState<string | null>(null)
   const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null)
+  
   const [supabaseClient, setSupabaseClient] = useState<any>(null)
+  
+  // Database sync status
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [savingError, setSavingError] = useState<string | null>(null)
   
   // Master fronts state
   const [masterFronts, setMasterFronts] = useState<MasterFront[]>([])
@@ -84,49 +104,59 @@ export default function ScoutingPage() {
   
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Initialize state with data from localStorage, filtering out unwanted fronts
-  const [fronts, setFronts] = useState<ScoutingOption[]>(() => {
-    const storedFronts = load('fronts', []) as ScoutingOption[];
-    return storedFronts.filter(front => !['Even', 'Odd'].includes(front.name));
-  })
+  // Initialize state with empty arrays instead of loading from localStorage to prevent mixing data
+  const [fronts, setFronts] = useState<ScoutingOption[]>([])
 
-  // Initialize state with data from localStorage, filtering out default coverages
-  const [coverages, setCoverages] = useState<ScoutingOption[]>(() => {
-    const storedCoverages = load('coverages', []) as ScoutingOption[];
-    return storedCoverages.filter(coverage => !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(coverage.name));
-  })
+  // Initialize state with empty arrays instead of loading from localStorage
+  const [coverages, setCoverages] = useState<ScoutingOption[]>([])
 
-  // Initialize state with data from localStorage, filtering out default blitzes
-  const [blitzes, setBlitzes] = useState<ScoutingOption[]>(() => {
-    const storedBlitzes = load('blitz', []) as ScoutingOption[];
-    // Use case-insensitive comparison for more thorough filtering
-    return storedBlitzes.filter(blitz => {
-      const name = blitz.name.toLowerCase();
-      return !(
-        name === 'inside' || 
-        name === 'outside' || 
-        name === 'corner' || 
-        name === 'safety'
-      );
-    });
-  })
+  // Initialize state with empty arrays instead of loading from localStorage
+  const [blitzes, setBlitzes] = useState<ScoutingOption[]>([])
 
-  // Initialize percentage states
-  const [frontPct, setFrontPct] = useState<Record<string, number>>(() => load('fronts_pct', {}))
-  const [coverPct, setCoverPct] = useState<Record<string, number>>(() => load('coverages_pct', {}))
-  const [blitzPct, setBlitzPct] = useState<Record<string, number>>(() => load('blitz_pct', {}))
+  // Initialize percentage states with empty objects
+  const [frontPct, setFrontPct] = useState<Record<string, number>>({})
+  const [coverPct, setCoverPct] = useState<Record<string, number>>({})
+  const [blitzPct, setBlitzPct] = useState<Record<string, number>>({})
 
-  // Add overall blitz percentage state
-  const [overallBlitzPct, setOverallBlitzPct] = useState<number>(() => load('overall_blitz_pct', 0))
+  // Initialize overall blitz percentage to 0
+  const [overallBlitzPct, setOverallBlitzPct] = useState<number>(0)
 
   const [addingCustomTo, setAddingCustomTo] = useState<"fronts" | "coverages" | "blitzes" | null>(null)
   const [customName, setCustomName] = useState("")
-  const [notes, setNotes] = useState(() => load('notes', ""))
+  const [notes, setNotes] = useState("")
 
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [report, setReport] = useState<string | null>(null)
 
-  // Initialize Supabase client and load opponent data
+  // Add this at the top level with other state declarations
+  const initialSaveRender = useRef(true);
+
+  // State to store the list of opponents for the dropdown
+  const [opponentsList, setOpponentsList] = useState<any[]>([]);
+  const [isLoadingOpponentsList, setIsLoadingOpponentsList] = useState(false);
+
+  // Add these dialog state handlers
+  const [selectedFront, setSelectedFront] = useState<MasterFront | null>(null);
+  const [selectedCoverage, setSelectedCoverage] = useState<MasterCoverage | null>(null);
+  const [selectedBlitz, setSelectedBlitz] = useState<MasterBlitz | null>(null);
+
+  // Add loading state for opponent data
+  const [isLoadingOpponentData, setIsLoadingOpponentData] = useState(false)
+
+  // Add state for AI report generation
+  const [isGeneratingAIReport, setIsGeneratingAIReport] = useState(false);
+
+  // Add state for toggling the AI report display
+  const [showReport, setShowReport] = useState(false);
+
+  // Add state to prevent premature saving on initial load
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [dataFullyLoaded, setDataFullyLoaded] = useState(false);
+
+  // Add state for app-wide loading
+  const [isAppLoading, setIsAppLoading] = useState(true);
+
+  // Initialize Supabase client and load data
   useEffect(() => {
     // Create Supabase client
     const supabase = createBrowserClient(
@@ -134,123 +164,311 @@ export default function ScoutingPage() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
     setSupabaseClient(supabase)
+    
+    // Set app to loading state initially
+    setIsAppLoading(true);
 
-    // Get selected opponent from localStorage
-    const opponentId = localStorage.getItem('selectedOpponent')
-    if (opponentId) {
-      setSelectedOpponentId(opponentId)
+    const initializeData = async () => {
+      // Set initial load flag to prevent any auto-saves until we've loaded data
+      setIsInitialLoad(true);
+      setDataFullyLoaded(false);
       
-      // Fetch opponent name
-      const fetchOpponentName = async () => {
-        const { data } = await supabase
-          .from('opponents')
-          .select('name')
-          .eq('id', opponentId)
-          .single()
+      try {
+        // First get the current user's session
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         
-        if (data) {
-          setSelectedOpponentName(data.name)
+        if (sessionError) {
+          console.error('Error getting user session:', sessionError.message);
+          setIsAppLoading(false);
+          return;
+        }
+        
+        const userId = sessionData.session?.user?.id;
+        
+        if (!userId) {
+          console.error('No user ID found. User might not be authenticated.');
+          setIsAppLoading(false);
+          return;
+        }
+        
+        console.log('Found authenticated user ID:', userId);
+        
+        // Get the user's profile to find their team_id
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId);
           
-          // Load opponent-specific scouting data if it exists
-          const opponentFronts = load(`fronts_${opponentId}`, null) as ScoutingOption[] | null;
-          const opponentCoverages = load(`coverages_${opponentId}`, null) as ScoutingOption[] | null;
-          const opponentBlitzes = load(`blitz_${opponentId}`, null) as ScoutingOption[] | null;
-          const opponentFrontPct = load(`fronts_pct_${opponentId}`, null) as Record<string, number> | null;
-          const opponentCoverPct = load(`coverages_pct_${opponentId}`, null) as Record<string, number> | null;
-          const opponentBlitzPct = load(`blitz_pct_${opponentId}`, null) as Record<string, number> | null;
-          const opponentOverallBlitzPct = load(`overall_blitz_pct_${opponentId}`, null) as number | null;
-          const opponentNotes = load(`notes_${opponentId}`, null) as string | null;
+        if (profileError) {
+          console.error('Error fetching user profile:', profileError.message);
+          setIsAppLoading(false);
+        } else if (profileData && profileData.length > 0 && profileData[0].team_id) {
+          console.log('Found team_id in user profile:', profileData[0].team_id);
           
-          // Update state with opponent-specific data if it exists, filtering out unwanted fronts/coverages/blitzes
-          if (opponentFronts) {
-            const filteredFronts = opponentFronts.filter(
-              (front) => !['Even', 'Odd'].includes(front.name)
-            );
-            setFronts(filteredFronts);
+          // Now fetch the team details
+          const { data: teamData, error: teamError } = await supabase
+            .from('teams')
+            .select('*')
+            .eq('id', profileData[0].team_id);
+            
+          if (teamError) {
+            console.error('Error fetching team from profile:', teamError.message);
+            setIsAppLoading(false);
+          } else if (teamData && teamData.length > 0) {
+            // Set the team info from the profile
+            setSelectedTeamId(teamData[0].id);
+            setSelectedTeamName(teamData[0].name);
+            localStorage.setItem('selectedTeam', teamData[0].id);
+            console.log('Set team from user profile:', teamData[0].name);
+            
+            // Get selected opponent from localStorage
+            let storedOpponentId = localStorage.getItem('selectedOpponent');
+            console.log('Selected opponent ID from localStorage:', storedOpponentId);
+            
+            // If no opponent is selected, fetch the list of opponents and use the first one
+            if (!storedOpponentId) {
+              console.log('No opponent selected, fetching available opponents...');
+              
+              try {
+                const { data: opponentsData, error: opponentsError } = await supabase
+                  .from('opponents')
+                  .select('id, name')
+                  .order('name')
+                  .limit(10);
+                  
+                if (opponentsError) {
+                  console.error('Error fetching opponents list:', opponentsError.message);
+                } else if (opponentsData && opponentsData.length > 0) {
+                  // Use the first opponent in the list as default
+                  storedOpponentId = opponentsData[0].id;
+                  console.log('Using first opponent as default:', opponentsData[0].name);
+                  
+                  // Save to localStorage
+                  localStorage.setItem('selectedOpponent', storedOpponentId);
+                  
+                  // Save the list of opponents for the dropdown
+                  setOpponentsList(opponentsData);
+                  
+                  // Set the selected opponent
+                  setSelectedOpponentId(storedOpponentId);
+                  setSelectedOpponentName(opponentsData[0].name);
+                  
+                  // Load the scouting report for this opponent
+                  await loadScoutingReport(teamData[0].id, storedOpponentId, true);
+                } else {
+                  console.log('No opponents found to use as default');
+                  setIsAppLoading(false);
+                  setDataFullyLoaded(true);
+                }
+              } catch (opponentsError) {
+                console.error('Error getting default opponent:', opponentsError);
+                setIsAppLoading(false);
+                setDataFullyLoaded(true);
+              }
+            } else {
+              setSelectedOpponentId(storedOpponentId);
+              
+              // Fetch opponent name
+              try {
+                const { data, error } = await supabase
+                  .from('opponents')
+                  .select('name')
+                  .eq('id', storedOpponentId);
+                
+                if (error) {
+                  console.error('Error fetching opponent name:', error.message);
+                  setIsAppLoading(false);
+                } else if (data && data.length > 0) {
+                  console.log('Found opponent name:', data[0].name);
+                  setSelectedOpponentName(data[0].name);
+                  
+                  // Important: Now that we have both team ID and opponent ID, load the scouting report
+                  // Pass true to indicate this is the initial load
+                  await loadScoutingReport(teamData[0].id, storedOpponentId, true);
+                } else {
+                  console.log('No opponent found with ID:', storedOpponentId);
+                  setIsAppLoading(false);
+                  setDataFullyLoaded(true);
+                }
+              } catch (opponentError) {
+                console.error('Exception fetching opponent:', opponentError);
+                setIsAppLoading(false);
+                setDataFullyLoaded(true);
+              }
+            }
+          } else {
+            console.log('No team found with team_id:', profileData[0].team_id);
+            setIsAppLoading(false);
           }
-          if (opponentCoverages) {
-            const filteredCoverages = opponentCoverages.filter(
-              (coverage) => !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(coverage.name)
-            );
-            setCoverages(filteredCoverages);
-          }
-          if (opponentBlitzes) {
-            const filteredBlitzes = opponentBlitzes.filter(blitz => {
-              const name = blitz.name.toLowerCase();
-              return !(
-                name === 'inside' || 
-                name === 'outside' || 
-                name === 'corner' || 
-                name === 'safety'
-              );
-            });
-            setBlitzes(filteredBlitzes);
-          }
-          if (opponentFrontPct) {
-            // Remove percentages for unwanted fronts
-            const filteredFrontPct = { ...opponentFrontPct };
-            ['Even', 'Odd'].forEach(frontName => {
-              delete filteredFrontPct[frontName];
-            });
-            setFrontPct(filteredFrontPct);
-          }
-          if (opponentCoverPct) {
-            // Remove percentages for default coverages
-            const filteredCoverPct = { ...opponentCoverPct };
-            ['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].forEach(coverageName => {
-              delete filteredCoverPct[coverageName];
-            });
-            setCoverPct(filteredCoverPct);
-          }
-          if (opponentBlitzPct) {
-            // Remove percentages for default blitzes
-            const filteredBlitzPct = { ...opponentBlitzPct };
-            ['Inside', 'Outside', 'Corner', 'Safety', 'inside', 'outside', 'corner', 'safety'].forEach(blitzName => {
-              delete filteredBlitzPct[blitzName];
-            });
-            setBlitzPct(filteredBlitzPct);
-          }
-          if (opponentOverallBlitzPct) setOverallBlitzPct(opponentOverallBlitzPct)
-          if (opponentNotes) setNotes(opponentNotes)
+        } else {
+          console.log('No team_id found in user profile or profile not found');
+          setIsAppLoading(false);
+          setDataFullyLoaded(true);
+        }
+      } catch (error) {
+        console.error('Error in initialization:', error);
+        setIsAppLoading(false);
+        setDataFullyLoaded(true);
+      } finally {
+        // After all initialization, set initial load to false
+        // This will allow auto-saves to work after the first complete load
+        setTimeout(() => {
+          setIsInitialLoad(false);
+        }, 1000);
+      }
+    };
+    
+    initializeData();
+
+    // Setup event listener for storage changes (for opponent selection changes from other components)
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'selectedOpponent' && event.newValue) {
+        console.log('Storage event: Opponent changed to:', event.newValue);
+        if (event.newValue !== selectedOpponentId) {
+          setSelectedOpponentId(event.newValue);
+          
+          // Set loading state
+          setIsLoadingOpponentData(true);
+          
+          // Fetch the opponent name and load the scouting report
+          (async () => {
+            try {
+              const { data, error } = await supabase
+                .from('opponents')
+                .select('name')
+                .eq('id', event.newValue);
+                
+              if (error) {
+                console.error('Error fetching opponent from storage event:', error.message);
+                setIsLoadingOpponentData(false);
+              } else if (data && data.length > 0) {
+                setSelectedOpponentName(data[0].name);
+                console.log('Set opponent from storage event:', data[0].name);
+                
+                // Get the current team ID from state or localStorage
+                const teamId = selectedTeamId || localStorage.getItem('selectedTeam');
+                if (teamId && event.newValue) { // Add null check for TypeScript
+                  await loadScoutingReport(teamId, event.newValue);
+                } else {
+                  setIsLoadingOpponentData(false);
+                }
+              } else {
+                console.warn('No opponent found with ID:', event.newValue, 'but attempting to load scouting data anyway');
+                
+                // Even if opponent details aren't found, try to load the scouting report anyway
+                if (event.newValue) {
+                  setSelectedOpponentName(`Unknown (${event.newValue.slice(0, 8)}...)`);
+                  
+                  // Get the current team ID from state or localStorage
+                  const teamId = selectedTeamId || localStorage.getItem('selectedTeam');
+                  if (teamId) {
+                    await loadScoutingReport(teamId, event.newValue);
+                  } else {
+                    console.error('No team ID available when switching opponents');
+                    setIsLoadingOpponentData(false);
+                  }
+                } else {
+                  setIsLoadingOpponentData(false);
+                }
+              }
+            } catch (error) {
+              console.error('Exception in storage event handler:', error);
+              setIsLoadingOpponentData(false);
+            }
+          })();
         }
       }
-      
-      fetchOpponentName()
-    }
-  }, [])
+    };
 
-  // Save state to localStorage whenever it changes
-  useEffect(() => {
-    save('fronts', fronts)
-  }, [fronts])
-
-  useEffect(() => {
-    save('coverages', coverages)
-  }, [coverages])
-
-  useEffect(() => {
-    save('blitz', blitzes)
-  }, [blitzes])
-
-  useEffect(() => {
-    save('fronts_pct', frontPct)
-  }, [frontPct])
-
-  useEffect(() => {
-    save('coverages_pct', coverPct)
-  }, [coverPct])
-
-  useEffect(() => {
-    save('blitz_pct', blitzPct)
-  }, [blitzPct])
-
-  useEffect(() => {
-    save('overall_blitz_pct', overallBlitzPct)
-  }, [overallBlitzPct])
-
-  useEffect(() => {
-    save('notes', notes)
-  }, [notes])
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Add a special event listener for our custom opponent change events
+    const handleOpponentChangeEvent = (event: CustomEvent) => {
+      const opponentId = event.detail?.opponentId;
+      if (opponentId && opponentId !== selectedOpponentId) {
+        console.log('Custom event: Opponent changed to:', opponentId);
+        
+        // Save current data for the current opponent before switching, only if we've fully loaded
+        if (selectedTeamId && selectedOpponentId && dataFullyLoaded && !isInitialLoad) {
+          console.log('Saving data for current opponent before switching');
+          saveToDatabase();
+        }
+        
+        // Then continue with the normal opponent change process
+        // Set loading state first
+        setIsLoadingOpponentData(true);
+        
+        // Update localStorage and state for the new opponent
+        localStorage.setItem('selectedOpponent', opponentId);
+        setSelectedOpponentId(opponentId);
+        
+        // Clear ALL current data before loading new data
+        setFronts([]);
+        setCoverages([]);
+        setBlitzes([]);
+        setFrontPct({});
+        setCoverPct({});
+        setBlitzPct({});
+        setOverallBlitzPct(0);
+        setNotes('');
+        setReport(null);
+        
+        // Fetch the opponent name and load the scouting report
+        (async () => {
+          try {
+            const { data, error } = await supabase
+              .from('opponents')
+              .select('name')
+              .eq('id', opponentId);
+              
+            if (error) {
+              console.error('Error fetching opponent from custom event:', error.message);
+              setIsLoadingOpponentData(false);
+            } else if (data && data.length > 0) {
+              setSelectedOpponentName(data[0].name);
+              console.log('Set opponent from custom event:', data[0].name);
+              
+              // Get the current team ID from state or localStorage
+              const teamId = selectedTeamId || localStorage.getItem('selectedTeam');
+              if (teamId) {
+                // Ensure we're loading with consistent teamId/opponentId
+                await loadScoutingReport(teamId, opponentId);
+              } else {
+                console.error('No team ID available when switching opponents');
+                setIsLoadingOpponentData(false);
+              }
+            } else {
+              console.warn('No opponent found with ID:', opponentId, 'but attempting to load scouting data anyway');
+              
+              // Even if opponent details aren't found, try to load the scouting report anyway
+              // This handles cases where the opponent ID exists in scouting_reports but not in opponents table
+              setSelectedOpponentId(opponentId);
+              setSelectedOpponentName(`Unknown (${opponentId.slice(0, 8)}...)`);
+              
+              // Get the current team ID from state or localStorage
+              const teamId = selectedTeamId || localStorage.getItem('selectedTeam');
+              if (teamId) {
+                await loadScoutingReport(teamId, opponentId);
+              } else {
+                console.error('No team ID available when switching opponents');
+                setIsLoadingOpponentData(false);
+              }
+            }
+          } catch (error) {
+            console.error('Exception in custom event handler:', error);
+            setIsLoadingOpponentData(false);
+          }
+        })();
+      }
+    };
+    
+    window.addEventListener('opponentChanged', handleOpponentChangeEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('opponentChanged', handleOpponentChangeEvent as EventListener);
+    };
+  }, []);
 
   // Fetch master fronts
   useEffect(() => {
@@ -418,7 +636,12 @@ export default function ScoutingPage() {
     setCustomName("")
   }
 
-  const handleGenerateGamePlan = () => {
+  const handleGenerateGamePlan = async () => {
+    // Save to database if we have both team and opponent IDs
+    if (selectedTeamId && selectedOpponentId) {
+      await saveToDatabase();
+    }
+    
     // Filter out unwanted fronts, coverages, and blitzes before saving
     const filteredFronts = fronts.filter(front => !['Even', 'Odd'].includes(front.name));
     const filteredCoverages = coverages.filter(coverage => !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(coverage.name));
@@ -450,16 +673,7 @@ export default function ScoutingPage() {
       delete filteredBlitzPct[blitzName];
     });
     
-    // Save all percentages including overall blitz percentage
-    save('fronts', filteredFronts);
-    save('coverages', filteredCoverages);
-    save('blitz', filteredBlitzes);
-    save('fronts_pct', filteredFrontPct);
-    save('coverages_pct', filteredCoverPct);
-    save('blitz_pct', filteredBlitzPct);
-    save('overall_blitz_pct', overallBlitzPct);
-    
-    // If we have a selected opponent, save data with opponent ID for future retrieval
+    // Only save data with opponent-specific keys to avoid mixed data
     if (selectedOpponentId) {
       save(`fronts_${selectedOpponentId}`, filteredFronts);
       save(`coverages_${selectedOpponentId}`, filteredCoverages);
@@ -474,6 +688,86 @@ export default function ScoutingPage() {
     // Navigate to plan page
     router.push('/plan');
   }
+
+  // Save data to the database
+  const saveToDatabase = async () => {
+    if (!selectedTeamId || !selectedOpponentId) {
+      setSavingError('Missing team or opponent ID');
+      return { success: false };
+    }
+    
+    // Prevent saving if we're still in initial loading
+    if (isInitialLoad || !dataFullyLoaded) {
+      console.log("Skipping save during initial data load");
+      return { success: false };
+    }
+    
+    // Check if we have any data to save (to prevent saving empty data)
+    if (fronts.length === 0 && coverages.length === 0 && blitzes.length === 0 && notes === '') {
+      console.log("No data to save, skipping database update");
+      return { success: false };
+    }
+    
+    setIsSaving(true);
+    setSavingError(null);
+    
+    try {
+      console.log(`Saving data to database for team ${selectedTeamId} and opponent ${selectedOpponentId}`);
+      console.log(`Data summary: fronts=${fronts.length}, coverages=${coverages.length}, blitzes=${blitzes.length}`);
+      
+      const result = await saveScoutingReport({
+        team_id: selectedTeamId,
+        opponent_id: selectedOpponentId,
+        fronts,
+        coverages,
+        blitzes,
+        fronts_pct: frontPct,
+        coverages_pct: coverPct,
+        blitz_pct: blitzPct,
+        overall_blitz_pct: overallBlitzPct,
+        notes
+      });
+      
+      if (result.success) {
+        setLastSaved(new Date());
+        return { success: true };
+      } else {
+        setSavingError(result.error?.message || 'Failed to save');
+        return { success: false };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      setSavingError(errorMessage);
+      console.error('Error saving to database:', error);
+      return { success: false };
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  // Auto-save when data changes
+  useEffect(() => {
+    // Skip initial render and when data isn't fully loaded yet
+    if (initialSaveRender.current || isInitialLoad || !dataFullyLoaded) {
+      initialSaveRender.current = false;
+      return;
+    }
+    
+    // Only auto-save if we have both team and opponent IDs
+    if (!selectedTeamId || !selectedOpponentId) return;
+    
+    console.log(`Auto-saving data for opponent: ${selectedOpponentId}`);
+    
+    // Use debounce to avoid too frequent saves
+    const debounceTimer = setTimeout(() => {
+      saveToDatabase();
+    }, 2000); // Save after 2 seconds of inactivity
+    
+    return () => {
+      clearTimeout(debounceTimer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fronts, coverages, blitzes, frontPct, coverPct, blitzPct, overallBlitzPct, notes, selectedTeamId, selectedOpponentId, isInitialLoad, dataFullyLoaded]);
 
   const handleGenerateReport = async () => {
     setIsGeneratingReport(true)
@@ -518,6 +812,62 @@ export default function ScoutingPage() {
       setIsGeneratingReport(false)
     }
   }
+
+  // Function to generate an AI scouting report
+  const handleGenerateAIReport = async () => {
+    if (!selectedTeamId || !selectedOpponentId) {
+      alert('Please make sure team and opponent are selected first');
+      return;
+    }
+    
+    // First save the data to ensure it's up to date
+    await saveToDatabase();
+    
+    setIsGeneratingAIReport(true);
+    setReport("");
+    setShowReport(true); // Make sure report section is visible when generating
+    
+    try {
+      const response = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fronts,
+          coverages,
+          blitzes,
+          frontPct,
+          coverPct,
+          blitzPct,
+          overallBlitzPct,
+          notes,
+          teamName: selectedTeamName,
+          opponentName: selectedOpponentName
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate report');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const text = new TextDecoder().decode(value);
+        setReport(prev => (prev || "") + text);
+      }
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate AI report. Please try again.');
+    } finally {
+      setIsGeneratingAIReport(false);
+    }
+  };
 
   // Helper function to calculate total percentage for a category
   const calculateTotal = (percentages: Record<string, number>, names: string[]): number => {
@@ -683,6 +1033,7 @@ export default function ScoutingPage() {
     percentages: Record<string, number>
   ) => {
     const total = calculateTotal(percentages, items.map(item => item.name))
+    console.log(`Rendering ${category} card with ${items.length} items:`, items);
 
     return (
       <Card className="bg-slate-50">
@@ -819,20 +1170,11 @@ export default function ScoutingPage() {
             </div>
           )}
           
-          {items.length === 0 && category === "fronts" ? (
+          {items.length === 0 ? (
             <div className="py-8 text-center text-gray-500">
-              <p>No fronts added yet</p>
-              <p className="text-sm mt-1">Click "Add Front" to select from the master list</p>
-            </div>
-          ) : items.length === 0 && category === "coverages" ? (
-            <div className="py-8 text-center text-gray-500">
-              <p>No coverages added yet</p>
-              <p className="text-sm mt-1">Click "Add Coverage" to select from the master list</p>
-            </div>
-          ) : items.length === 0 && category === "blitzes" ? (
-            <div className="py-8 text-center text-gray-500">
-              <p>No blitzes added yet</p>
-              <p className="text-sm mt-1">Click "Add Blitz" to select from the master list</p>
+              <p>No {category} added yet</p>
+              <p className="text-sm mt-1">Click "Add {category === "blitzes" ? "Blitz" : category === "coverages" ? "Coverage" : "Front"}" to select from the master list</p>
+              <p className="text-xs mt-2 text-amber-600">Make sure your team and opponent are selected correctly.</p>
             </div>
           ) : (
             items.map((item, index) => renderOptionRow(item, index, category))
@@ -842,380 +1184,734 @@ export default function ScoutingPage() {
     )
   }
 
-  return (
+  // Update the loadScoutingReport function
+  const loadScoutingReport = async (teamId: string, opponentId: string, isInitializing = false) => {
+    if (!teamId || !opponentId) {
+      console.error("Cannot load scouting report: missing teamId or opponentId", { teamId, opponentId });
+      setIsLoadingOpponentData(false);
+      setIsAppLoading(false);
+      if (isInitializing) setDataFullyLoaded(true);
+      return;
+    }
+    
+    console.log(`--------- LOADING DATA FOR OPPONENT ${opponentId} ---------`);
+    console.log(`Team ID: ${teamId}, Opponent ID: ${opponentId}, Initial Load: ${isInitializing}`);
+    
+    // Clear all existing data first to prevent any mixing
+    console.log("Clearing all existing data before loading new data");
+    setFronts([]);
+    setCoverages([]);
+    setBlitzes([]);
+    setFrontPct({});
+    setCoverPct({});
+    setBlitzPct({});
+    setOverallBlitzPct(0);
+    setNotes('');
+    setLastSaved(null);
+    setReport(null); // Clear any existing report
+    
+    // Set loading state
+    setIsLoadingOpponentData(true);
+    
+    try {
+      // First try to load from the database
+      console.log(`Attempting to load from database for team ${teamId} and opponent ${opponentId}...`);
+      const result = await getScoutingReport(teamId, opponentId);
+      
+      if (result.success && result.data) {
+        console.log(`SUCCESS: Found data in database for opponent ${opponentId}`);
+        console.log("Data summary:", {
+          fronts: result.data.fronts?.length || 0, 
+          coverages: result.data.coverages?.length || 0, 
+          blitzes: result.data.blitzes?.length || 0
+        });
+        
+        // Make sure we're not setting undefined arrays
+        const safeData = {
+          fronts: Array.isArray(result.data.fronts) ? result.data.fronts : [],
+          coverages: Array.isArray(result.data.coverages) ? result.data.coverages : [],
+          blitzes: Array.isArray(result.data.blitzes) ? result.data.blitzes : [],
+          fronts_pct: result.data.fronts_pct || {},
+          coverages_pct: result.data.coverages_pct || {},
+          blitz_pct: result.data.blitz_pct || {},
+          overall_blitz_pct: result.data.overall_blitz_pct || 0,
+          notes: result.data.notes || '',
+          updated_at: result.data.updated_at || new Date().toISOString()
+        };
+        
+        // Log details about what we're loading
+        console.log("FRONTS:", safeData.fronts.map(f => f.name));
+        console.log("COVERAGES:", safeData.coverages.map(c => c.name));
+        console.log("BLITZES:", safeData.blitzes.map(b => b.name));
+        
+        // Set state with the safe data
+        setFronts(safeData.fronts);
+        setCoverages(safeData.coverages);
+        setBlitzes(safeData.blitzes);
+        setFrontPct(safeData.fronts_pct);
+        setCoverPct(safeData.coverages_pct);
+        setBlitzPct(safeData.blitz_pct);
+        setOverallBlitzPct(safeData.overall_blitz_pct);
+        setNotes(safeData.notes);
+        setLastSaved(new Date(safeData.updated_at));
+        console.log(`Successfully set state with data for opponent ${opponentId}`);
+      } else {
+        // Fall back to localStorage if no database record exists
+        console.log(`No data found in database for opponent ${opponentId}, falling back to localStorage`);
+        if (result.error) {
+          console.log("Database error:", result.error);
+        }
+        fallbackToLocalStorage(opponentId);
+      }
+    } catch (error) {
+      console.error(`Error loading scouting report for opponent ${opponentId}:`, error);
+      console.log("Falling back to localStorage due to error");
+      fallbackToLocalStorage(opponentId);
+    } finally {
+      console.log(`--------- FINISHED LOADING DATA FOR OPPONENT ${opponentId} ---------`);
+      setIsLoadingOpponentData(false);
+      setIsAppLoading(false);
+      
+      // If this was from initial app load, set the data as fully loaded
+      if (isInitializing) {
+        console.log("Initial data load complete, enabling auto-saves");
+        setDataFullyLoaded(true);
+      }
+    }
+  };
+
+  // Improve the fallbackToLocalStorage function
+  const fallbackToLocalStorage = (opponentId: string) => {
+    console.log(`Looking for data in localStorage for opponent: ${opponentId}`);
+    
+    // Log what we're looking for in localStorage
+    const keys = [`fronts_${opponentId}`, `coverages_${opponentId}`, `blitz_${opponentId}`, 
+                  `fronts_pct_${opponentId}`, `coverages_pct_${opponentId}`, `blitz_pct_${opponentId}`,
+                  `overall_blitz_pct_${opponentId}`, `notes_${opponentId}`];
+    console.log(`Looking for localStorage keys:`, keys);
+    
+    // Try to load data from localStorage
+    const opponentFronts = load(`fronts_${opponentId}`, null) as ScoutingOption[] | null;
+    const opponentCoverages = load(`coverages_${opponentId}`, null) as ScoutingOption[] | null;
+    const opponentBlitzes = load(`blitz_${opponentId}`, null) as ScoutingOption[] | null;
+    const opponentFrontPct = load(`fronts_pct_${opponentId}`, null) as Record<string, number> | null;
+    const opponentCoverPct = load(`coverages_pct_${opponentId}`, null) as Record<string, number> | null;
+    const opponentBlitzPct = load(`blitz_pct_${opponentId}`, null) as Record<string, number> | null;
+    const opponentOverallBlitzPct = load(`overall_blitz_pct_${opponentId}`, null) as number | null;
+    const opponentNotes = load(`notes_${opponentId}`, null) as string | null;
+    
+    // Log what we found
+    console.log("Found in localStorage:", {
+      fronts: opponentFronts ? opponentFronts.length : 0,
+      coverages: opponentCoverages ? opponentCoverages.length : 0,
+      blitzes: opponentBlitzes ? opponentBlitzes.length : 0,
+      frontPct: opponentFrontPct ? Object.keys(opponentFrontPct).length : 0,
+      coverPct: opponentCoverPct ? Object.keys(opponentCoverPct).length : 0,
+      blitzPct: opponentBlitzPct ? Object.keys(opponentBlitzPct).length : 0,
+      overallBlitzPct: opponentOverallBlitzPct,
+      notes: opponentNotes ? "has notes" : "no notes"
+    });
+    
+    // Update state with opponent-specific data if it exists
+    if (opponentFronts) {
+      const filteredFronts = opponentFronts.filter(
+        (front) => !['Even', 'Odd'].includes(front.name)
+      );
+      console.log(`Setting ${filteredFronts.length} fronts from localStorage`);
+      if (filteredFronts.length > 0) {
+        console.log("FRONT NAMES:", filteredFronts.map(f => f.name));
+      }
+      setFronts(filteredFronts);
+    } else {
+      console.log("No fronts found in localStorage for this opponent");
+    }
+    
+    if (opponentCoverages) {
+      const filteredCoverages = opponentCoverages.filter(
+        (coverage) => !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(coverage.name)
+      );
+      console.log(`Setting ${filteredCoverages.length} coverages from localStorage`);
+      if (filteredCoverages.length > 0) {
+        console.log("COVERAGE NAMES:", filteredCoverages.map(c => c.name));
+      }
+      setCoverages(filteredCoverages);
+    } else {
+      console.log("No coverages found in localStorage for this opponent");
+    }
+    
+    if (opponentBlitzes) {
+      const filteredBlitzes = opponentBlitzes.filter(blitz => {
+        const name = blitz.name.toLowerCase();
+        return !(
+          name === 'inside' || 
+          name === 'outside' || 
+          name === 'corner' || 
+          name === 'safety'
+        );
+      });
+      console.log(`Setting ${filteredBlitzes.length} blitzes from localStorage`);
+      if (filteredBlitzes.length > 0) {
+        console.log("BLITZ NAMES:", filteredBlitzes.map(b => b.name));
+      }
+      setBlitzes(filteredBlitzes);
+    } else {
+      console.log("No blitzes found in localStorage for this opponent");
+    }
+    
+    // Set other properties
+    if (opponentFrontPct) {
+      // Remove percentages for unwanted fronts
+      const filteredFrontPct = { ...opponentFrontPct };
+      ['Even', 'Odd'].forEach(frontName => {
+        delete filteredFrontPct[frontName];
+      });
+      console.log(`Setting front percentages from localStorage`);
+      setFrontPct(filteredFrontPct);
+    } else {
+      console.log("No front percentages found in localStorage");
+    }
+    
+    if (opponentCoverPct) {
+      // Remove percentages for default coverages
+      const filteredCoverPct = { ...opponentCoverPct };
+      ['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].forEach(coverageName => {
+        delete filteredCoverPct[coverageName];
+      });
+      console.log(`Setting coverage percentages from localStorage`);
+      setCoverPct(filteredCoverPct);
+    } else {
+      console.log("No coverage percentages found in localStorage");
+    }
+    
+    if (opponentBlitzPct) {
+      // Remove percentages for default blitzes
+      const filteredBlitzPct = { ...opponentBlitzPct };
+      ['Inside', 'Outside', 'Corner', 'Safety', 'inside', 'outside', 'corner', 'safety'].forEach(blitzName => {
+        delete filteredBlitzPct[blitzName];
+      });
+      console.log(`Setting blitz percentages from localStorage`);
+      setBlitzPct(filteredBlitzPct);
+    } else {
+      console.log("No blitz percentages found in localStorage");
+    }
+    
+    if (opponentOverallBlitzPct !== null) {
+      console.log(`Setting overall blitz percentage from localStorage: ${opponentOverallBlitzPct}`);
+      setOverallBlitzPct(opponentOverallBlitzPct);
+    } else {
+      console.log("No overall blitz percentage found in localStorage");
+    }
+    
+    if (opponentNotes) {
+      console.log(`Setting notes from localStorage`);
+      setNotes(opponentNotes);
+    } else {
+      console.log("No notes found in localStorage");
+    }
+  };
+
+  // Function to directly fetch team from user profile
+  const getTeamFromUserProfile = async () => {
+    if (!supabaseClient) {
+      console.error('No Supabase client available');
+      return;
+    }
+    
+    try {
+      // Get user session
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Error getting user session:', sessionError.message);
+        return;
+      }
+      
+      const userId = sessionData.session?.user?.id;
+      
+      if (!userId) {
+        console.error('No user ID found. User might not be authenticated.');
+        return;
+      }
+      
+      console.log('Fetching profile for user ID:', userId);
+      
+      // Get user profile
+      const { data: profileData, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', userId);
+        
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError.message);
+        return;
+      }
+      
+      if (!profileData || profileData.length === 0 || !profileData[0].team_id) {
+        console.error('No team_id found in user profile');
+        return;
+      }
+      
+      console.log('Found team_id in profile:', profileData[0].team_id);
+      
+      // Get team details
+      const { data: teamData, error: teamError } = await supabaseClient
+        .from('teams')
+        .select('*')
+        .eq('id', profileData[0].team_id);
+        
+      if (teamError) {
+        console.error('Error fetching team from profile:', teamError.message);
+        return;
+      }
+      
+      if (!teamData || teamData.length === 0) {
+        console.error('Team not found with ID:', profileData[0].team_id);
+        return;
+      }
+      
+      // Set team in state and localStorage
+      setSelectedTeamId(teamData[0].id);
+      setSelectedTeamName(teamData[0].name);
+      localStorage.setItem('selectedTeam', teamData[0].id);
+      console.log('Successfully set team from profile:', teamData[0].name);
+      
+      // Load scouting report if we have both team and opponent
+      if (selectedOpponentId) {
+        loadScoutingReport(teamData[0].id, selectedOpponentId);
+      }
+    } catch (error) {
+      console.error('Error in getTeamFromUserProfile:', error);
+    }
+  };
+
+  // Load opponents for the dropdown when component mounts
+  useEffect(() => {
+    const loadOpponentsList = async () => {
+      if (!supabaseClient) return;
+      
+      setIsLoadingOpponentsList(true);
+      try {
+        const { data, error } = await supabaseClient
+          .from('opponents')
+          .select('id, name')
+          .order('name');
+          
+        if (error) {
+          console.error('Error loading opponents for dropdown:', error.message);
+        } else if (data) {
+          setOpponentsList(data);
+        }
+      } catch (error) {
+        console.error('Exception loading opponents dropdown:', error);
+      } finally {
+        setIsLoadingOpponentsList(false);
+      }
+    };
+    
+    if (supabaseClient) {
+      loadOpponentsList();
+    }
+  }, [supabaseClient]);
+
+  // Handle opponent change from dropdown
+  const handleOpponentChange = async (opponentId: string) => {
+    if (!opponentId || opponentId === selectedOpponentId) return;
+    
+    try {
+      // Find opponent in the list
+      const opponent = opponentsList.find(o => o.id === opponentId);
+      
+      if (opponent) {
+        // Update state
+        setSelectedOpponentId(opponentId);
+        setSelectedOpponentName(opponent.name);
+        
+        // Save to localStorage
+        localStorage.setItem('selectedOpponent', opponentId);
+        console.log('Changed opponent to:', opponent.name);
+        
+        // Load scouting report if we have a team
+        if (selectedTeamId) {
+          loadScoutingReport(selectedTeamId, opponentId);
+        }
+        
+        // Dispatch a custom event to notify other components
+        const event = new CustomEvent('opponentChanged', { 
+          detail: { opponentId: opponentId }
+        });
+        window.dispatchEvent(event);
+      } else {
+        // Fetch opponent details if not in list
+        const { data, error } = await supabaseClient
+          .from('opponents')
+          .select('name')
+          .eq('id', opponentId);
+          
+        if (error) {
+          console.error('Error fetching opponent for dropdown change:', error.message);
+        } else if (data && data.length > 0) {
+          // Update state
+          setSelectedOpponentId(opponentId);
+          setSelectedOpponentName(data[0].name);
+          
+          // Save to localStorage
+          localStorage.setItem('selectedOpponent', opponentId);
+          console.log('Changed opponent to:', data[0].name);
+          
+          // Load scouting report if we have a team
+          if (selectedTeamId) {
+            loadScoutingReport(selectedTeamId, opponentId);
+          }
+          
+          // Dispatch a custom event to notify other components
+          const event = new CustomEvent('opponentChanged', { 
+            detail: { opponentId: opponentId }
+          });
+          window.dispatchEvent(event);
+        } else {
+          console.warn('No opponent found with ID:', opponentId, 'but attempting to load scouting data anyway');
+          
+          // Even if opponent details aren't found, try to load the scouting report anyway
+          setSelectedOpponentId(opponentId);
+          setSelectedOpponentName(`Unknown (${opponentId.slice(0, 8)}...)`);
+          
+          // Save to localStorage
+          localStorage.setItem('selectedOpponent', opponentId);
+          
+          // Load scouting report if we have a team
+          if (selectedTeamId) {
+            loadScoutingReport(selectedTeamId, opponentId);
+          }
+          
+          // Dispatch a custom event to notify other components
+          const event = new CustomEvent('opponentChanged', { 
+            detail: { opponentId: opponentId }
+          });
+          window.dispatchEvent(event);
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleOpponentChange:', error);
+    }
+  };
+
+  // Function to reset all scouting data
+  const resetScoutingData = () => {
+    console.log("Resetting all scouting data");
+    
+    // Clear all state
+    setFronts([]);
+    setCoverages([]);
+    setBlitzes([]);
+    setFrontPct({});
+    setCoverPct({});
+    setBlitzPct({});
+    setOverallBlitzPct(0);
+    setNotes('');
+    setLastSaved(null);
+    
+    // Clear opponent-specific localStorage if we have an opponent
+    if (selectedOpponentId) {
+      console.log("Clearing localStorage for opponent:", selectedOpponentId);
+      
+      // Clear opponent-specific data
+      localStorage.removeItem(`fronts_${selectedOpponentId}`);
+      localStorage.removeItem(`coverages_${selectedOpponentId}`);
+      localStorage.removeItem(`blitz_${selectedOpponentId}`);
+      localStorage.removeItem(`fronts_pct_${selectedOpponentId}`);
+      localStorage.removeItem(`coverages_pct_${selectedOpponentId}`);
+      localStorage.removeItem(`blitz_pct_${selectedOpponentId}`);
+      localStorage.removeItem(`overall_blitz_pct_${selectedOpponentId}`);
+      localStorage.removeItem(`notes_${selectedOpponentId}`);
+    }
+    
+    // Also clear general localStorage data
+    localStorage.removeItem('fronts');
+    localStorage.removeItem('coverages');
+    localStorage.removeItem('blitz');
+    localStorage.removeItem('fronts_pct');
+    localStorage.removeItem('coverages_pct');
+    localStorage.removeItem('blitz_pct');
+    localStorage.removeItem('overall_blitz_pct');
+    localStorage.removeItem('notes');
+    
+    // If we have both team and opponent, also try to delete from database
+    if (selectedTeamId && selectedOpponentId && supabaseClient) {
+      // Delete from database in background
+      supabaseClient
+        .from('scouting_reports')
+        .delete()
+        .match({ 
+          team_id: selectedTeamId,
+          opponent_id: selectedOpponentId 
+        })
+        .then((result: any) => {
+          if (result.error) {
+            console.error("Error deleting from database:", result.error.message);
+          } else {
+            console.log("Successfully deleted from database");
+          }
+        })
+        .catch((error: any) => {
+          console.error("Exception deleting from database:", error);
+        });
+    }
+  };
+
+  // Add front from dialog - Remove selectedFrontId parameter as it's provided by selector
+  const handleAddFront = (frontId: string) => {
+    if (!frontId) {
+      setErrorMessage("Please select a front to add");
+      return;
+    }
+    
+    // Find the selected front in the master list
+    const front = masterFronts.find(front => front.id === frontId);
+    if (!front) {
+      setErrorMessage("Selected front not found");
+      return;
+    }
+    
+    // Check if this front is already in the list
+    const exists = fronts.some(f => f.name === front.name);
+    if (exists) {
+      setErrorMessage(`Front "${front.name}" is already in your list`);
+      return;
+    }
+    
+    // Add to fronts array with default values
+    const newFront: ScoutingOption = {
+      id: front.id,
+      name: front.name,
+      dominateDown: "no_tendency",
+      fieldArea: "no_tendency"
+    };
+    
+    setFronts([...fronts, newFront]);
+    
+    // Also initialize percentage
+    setFrontPct({
+      ...frontPct,
+      [front.name]: 0
+    });
+    
+    // Close dialog and clear selection
+    setShowAddFrontDialog(false);
+    setSelectedFrontId("");
+  };
+
+  // Add coverage from dialog - Remove selectedCoverageId parameter as it's provided by selector
+  const handleAddCoverage = (coverageId: string) => {
+    if (!coverageId) {
+      setErrorMessage("Please select a coverage to add");
+      return;
+    }
+    
+    // Find the selected coverage in the master list
+    const coverage = masterCoverages.find(coverage => coverage.id === coverageId);
+    if (!coverage) {
+      setErrorMessage("Selected coverage not found");
+      return;
+    }
+    
+    // Check if this coverage is already in the list
+    const exists = coverages.some(c => c.name === coverage.name);
+    if (exists) {
+      setErrorMessage(`Coverage "${coverage.name}" is already in your list`);
+      return;
+    }
+    
+    // Add to coverages array with default values
+    const newCoverage: ScoutingOption = {
+      id: coverage.id,
+      name: coverage.name,
+      dominateDown: "no_tendency",
+      fieldArea: "no_tendency"
+    };
+    
+    setCoverages([...coverages, newCoverage]);
+    
+    // Also initialize percentage
+    setCoverPct({
+      ...coverPct,
+      [coverage.name]: 0
+    });
+    
+    // Close dialog and clear selection
+    setShowAddCoverageDialog(false);
+    setSelectedCoverageId("");
+  };
+
+  // Add blitz from dialog - Remove selectedBlitzId parameter as it's provided by selector
+  const handleAddBlitz = (blitzId: string) => {
+    if (!blitzId) {
+      setErrorMessage("Please select a blitz to add");
+      return;
+    }
+    
+    // Find the selected blitz in the master list
+    const blitz = masterBlitzes.find(blitz => blitz.id === blitzId);
+    if (!blitz) {
+      setErrorMessage("Selected blitz not found");
+      return;
+    }
+    
+    // Check if this blitz is already in the list
+    const exists = blitzes.some(b => b.name === blitz.name);
+    if (exists) {
+      setErrorMessage(`Blitz "${blitz.name}" is already in your list`);
+      return;
+    }
+    
+    // Add to blitzes array with default values
+    const newBlitz: ScoutingOption = {
+      id: blitz.id,
+      name: blitz.name,
+      dominateDown: "no_tendency",
+      fieldArea: "no_tendency"
+    };
+    
+    setBlitzes([...blitzes, newBlitz]);
+    
+    // Also initialize percentage
+    setBlitzPct({
+      ...blitzPct,
+      [blitz.name]: 0
+    });
+    
+    // Close dialog and clear selection
+    setShowAddBlitzDialog(false);
+    setSelectedBlitzId("");
+  };
+
+                      return (
     <div className="container max-w-7xl space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Full-screen loading overlay */}
+      {isAppLoading && (
+        <div className="fixed inset-0 bg-white bg-opacity-80 z-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto text-blue-600" />
+            <p className="mt-4 text-xl font-medium text-blue-600">Loading Scouting Data...</p>
+            <p className="mt-2 text-gray-500">Please wait while we retrieve your opponent information</p>
+                  </div>
+                </div>
+      )}
+
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Scouting Report</h1>
-          {selectedOpponentName && (
-            <p className="text-gray-500">Opponent: {selectedOpponentName}</p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            onClick={handleGenerateReport}
-            disabled={isGeneratingReport}
-            className="w-full bg-green-600 hover:bg-green-700 text-white"
-          >
-            {isGeneratingReport ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Generating...</span>
-              </div>
-            ) : (
-              'Generate Scouting Report'
+          <div className="flex items-center gap-2 mt-2">
+            {selectedTeamName && (
+              <span className="font-medium text-blue-600">{selectedTeamName}</span>
             )}
-          </Button>
-          <Button
-            onClick={handleGenerateGamePlan}
-            variant="outline"
-          >
-            Save & Continue
-          </Button>
-        </div>
-      </div>
-
-      {/* Add Front Dialog */}
-      <DialogHighZ open={showAddFrontDialog} onOpenChange={setShowAddFrontDialog}>
-        <DialogHighZContent>
-          <DialogHighZHeader>
-            <DialogHighZTitle>Add Front</DialogHighZTitle>
-          </DialogHighZHeader>
-          <div className="py-4">
-            <Label htmlFor="front-select" className="text-sm font-medium block mb-2">
-              Select a Front
-            </Label>
-            <Select 
-              value={selectedFrontId} 
-              onValueChange={(value) => {
-                setSelectedFrontId(value);
-                
-                // Automatically add front when selected
-                if (value) {
-                  // Find the selected front in the master list
-                  const selectedFront = masterFronts.find(front => front.id === value);
-                  
-                  if (selectedFront) {
-                    // Check if this front is already added
-                    const frontExists = fronts.some(front => front.name === selectedFront.name);
-                    
-                    if (frontExists) {
-                      setErrorMessage(`Front "${selectedFront.name}" is already added`);
-                      return;
-                    }
-                    
-                    // Add the front to the list
-                    const newFront: ScoutingOption = {
-                      id: selectedFront.id,
-                      name: selectedFront.name,
-                      dominateDown: "no_tendency",
-                      fieldArea: "no_tendency"
-                    };
-                    
-                    setFronts(prev => [...prev, newFront]);
-                    
-                    // Reset selection and close dialog
-                    setSelectedFrontId("");
-                    setShowAddFrontDialog(false);
-                  }
-                }
-              }}
-            >
-              <SelectTrigger id="front-select" className="w-full">
-                <SelectValue placeholder="Select a front" />
-              </SelectTrigger>
-              <SelectContent className="z-[202]">
-                {masterFronts
-                  // Filter out default fronts here at UI level, but keep 'Bear'
-                  .filter(masterFront => 
-                    !['Even', 'Odd'].includes(masterFront.name) && 
-                    !fronts.some(f => f.name === masterFront.name)
-                  )
-                  .map(front => (
-                    <SelectItem key={front.id} value={front.id}>
-                      {front.name}
-                    </SelectItem>
-                  ))
-                }
-                {masterFronts.length > 0 && 
-                  masterFronts
-                    .filter(masterFront => !['Even', 'Odd'].includes(masterFront.name))
-                    .every(masterFront => fronts.some(f => f.name === masterFront.name)) && (
-                    <div className="py-2 px-2 text-sm text-gray-500">
-                      All fronts have been added
-                    </div>
-                  )
-                }
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogHighZFooter>
-            <Button variant="outline" onClick={() => {
-              setShowAddFrontDialog(false);
-              setSelectedFrontId("");
-              setErrorMessage(null);
-            }}>
-              Cancel
-            </Button>
-          </DialogHighZFooter>
-        </DialogHighZContent>
-      </DialogHighZ>
-
-      {/* Add Coverage Dialog */}
-      <DialogHighZ open={showAddCoverageDialog} onOpenChange={setShowAddCoverageDialog}>
-        <DialogHighZContent>
-          <DialogHighZHeader>
-            <DialogHighZTitle>Add Coverage</DialogHighZTitle>
-          </DialogHighZHeader>
-          <div className="py-4">
-            <Label htmlFor="coverage-select" className="text-sm font-medium block mb-2">
-              Select a Coverage
-            </Label>
-            <Select 
-              value={selectedCoverageId} 
-              onValueChange={(value) => {
-                setSelectedCoverageId(value);
-                
-                // Automatically add coverage when selected
-                if (value) {
-                  // Find the selected coverage in the master list
-                  const selectedCoverage = masterCoverages.find(coverage => coverage.id === value);
-                  
-                  if (selectedCoverage) {
-                    // Check if this coverage is already added
-                    const coverageExists = coverages.some(coverage => coverage.name === selectedCoverage.name);
-                    
-                    if (coverageExists) {
-                      setErrorMessage(`Coverage "${selectedCoverage.name}" is already added`);
-                      return;
-                    }
-                    
-                    // Add the coverage to the list
-                    const newCoverage: ScoutingOption = {
-                      id: selectedCoverage.id,
-                      name: selectedCoverage.name,
-                      dominateDown: "no_tendency",
-                      fieldArea: "no_tendency"
-                    };
-                    
-                    setCoverages(prev => [...prev, newCoverage]);
-                    
-                    // Reset selection and close dialog
-                    setSelectedCoverageId("");
-                    setShowAddCoverageDialog(false);
-                  }
-                }
-              }}
-            >
-              <SelectTrigger id="coverage-select" className="w-full">
-                <SelectValue placeholder="Select a coverage" />
-              </SelectTrigger>
-              <SelectContent className="z-[202]">
-                {masterCoverages
-                  // Filter out default coverages here at UI level
-                  .filter(masterCoverage => 
-                    !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(masterCoverage.name) && 
-                    !coverages.some(c => c.name === masterCoverage.name)
-                  )
-                  .map(coverage => (
-                    <SelectItem key={coverage.id} value={coverage.id}>
-                      {coverage.name}
-                    </SelectItem>
-                  ))
-                }
-                {masterCoverages.length > 0 && 
-                  masterCoverages
-                    .filter(masterCoverage => !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(masterCoverage.name))
-                    .every(masterCoverage => coverages.some(c => c.name === masterCoverage.name)) && (
-                    <div className="py-2 px-2 text-sm text-gray-500">
-                      All coverages have been added
-                    </div>
-                  )
-                }
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogHighZFooter>
-            <Button variant="outline" onClick={() => {
-              setShowAddCoverageDialog(false);
-              setSelectedCoverageId("");
-              setErrorMessage(null);
-            }}>
-              Cancel
-            </Button>
-          </DialogHighZFooter>
-        </DialogHighZContent>
-      </DialogHighZ>
-
-      {/* Add Blitz Dialog */}
-      <DialogHighZ open={showAddBlitzDialog} onOpenChange={setShowAddBlitzDialog}>
-        <DialogHighZContent>
-          <DialogHighZHeader>
-            <DialogHighZTitle>Add Blitz</DialogHighZTitle>
-          </DialogHighZHeader>
-          <div className="py-4">
-            <Label htmlFor="blitz-select" className="text-sm font-medium block mb-2">
-              Select a Blitz
-            </Label>
-            <div className="mb-2 text-xs text-slate-500">
-              {masterBlitzes.length} blitz types available in database
-            </div>
-            <Select 
-              value={selectedBlitzId} 
-              onValueChange={(value) => {
-                setSelectedBlitzId(value);
-                
-                // Automatically add blitz when selected
-                if (value) {
-                  // Find the selected blitz in the master list
-                  const selectedBlitz = masterBlitzes.find(blitz => blitz.id === value);
-                  
-                  if (selectedBlitz) {
-                    console.log("Selected blitz:", selectedBlitz); // Debug log
-                    
-                    // Case-insensitive check if this blitz is already added
-                    const blitzExists = blitzes.some(
-                      blitz => blitz.name.toLowerCase() === selectedBlitz.name.toLowerCase()
-                    );
-                    
-                    if (blitzExists) {
-                      setErrorMessage(`Blitz "${selectedBlitz.name}" is already added`);
-                      return;
-                    }
-                    
-                    // Add the blitz to the list
-                    const newBlitz: ScoutingOption = {
-                      id: selectedBlitz.id,
-                      name: selectedBlitz.name,
-                      dominateDown: "no_tendency",
-                      fieldArea: "no_tendency"
-                    };
-                    
-                    setBlitzes(prev => [...prev, newBlitz]);
-                    
-                    // Reset selection and close dialog
-                    setSelectedBlitzId("");
-                    setShowAddBlitzDialog(false);
-                  }
-                }
-              }}
-            >
-              <SelectTrigger id="blitz-select" className="w-full">
-                <SelectValue placeholder="Select a blitz" />
-              </SelectTrigger>
-              <SelectContent className="z-[202]">
-                {masterBlitzes.length === 0 ? (
-                  <div className="py-2 px-2 text-sm text-gray-500">
-                    No blitzes available. Please check database.
-                  </div>
-                ) : (
-                  masterBlitzes
-                    .filter(masterBlitz => 
-                      !blitzes.some(b => b.name.toLowerCase() === masterBlitz.name.toLowerCase())
-                    )
-                    .map(blitz => (
-                      <SelectItem key={blitz.id} value={blitz.id}>
-                        {blitz.name}
-                      </SelectItem>
-                    ))
-                )}
-                {masterBlitzes.length > 0 && 
-                  masterBlitzes.every(masterBlitz => 
-                    blitzes.some(b => b.name.toLowerCase() === masterBlitz.name.toLowerCase())
-                  ) && (
-                    <div className="py-2 px-2 text-sm text-gray-500">
-                      All blitzes have been added
-                    </div>
-                  )
-                }
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogHighZFooter>
-            <Button variant="outline" onClick={() => {
-              setShowAddBlitzDialog(false);
-              setSelectedBlitzId("");
-              setErrorMessage(null);
-            }}>
-              Cancel
-            </Button>
-          </DialogHighZFooter>
-        </DialogHighZContent>
-      </DialogHighZ>
-
-      {(report || isGeneratingReport) && (
-        <Card className="mb-8 bg-white shadow-lg border-2 border-green-600">
-          <CardHeader className="border-b border-slate-200">
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-xl font-bold text-green-700">
-                {isGeneratingReport ? 'Generating Scouting Report...' : 'Defensive Breakdown'}
-              </CardTitle>
-              {!isGeneratingReport && (
-                <Button
-                  onClick={() => setReport(null)}
-                  variant="ghost"
-                  size="sm"
-                  className="text-slate-500 hover:text-slate-700"
-                >
-                  Clear Report
-                </Button>
+            {selectedTeamName && selectedOpponentName && (
+              <span className="text-gray-500">vs</span>
+            )}
+            {selectedOpponentName && (
+              <span className="font-medium text-red-600">{selectedOpponentName}</span>
+            )}
+            {(!selectedTeamName || !selectedOpponentName) && (
+              <span className="text-amber-600 text-sm">
+                {!selectedTeamName && !selectedOpponentName 
+                  ? "No team or opponent selected" 
+                  : !selectedTeamName 
+                    ? "No team selected" 
+                    : "No opponent selected. Please use the side navigation."}
+              </span>
+            )}
+            
+            {/* Loading indicator for opponent data */}
+            {isLoadingOpponentData && (
+              <span className="ml-2 flex items-center text-amber-600 text-sm">
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                Loading data...
+              </span>
               )}
             </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-6">
-              {report?.split('\n\n').map((section, index) => {
-                // Handle section headers
-                if (section.trim().startsWith('###')) {
-                  return (
-                    <div key={index} className="border-t first:border-t-0 border-slate-200 pt-6 first:pt-0">
-                      <h2 className="text-xl font-bold text-slate-900 mb-4">
-                        {section.trim().replace('### ', '')}
-                      </h2>
-                    </div>
-                  )
-                }
-
-                // Handle content sections
-                return (
-                  <div key={index} className="text-slate-700">
-                    {section.split('\n').map((line, lineIndex) => {
-                      const trimmedLine = line.trim()
-                      
-                      // Skip empty lines
-                      if (!trimmedLine) return null
-                      
-                      // Handle bullet points
-                      if (trimmedLine.startsWith('•')) {
-                        return (
-                          <div key={lineIndex} className="flex items-start gap-2 mb-3">
-                            <span className="text-green-600 mt-1">•</span>
-                            <span className="flex-1">{trimmedLine.substring(1).trim()}</span>
-                          </div>
-                        )
-                      }
-                      
-                      // Handle regular paragraphs
-                      return (
-                        <p key={lineIndex} className="mb-4">
-                          {trimmedLine}
-                        </p>
-                      )
-                    })}
-                  </div>
-                )
-              })}
-              {isGeneratingReport && (
-                <div className="flex items-center gap-2 text-slate-500 mt-4 border-t border-slate-200 pt-4">
-                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <div className="animate-pulse">Breaking down defensive tendencies...</div>
+          
+          {/* Database sync status */}
+          {selectedTeamId && selectedOpponentId && (
+            <div className="mt-1 text-xs">
+              {isSaving ? (
+                <span className="text-amber-600 flex items-center">
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  Saving...
+                </span>
+              ) : savingError ? (
+                <span className="text-red-600 flex items-center">
+                  Save failed: {savingError}
+                </span>
+              ) : lastSaved ? (
+                <span className="text-green-600">
+                  Saved {lastSaved.toLocaleTimeString()}
+                </span>
+              ) : null}
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+        
+        {/* Add buttons container with Save and Generate Game Plan buttons */}
+        {!isLoadingOpponentData && selectedTeamId && selectedOpponentId && (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {/* Save button */}
+          <Button 
+              variant="outline"
+              className="gap-2"
+              onClick={saveToDatabase}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+            ) : (
+                <>
+                  Save Report
+                </>
+            )}
+          </Button>
+            
+            {/* Generate AI Report button */}
+          <Button
+            variant="outline"
+              className="gap-2"
+              onClick={handleGenerateAIReport}
+              disabled={isGeneratingAIReport}
+            >
+              {isGeneratingAIReport ? (
+                <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                  AI Generating...
+                </>
+            ) : (
+                <>
+                  <FileText className="h-4 w-4" />
+                  Generate AI Report
+                </>
+            )}
+          </Button>
+            
+            {/* Generate Game Plan button */}
+          <Button
+            onClick={handleGenerateGamePlan}
+              className="gap-2"
+          >
+              <FileText className="h-4 w-4" />
+              Generate Game Plan
+          </Button>
+        </div>
+        )}
+      </div>
 
+      {/* Show loading overlay when changing opponents */}
+      {isLoadingOpponentData ? (
+        <div className="flex items-center justify-center bg-slate-100 p-8 rounded-lg mb-4">
+          <Loader2 className="h-8 w-8 animate-spin mr-3 text-blue-600" />
+          <p className="text-lg text-blue-600">Loading scouting data for {selectedOpponentName || 'opponent'}...</p>
+        </div>
+      ) : (
+        <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {renderCategoryCard("Fronts", "fronts", fronts, frontPct)}
         {renderCategoryCard("Coverages", "coverages", coverages, coverPct)}
@@ -1236,6 +1932,275 @@ export default function ScoutingPage() {
           />
         </CardContent>
       </Card>
+
+          {/* AI Generated Report Section - Accordion Style */}
+          {report && (
+            <Card className="bg-slate-50 overflow-hidden">
+              <div 
+                className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-slate-100"
+                onClick={() => setShowReport(!showReport)}
+              >
+                <h3 className="text-lg font-semibold">
+                  AI Generated Scouting Report 
+                  {selectedOpponentName ? ` for ${selectedOpponentName}` : ''}
+                </h3>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  {showReport ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                </Button>
+              </div>
+              
+              {showReport && (
+                <div className="p-6 pt-0 border-t border-slate-200">
+                  {isGeneratingAIReport ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mr-3 text-blue-600" />
+                      <p className="text-blue-600">Generating report...</p>
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap text-sm prose max-w-none">
+                      {report}
+                    </div>
+                  )}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Enhanced debug info panel */}
+          <div className="border border-gray-300 mt-4 p-4 rounded bg-gray-50">
+            <h3 className="font-bold text-sm mb-2">Debug Info:</h3>
+            <ul className="text-xs space-y-1">
+              <li><strong>Team ID:</strong> {selectedTeamId || 'null'}</li>
+              <li><strong>Team Name:</strong> {selectedTeamName || 'null'}</li>
+              <li><strong>Opponent ID:</strong> {selectedOpponentId || 'null'}</li>
+              <li><strong>Opponent Name:</strong> {selectedOpponentName || 'null'}</li>
+              <li><strong>LocalStorage Team ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') || 'null' : 'unknown'}</li>
+              <li><strong>LocalStorage Opponent ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') || 'null' : 'unknown'}</li>
+              
+              <li className="mt-2 pt-2 border-t border-gray-300"><strong>Fronts Count:</strong> {fronts.length}</li>
+              <li><strong>Coverages Count:</strong> {coverages.length}</li>
+              <li><strong>Blitzes Count:</strong> {blitzes.length}</li>
+              <li className="text-xs text-blue-500">
+                <details>
+                  <summary>Show Fronts Data</summary>
+                  <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                    {JSON.stringify(fronts, null, 2)}
+                  </pre>
+                </details>
+              </li>
+              <li className="text-xs text-blue-500">
+                <details>
+                  <summary>Show Coverages Data</summary>
+                  <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                    {JSON.stringify(coverages, null, 2)}
+                  </pre>
+                </details>
+              </li>
+              <li className="text-xs text-blue-500">
+                <details>
+                  <summary>Show Blitzes Data</summary>
+                  <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                    {JSON.stringify(blitzes, null, 2)}
+                  </pre>
+                </details>
+              </li>
+              <li className="mt-2"><strong>Last Saved:</strong> {lastSaved ? lastSaved.toLocaleString() : 'never'}</li>
+              <li className="mt-2 pt-2 border-t border-gray-300">
+                <Button 
+                  onClick={saveToDatabase} 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full text-xs mb-2"
+                  disabled={isSaving}
+                >
+                  {isSaving ? 'Saving...' : 'Force Save Data to Database'}
+                </Button>
+                
+                <Button 
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      // Trigger storage event manually to reload data
+                      const storedOpponentId = localStorage.getItem('selectedOpponent');
+                      if (storedOpponentId) {
+                        const event = new CustomEvent('opponentChanged', { 
+                          detail: { opponentId: storedOpponentId }
+                        });
+                        window.dispatchEvent(event);
+                      }
+                    }
+                  }} 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full text-xs mb-2"
+                >
+                  Refresh Data from LocalStorage
+                </Button>
+                
+                <Button 
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      // Force reload the page
+                      window.location.reload();
+                    }
+                  }} 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full text-xs mb-2"
+                >
+                  Force Reload Page
+                </Button>
+                
+                <Button 
+                  onClick={getTeamFromUserProfile} 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full text-xs mb-2"
+                >
+                  Get Team From Profile
+                </Button>
+                
+                <Button 
+                  onClick={resetScoutingData} 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full text-xs mb-2 text-red-600 hover:bg-red-50"
+                >
+                  Reset Scouting Data
+                </Button>
+              </li>
+            </ul>
+          </div>
+        </>
+      )}
+
+      {/* Add Front Dialog */}
+      <SelectSafeDialog open={showAddFrontDialog} onOpenChange={setShowAddFrontDialog}>
+        <SelectSafeDialogContent>
+          <SelectSafeDialogHeader>
+            <SelectSafeDialogTitle>Add Front</SelectSafeDialogTitle>
+          </SelectSafeDialogHeader>
+          <div className="py-2">
+            <Select 
+              value={selectedFrontId} 
+              onValueChange={(value) => handleAddFront(value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a front to add" />
+              </SelectTrigger>
+              <SelectContent 
+                position="popper" 
+                className="z-[9999]"
+                sideOffset={4}
+                align="start"
+              >
+                {masterFronts.map(front => (
+                  <SelectItem key={front.id} value={front.id}>
+                    {front.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errorMessage && (
+              <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
+            )}
+          </div>
+          <SelectSafeDialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowAddFrontDialog(false);
+              setSelectedFrontId("");
+              setErrorMessage(null);
+            }}>
+              Cancel
+            </Button>
+          </SelectSafeDialogFooter>
+        </SelectSafeDialogContent>
+      </SelectSafeDialog>
+
+      {/* Add Coverage Dialog */}
+      <SelectSafeDialog open={showAddCoverageDialog} onOpenChange={setShowAddCoverageDialog}>
+        <SelectSafeDialogContent>
+          <SelectSafeDialogHeader>
+            <SelectSafeDialogTitle>Add Coverage</SelectSafeDialogTitle>
+          </SelectSafeDialogHeader>
+          <div className="py-2">
+            <Select 
+              value={selectedCoverageId} 
+              onValueChange={(value) => handleAddCoverage(value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a coverage to add" />
+              </SelectTrigger>
+              <SelectContent 
+                position="popper" 
+                className="z-[9999]"
+                sideOffset={4}
+                align="start"
+              >
+                {masterCoverages.map(coverage => (
+                  <SelectItem key={coverage.id} value={coverage.id}>
+                    {coverage.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errorMessage && (
+              <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
+            )}
+          </div>
+          <SelectSafeDialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowAddCoverageDialog(false);
+              setSelectedCoverageId("");
+              setErrorMessage(null);
+            }}>
+              Cancel
+            </Button>
+          </SelectSafeDialogFooter>
+        </SelectSafeDialogContent>
+      </SelectSafeDialog>
+
+      {/* Add Blitz Dialog */}
+      <SelectSafeDialog open={showAddBlitzDialog} onOpenChange={setShowAddBlitzDialog}>
+        <SelectSafeDialogContent>
+          <SelectSafeDialogHeader>
+            <SelectSafeDialogTitle>Add Blitz</SelectSafeDialogTitle>
+          </SelectSafeDialogHeader>
+          <div className="py-2">
+            <Select 
+              value={selectedBlitzId} 
+              onValueChange={(value) => handleAddBlitz(value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a blitz to add" />
+              </SelectTrigger>
+              <SelectContent 
+                position="popper" 
+                className="z-[9999]"
+                sideOffset={4}
+                align="start"
+              >
+                {masterBlitzes.map(blitz => (
+                  <SelectItem key={blitz.id} value={blitz.id}>
+                    {blitz.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errorMessage && (
+              <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
+            )}
+          </div>
+          <SelectSafeDialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowAddBlitzDialog(false);
+              setSelectedBlitzId("");
+              setErrorMessage(null);
+            }}>
+              Cancel
+            </Button>
+          </SelectSafeDialogFooter>
+        </SelectSafeDialogContent>
+      </SelectSafeDialog>
     </div>
   )
 }

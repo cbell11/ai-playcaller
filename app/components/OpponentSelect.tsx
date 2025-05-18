@@ -142,10 +142,13 @@ export function OpponentSelect() {
       setSelectedOpponent(value)
       localStorage.setItem('selectedOpponent', value)
       
-      // If on the scouting page, reload to show opponent-specific data
-      if (window.location.pathname.includes('/scouting')) {
-        window.location.reload()
-      }
+      // Instead of reloading the page, dispatch a custom event
+      const event = new CustomEvent('opponentChanged', { 
+        detail: { opponentId: value }
+      });
+      window.dispatchEvent(event);
+      
+      console.log('Dispatched opponentChanged event with ID:', value);
     }
   }
 
