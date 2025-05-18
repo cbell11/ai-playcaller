@@ -230,31 +230,79 @@ export default function ScoutingPage() {
               console.log('No opponent selected, fetching available opponents...');
               
               try {
+                // Fetch all opponents first (don't limit to 10)
                 const { data: opponentsData, error: opponentsError } = await supabase
                   .from('opponents')
                   .select('id, name')
-                  .order('name')
-                  .limit(10);
+                  .order('name');
                   
                 if (opponentsError) {
                   console.error('Error fetching opponents list:', opponentsError.message);
+                  setIsAppLoading(false);
                 } else if (opponentsData && opponentsData.length > 0) {
-                  // Use the first opponent in the list as default
-                  storedOpponentId = opponentsData[0].id;
-                  console.log('Using first opponent as default:', opponentsData[0].name);
-                  
-                  // Save to localStorage
-                  localStorage.setItem('selectedOpponent', storedOpponentId);
-                  
-                  // Save the list of opponents for the dropdown
+                  // Save the full list of opponents for the dropdown
                   setOpponentsList(opponentsData);
                   
-                  // Set the selected opponent
-                  setSelectedOpponentId(storedOpponentId);
-                  setSelectedOpponentName(opponentsData[0].name);
+                  // Check if we have scouting reports for any of these opponents
+                  console.log('Looking for existing scouting reports...');
+                  const { data: scoutingData, error: scoutingError } = await supabase
+                    .from('scouting_reports')
+                    .select('opponent_id')
+                    .eq('team_id', teamData[0].id);
+                  
+                  let selectedOpId: string; // Use a non-nullable variable
+                  
+                  if (scoutingError) {
+                    console.error('Error checking for existing scouting reports:', scoutingError.message);
+                    // Fall back to using the first opponent
+                    selectedOpId = opponentsData[0].id;
+                  } else if (scoutingData && scoutingData.length > 0) {
+                    // We have scouting reports - use the first one that matches our opponents list
+                    const matchingOpponents = opponentsData.filter(
+                      opponent => scoutingData.some(report => report.opponent_id === opponent.id)
+                    );
+                    
+                    if (matchingOpponents.length > 0) {
+                      console.log('Found existing scouting reports, using opponent:', matchingOpponents[0].name);
+                      selectedOpId = matchingOpponents[0].id;
+                    } else {
+                      // No matching reports, use the first opponent
+                      console.log('No matching scouting reports, using first opponent as default');
+                      selectedOpId = opponentsData[0].id;
+                    }
+                  } else {
+                    // No scouting reports found, use the first opponent
+                    console.log('No scouting reports found, using first opponent as default');
+                    selectedOpId = opponentsData[0].id;
+                  }
+                  
+                  console.log('Using opponent as default:', selectedOpId);
+                  
+                  // Save to localStorage
+                  localStorage.setItem('selectedOpponent', selectedOpId);
+                  storedOpponentId = selectedOpId; // Update the original variable
+                  
+                  // Find the opponent details and set them
+                  const opponent = opponentsData.find(o => o.id === selectedOpId);
+                  if (opponent) {
+                    setSelectedOpponentId(selectedOpId);
+                    setSelectedOpponentName(opponent.name);
+                    console.log('Set opponent name:', opponent.name);
+                  } else {
+                    console.error('Could not find opponent details for ID:', selectedOpId);
+                    setSelectedOpponentId(selectedOpId);
+                    setSelectedOpponentName(`Unknown (${selectedOpId.slice(0, 8)}...)`);
+                  }
                   
                   // Load the scouting report for this opponent
-                  await loadScoutingReport(teamData[0].id, storedOpponentId, true);
+                  // Pass true to indicate this is the initial load
+                  const dataLoaded = await loadScoutingReport(teamData[0].id, selectedOpId, true);
+                  
+                  if (!dataLoaded) {
+                    console.log('No data loaded for default opponent, creating empty scouting report');
+                    // If no data was loaded, create an empty scouting report to save it
+                    await saveToDatabase();
+                  }
                 } else {
                   console.log('No opponents found to use as default');
                   setIsAppLoading(false);
@@ -266,6 +314,7 @@ export default function ScoutingPage() {
                 setDataFullyLoaded(true);
               }
             } else {
+              // We have a stored opponent ID
               setSelectedOpponentId(storedOpponentId);
               
               // Fetch opponent name
@@ -284,17 +333,47 @@ export default function ScoutingPage() {
                   
                   // Important: Now that we have both team ID and opponent ID, load the scouting report
                   // Pass true to indicate this is the initial load
-                  await loadScoutingReport(teamData[0].id, storedOpponentId, true);
+                  const dataLoaded = await loadScoutingReport(teamData[0].id, storedOpponentId, true);
+                  
+                  if (!dataLoaded) {
+                    console.log('No data loaded for stored opponent, creating empty scouting report');
+                    // If no data was loaded, create an empty scouting report to save it
+                    await saveToDatabase();
+                  }
                 } else {
                   console.log('No opponent found with ID:', storedOpponentId);
-                  setIsAppLoading(false);
-                  setDataFullyLoaded(true);
+                  // Even if we can't find the opponent name, try to load data anyway
+                  setSelectedOpponentName(`Unknown (${storedOpponentId.slice(0, 8)}...)`);
+                  const dataLoaded = await loadScoutingReport(teamData[0].id, storedOpponentId, true);
+                  
+                  if (!dataLoaded) {
+                    console.log('No data loaded for unknown opponent, creating empty scouting report');
+                    // If no data was loaded, create an empty scouting report to save it
+                    await saveToDatabase();
+                  }
                 }
               } catch (opponentError) {
                 console.error('Exception fetching opponent:', opponentError);
                 setIsAppLoading(false);
                 setDataFullyLoaded(true);
               }
+            }
+            
+            // Also fetch the full opponents list for the dropdown
+            try {
+              const { data: allOpponents, error: allOpponentsError } = await supabase
+                .from('opponents')
+                .select('id, name')
+                .order('name');
+              
+              if (allOpponentsError) {
+                console.error('Error fetching all opponents:', allOpponentsError.message);
+              } else if (allOpponents) {
+                setOpponentsList(allOpponents);
+                console.log(`Loaded ${allOpponents.length} opponents for dropdown`);
+              }
+            } catch (error) {
+              console.error('Exception fetching all opponents:', error);
             }
           } else {
             console.log('No team found with team_id:', profileData[0].team_id);
@@ -702,10 +781,12 @@ export default function ScoutingPage() {
       return { success: false };
     }
     
-    // Check if we have any data to save (to prevent saving empty data)
-    if (fronts.length === 0 && coverages.length === 0 && blitzes.length === 0 && notes === '') {
-      console.log("No data to save, skipping database update");
-      return { success: false };
+    // Check if we have any data to save
+    const hasData = fronts.length > 0 || coverages.length > 0 || blitzes.length > 0 || notes !== '';
+    if (!hasData) {
+      console.log("No data to save, creating an empty record instead");
+      // Even with no data, we should still create an empty record in the database
+      // This ensures the record exists for future loadScoutingReport calls
     }
     
     setIsSaving(true);
@@ -1213,71 +1294,107 @@ export default function ScoutingPage() {
     // Set loading state
     setIsLoadingOpponentData(true);
     
-    try {
-      // First try to load from the database
-      console.log(`Attempting to load from database for team ${teamId} and opponent ${opponentId}...`);
-      const result = await getScoutingReport(teamId, opponentId);
-      
-      if (result.success && result.data) {
-        console.log(`SUCCESS: Found data in database for opponent ${opponentId}`);
-        console.log("Data summary:", {
-          fronts: result.data.fronts?.length || 0, 
-          coverages: result.data.coverages?.length || 0, 
-          blitzes: result.data.blitzes?.length || 0
-        });
+    // Track if we actually loaded data
+    let dataLoaded = false;
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    while (!dataLoaded && retryCount <= maxRetries) {
+      try {
+        // First try to load from the database
+        console.log(`Attempt ${retryCount + 1}: Loading from database for team ${teamId} and opponent ${opponentId}...`);
+        const result = await getScoutingReport(teamId, opponentId);
         
-        // Make sure we're not setting undefined arrays
-        const safeData = {
-          fronts: Array.isArray(result.data.fronts) ? result.data.fronts : [],
-          coverages: Array.isArray(result.data.coverages) ? result.data.coverages : [],
-          blitzes: Array.isArray(result.data.blitzes) ? result.data.blitzes : [],
-          fronts_pct: result.data.fronts_pct || {},
-          coverages_pct: result.data.coverages_pct || {},
-          blitz_pct: result.data.blitz_pct || {},
-          overall_blitz_pct: result.data.overall_blitz_pct || 0,
-          notes: result.data.notes || '',
-          updated_at: result.data.updated_at || new Date().toISOString()
-        };
-        
-        // Log details about what we're loading
-        console.log("FRONTS:", safeData.fronts.map(f => f.name));
-        console.log("COVERAGES:", safeData.coverages.map(c => c.name));
-        console.log("BLITZES:", safeData.blitzes.map(b => b.name));
-        
-        // Set state with the safe data
-        setFronts(safeData.fronts);
-        setCoverages(safeData.coverages);
-        setBlitzes(safeData.blitzes);
-        setFrontPct(safeData.fronts_pct);
-        setCoverPct(safeData.coverages_pct);
-        setBlitzPct(safeData.blitz_pct);
-        setOverallBlitzPct(safeData.overall_blitz_pct);
-        setNotes(safeData.notes);
-        setLastSaved(new Date(safeData.updated_at));
-        console.log(`Successfully set state with data for opponent ${opponentId}`);
-      } else {
-        // Fall back to localStorage if no database record exists
-        console.log(`No data found in database for opponent ${opponentId}, falling back to localStorage`);
-        if (result.error) {
-          console.log("Database error:", result.error);
+        if (result.success && result.data) {
+          console.log(`SUCCESS: Found data in database for opponent ${opponentId}`);
+          console.log("Data summary:", {
+            fronts: result.data.fronts?.length || 0, 
+            coverages: result.data.coverages?.length || 0, 
+            blitzes: result.data.blitzes?.length || 0
+          });
+          
+          // Make sure we're not setting undefined arrays
+          const safeData = {
+            fronts: Array.isArray(result.data.fronts) ? result.data.fronts : [],
+            coverages: Array.isArray(result.data.coverages) ? result.data.coverages : [],
+            blitzes: Array.isArray(result.data.blitzes) ? result.data.blitzes : [],
+            fronts_pct: result.data.fronts_pct || {},
+            coverages_pct: result.data.coverages_pct || {},
+            blitz_pct: result.data.blitz_pct || {},
+            overall_blitz_pct: result.data.overall_blitz_pct || 0,
+            notes: result.data.notes || '',
+            updated_at: result.data.updated_at || new Date().toISOString()
+          };
+          
+          // Log details about what we're loading
+          console.log("FRONTS:", safeData.fronts.map(f => f.name));
+          console.log("COVERAGES:", safeData.coverages.map(c => c.name));
+          console.log("BLITZES:", safeData.blitzes.map(b => b.name));
+          
+          // Set state with the safe data
+          setFronts(safeData.fronts);
+          setCoverages(safeData.coverages);
+          setBlitzes(safeData.blitzes);
+          setFrontPct(safeData.fronts_pct);
+          setCoverPct(safeData.coverages_pct);
+          setBlitzPct(safeData.blitz_pct);
+          setOverallBlitzPct(safeData.overall_blitz_pct);
+          setNotes(safeData.notes);
+          setLastSaved(new Date(safeData.updated_at));
+          console.log(`Successfully set state with data for opponent ${opponentId}`);
+          
+          // Mark that we loaded data successfully
+          dataLoaded = true;
+        } else {
+          // Fall back to localStorage if no database record exists
+          console.log(`No data found in database for opponent ${opponentId} (attempt ${retryCount + 1})`);
+          if (result.error) {
+            console.log("Database error:", result.error);
+          }
+          
+          // Only fall back to localStorage on final attempt
+          if (retryCount === maxRetries) {
+            console.log("Falling back to localStorage after maximum retries");
+            fallbackToLocalStorage(opponentId);
+            
+            // Check if any data was loaded from localStorage
+            dataLoaded = (fronts.length > 0 || coverages.length > 0 || blitzes.length > 0 || notes !== '');
+          }
         }
-        fallbackToLocalStorage(opponentId);
+      } catch (error) {
+        console.error(`Error loading scouting report for opponent ${opponentId} (attempt ${retryCount + 1}):`, error);
+        
+        // Only fall back to localStorage on final attempt
+        if (retryCount === maxRetries) {
+          console.log("Falling back to localStorage due to error after maximum retries");
+          fallbackToLocalStorage(opponentId);
+          
+          // Check if any data was loaded from localStorage
+          dataLoaded = (fronts.length > 0 || coverages.length > 0 || blitzes.length > 0 || notes !== '');
+        }
       }
-    } catch (error) {
-      console.error(`Error loading scouting report for opponent ${opponentId}:`, error);
-      console.log("Falling back to localStorage due to error");
-      fallbackToLocalStorage(opponentId);
-    } finally {
-      console.log(`--------- FINISHED LOADING DATA FOR OPPONENT ${opponentId} ---------`);
-      setIsLoadingOpponentData(false);
-      setIsAppLoading(false);
       
-      // If this was from initial app load, set the data as fully loaded
-      if (isInitializing) {
-        console.log("Initial data load complete, enabling auto-saves");
-        setDataFullyLoaded(true);
+      // If we haven't loaded data and still have retries left, wait a bit before retrying
+      if (!dataLoaded && retryCount < maxRetries) {
+        console.log(`Retrying in ${(retryCount + 1) * 500}ms...`);
+        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 500));
       }
+      
+      retryCount++;
     }
+    
+    console.log(`--------- FINISHED LOADING DATA FOR OPPONENT ${opponentId} ---------`);
+    console.log(`Data loaded successfully: ${dataLoaded}`);
+    setIsLoadingOpponentData(false);
+    setIsAppLoading(false);
+    
+    // If this was from initial app load, set the data as fully loaded
+    if (isInitializing) {
+      console.log("Initial data load complete, enabling auto-saves");
+      setDataFullyLoaded(true);
+    }
+    
+    return dataLoaded;
   };
 
   // Improve the fallbackToLocalStorage function
@@ -1299,6 +1416,41 @@ export default function ScoutingPage() {
     const opponentBlitzPct = load(`blitz_pct_${opponentId}`, null) as Record<string, number> | null;
     const opponentOverallBlitzPct = load(`overall_blitz_pct_${opponentId}`, null) as number | null;
     const opponentNotes = load(`notes_${opponentId}`, null) as string | null;
+    
+    // Also try to load from general keys (for backwards compatibility)
+    if (!opponentFronts) {
+      const generalFronts = load('fronts', null) as ScoutingOption[] | null;
+      if (generalFronts && generalFronts.length > 0) {
+        console.log("Found fronts in general localStorage key, using that");
+        setFronts(generalFronts.filter(front => !['Even', 'Odd'].includes(front.name)));
+      }
+    }
+    
+    if (!opponentCoverages) {
+      const generalCoverages = load('coverages', null) as ScoutingOption[] | null;
+      if (generalCoverages && generalCoverages.length > 0) {
+        console.log("Found coverages in general localStorage key, using that");
+        setCoverages(generalCoverages.filter(coverage => 
+          !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(coverage.name)
+        ));
+      }
+    }
+    
+    if (!opponentBlitzes) {
+      const generalBlitzes = load('blitz', null) as ScoutingOption[] | null;
+      if (generalBlitzes && generalBlitzes.length > 0) {
+        console.log("Found blitzes in general localStorage key, using that");
+        setBlitzes(generalBlitzes.filter(blitz => {
+          const name = blitz.name.toLowerCase();
+          return !(
+            name === 'inside' || 
+            name === 'outside' || 
+            name === 'corner' || 
+            name === 'safety'
+          );
+        }));
+      }
+    }
     
     // Log what we found
     console.log("Found in localStorage:", {
@@ -1368,7 +1520,14 @@ export default function ScoutingPage() {
       console.log(`Setting front percentages from localStorage`);
       setFrontPct(filteredFrontPct);
     } else {
-      console.log("No front percentages found in localStorage");
+      // Try general key
+      const generalFrontPct = load('fronts_pct', null) as Record<string, number> | null;
+      if (generalFrontPct) {
+        console.log("Found front percentages in general localStorage key, using that");
+        setFrontPct(generalFrontPct);
+      } else {
+        console.log("No front percentages found in localStorage");
+      }
     }
     
     if (opponentCoverPct) {
@@ -1380,7 +1539,14 @@ export default function ScoutingPage() {
       console.log(`Setting coverage percentages from localStorage`);
       setCoverPct(filteredCoverPct);
     } else {
-      console.log("No coverage percentages found in localStorage");
+      // Try general key
+      const generalCoverPct = load('coverages_pct', null) as Record<string, number> | null;
+      if (generalCoverPct) {
+        console.log("Found coverage percentages in general localStorage key, using that");
+        setCoverPct(generalCoverPct);
+      } else {
+        console.log("No coverage percentages found in localStorage");
+      }
     }
     
     if (opponentBlitzPct) {
@@ -1392,21 +1558,42 @@ export default function ScoutingPage() {
       console.log(`Setting blitz percentages from localStorage`);
       setBlitzPct(filteredBlitzPct);
     } else {
-      console.log("No blitz percentages found in localStorage");
+      // Try general key
+      const generalBlitzPct = load('blitz_pct', null) as Record<string, number> | null;
+      if (generalBlitzPct) {
+        console.log("Found blitz percentages in general localStorage key, using that");
+        setBlitzPct(generalBlitzPct);
+      } else {
+        console.log("No blitz percentages found in localStorage");
+      }
     }
     
     if (opponentOverallBlitzPct !== null) {
       console.log(`Setting overall blitz percentage from localStorage: ${opponentOverallBlitzPct}`);
       setOverallBlitzPct(opponentOverallBlitzPct);
     } else {
-      console.log("No overall blitz percentage found in localStorage");
+      // Try general key
+      const generalOverallBlitzPct = load('overall_blitz_pct', null) as number | null;
+      if (generalOverallBlitzPct !== null) {
+        console.log("Found overall blitz percentage in general localStorage key, using that");
+        setOverallBlitzPct(generalOverallBlitzPct);
+      } else {
+        console.log("No overall blitz percentage found in localStorage");
+      }
     }
     
     if (opponentNotes) {
       console.log(`Setting notes from localStorage`);
       setNotes(opponentNotes);
     } else {
-      console.log("No notes found in localStorage");
+      // Try general key
+      const generalNotes = load('notes', null) as string | null;
+      if (generalNotes) {
+        console.log("Found notes in general localStorage key, using that");
+        setNotes(generalNotes);
+      } else {
+        console.log("No notes found in localStorage");
+      }
     }
   };
 
@@ -1977,6 +2164,9 @@ export default function ScoutingPage() {
               <li><strong>LocalStorage Team ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') || 'null' : 'unknown'}</li>
               <li><strong>LocalStorage Opponent ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') || 'null' : 'unknown'}</li>
               
+              <li className="mt-2 pt-2 border-t border-gray-300"><strong>Load Status:</strong> {isAppLoading ? 'App Loading' : isLoadingOpponentData ? 'Loading Opponent Data' : 'Ready'}</li>
+              <li><strong>Initial Load:</strong> {isInitialLoad ? 'Yes' : 'No'}</li>
+              <li><strong>Data Fully Loaded:</strong> {dataFullyLoaded ? 'Yes' : 'No'}</li>
               <li className="mt-2 pt-2 border-t border-gray-300"><strong>Fronts Count:</strong> {fronts.length}</li>
               <li><strong>Coverages Count:</strong> {coverages.length}</li>
               <li><strong>Blitzes Count:</strong> {blitzes.length}</li>
