@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { createBrowserClient } from '@supabase/ssr'
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
@@ -9,17 +10,39 @@ import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Pencil, X, Check, Plus, Star, Lock, Unlock } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { 
+  Pencil, 
+  X, 
+  Check, 
+  Plus, 
+  Star, 
+  Lock, 
+  Unlock, 
+  RefreshCw, 
+  Loader2, 
+  FileText,
+  HelpCircle 
+} from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { getPlayPool, updatePlay, Play, testPlayPoolConnection, regeneratePlayPool, toggleFavoritePlay } from "@/lib/playpool"
+import { getScoutingReport } from "@/lib/scouting"
 import { load, save } from "@/lib/local"
+import { checkTableAccess } from "@/lib/supabase"
+import { analyzeAndUpdatePlays } from "@/app/actions/analyze-plays"
 
 const CATEGORIES = {
-  run_game: "Run Game",
-  quick_game: "Quick Game",
-  dropback_game: "Dropback Game",
-  shot_plays: "Shot Plays",
-  screen_game: "Screen Game"
-}
+  run_game: 'Run Game',
+  quick_game: 'Quick Game',
+  dropback_game: 'Dropback Game',
+  shot_plays: 'Shot Plays',
+  screen_game: 'Screen Game'
+} as const
 
 function formatPlay(play: Play): string {
   const parts = [
@@ -31,10 +54,18 @@ function formatPlay(play: Play): string {
     play.run_concept,
     play.run_direction,
     play.pass_screen_concept,
-    play.category === 'screen_game' ? play.screen_direction : null
+    play.screen_direction
   ].filter(Boolean)
 
   return parts.join(" ")
+}
+
+interface ScoutingOption {
+  id?: string;
+  name: string;
+  fieldArea?: string;
+  dominateDown?: string;
+  notes?: string;
 }
 
 export default function PlayPoolPage() {
@@ -42,16 +73,219 @@ export default function PlayPoolPage() {
   const [plays, setPlays] = useState<Play[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [regenerating, setRegenerating] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [clearingLocks, setClearingLocks] = useState(false)
   const [motionPercentage, setMotionPercentage] = useState(() => load('motion_percentage', 25))
   const [editingPlay, setEditingPlay] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<Play>>({})
   const [showCustomInput, setShowCustomInput] = useState<{ [key: string]: boolean }>({})
-  const [clearingLocks, setClearingLocks] = useState(false)
+  const [analysis, setAnalysis] = useState<string | null>(null)
+  
+  // Add state for debug info
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+  const [selectedTeamName, setSelectedTeamName] = useState<string | null>(null)
+  const [selectedOpponentId, setSelectedOpponentId] = useState<string | null>(null)
+  const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null)
+  
+  // Add state for defensive info
+  const [fronts, setFronts] = useState<ScoutingOption[]>([])
+  const [coverages, setCoverages] = useState<ScoutingOption[]>([])
+  const [blitzes, setBlitzes] = useState<ScoutingOption[]>([])
+  const [frontsPct, setFrontsPct] = useState<Record<string, number>>({})
+  const [coveragesPct, setCoveragesPct] = useState<Record<string, number>>({})
+  const [blitzPct, setBlitzPct] = useState<Record<string, number>>({})
+  const [overallBlitzPct, setOverallBlitzPct] = useState<number>(0)
+
+  // Create Supabase client
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+
+  // Add effect to load team and opponent info
+  useEffect(() => {
+    const loadTeamAndOpponentInfo = async () => {
+      try {
+        console.log('Starting to load team and opponent info...')
+        
+        // Check table access first
+        await checkTableAccess()
+        
+        // Get current user and their team_id from profile
+        const { data: { user } } = await supabase.auth.getUser()
+        console.log('Current user:', user)
+        
+        if (user) {
+          // Get team_id from profile
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('team_id')
+            .eq('id', user.id)
+            .single()
+          
+          console.log('Profile data:', profileData, 'Profile error:', profileError)
+          
+          if (profileData?.team_id) {
+            const teamId = profileData.team_id
+            console.log('DEBUG - Team ID from profile:', {
+              teamId,
+              type: typeof teamId,
+              length: teamId.length,
+              trimmed: teamId.trim(),
+              expected: '2987ddc0-f8d5-4535-a389-f536d126b60e',
+              matches: teamId === '2987ddc0-f8d5-4535-a389-f536d126b60e'
+            })
+            
+            setSelectedTeamId(teamId)
+            console.log('Set selected team ID:', teamId)
+            
+            // Get team name
+            const { data: teamData } = await supabase
+              .from('teams')
+              .select('name')
+              .eq('id', teamId)
+              .single()
+            
+            console.log('Team data:', teamData)
+            
+            if (teamData) {
+              setSelectedTeamName(teamData.name)
+              console.log('Set selected team name:', teamData.name)
+            }
+
+            // Get opponent info from localStorage
+            const opponentId = localStorage.getItem('selectedOpponent')
+            console.log('DEBUG - Opponent ID from localStorage:', {
+              opponentId,
+              type: typeof opponentId,
+              length: opponentId?.length,
+              trimmed: opponentId?.trim(),
+              expected: '5a372f8d-be57-4b14-919b-f9b58923d10f',
+              matches: opponentId === '5a372f8d-be57-4b14-919b-f9b58923d10f'
+            })
+            
+            if (opponentId) {
+              setSelectedOpponentId(opponentId)
+              
+              // Get opponent name
+              const { data: opponentData } = await supabase
+                .from('opponents')
+                .select('name')
+                .eq('id', opponentId)
+                .single()
+              
+              console.log('Opponent data:', opponentData)
+              
+              if (opponentData) {
+                setSelectedOpponentName(opponentData.name)
+                console.log('Set selected opponent name:', opponentData.name)
+              }
+
+              console.log('About to fetch scouting report with team_id:', teamId, 'and opponent_id:', opponentId)
+              
+              // Load scouting report data
+              const scoutingReportResult = await getScoutingReport(teamId, opponentId)
+              
+              console.log('DEBUG: Full scouting report result:', {
+                success: scoutingReportResult.success,
+                data: scoutingReportResult.data,
+                error: scoutingReportResult.error,
+                teamId: {
+                  value: teamId,
+                  type: typeof teamId,
+                  length: teamId.length,
+                  expected: '2987ddc0-f8d5-4535-a389-f536d126b60e',
+                  matches: teamId === '2987ddc0-f8d5-4535-a389-f536d126b60e'
+                },
+                opponentId: {
+                  value: opponentId,
+                  type: typeof opponentId,
+                  length: opponentId.length,
+                  expected: '5a372f8d-be57-4b14-919b-f9b58923d10f',
+                  matches: opponentId === '5a372f8d-be57-4b14-919b-f9b58923d10f'
+                }
+              })
+              
+              if (scoutingReportResult.success && scoutingReportResult.data) {
+                const reportData = scoutingReportResult.data
+                console.log('DEBUG: Full scouting data before setting state:', {
+                  fronts: reportData.fronts,
+                  fronts_length: reportData.fronts?.length,
+                  coverages: reportData.coverages,
+                  coverages_length: reportData.coverages?.length,
+                  blitzes: reportData.blitzes,
+                  blitzes_length: reportData.blitzes?.length,
+                  fronts_pct: reportData.fronts_pct,
+                  coverages_pct: reportData.coverages_pct,
+                  blitz_pct: reportData.blitz_pct,
+                  overall_blitz_pct: reportData.overall_blitz_pct
+                })
+                
+                // Ensure we're setting arrays even if they're empty
+                setFronts(reportData.fronts || [])
+                setCoverages(reportData.coverages || [])
+                setBlitzes(reportData.blitzes || [])
+                
+                // Ensure we're setting objects even if they're empty
+                setFrontsPct(reportData.fronts_pct || {})
+                setCoveragesPct(reportData.coverages_pct || {})
+                setBlitzPct(reportData.blitz_pct || {})
+                
+                // Ensure we're setting a number even if it's 0
+                setOverallBlitzPct(reportData.overall_blitz_pct || 0)
+
+                // Log state after setting
+                console.log('DEBUG: State after setting:', {
+                  fronts_length: reportData.fronts?.length || 0,
+                  coverages_length: reportData.coverages?.length || 0,
+                  blitzes_length: reportData.blitzes?.length || 0
+                })
+              } else {
+                console.error('Failed to load scouting report:', scoutingReportResult.error)
+                // Initialize with empty data but don't show an error
+                setFronts([])
+                setCoverages([])
+                setBlitzes([])
+                setFrontsPct({})
+                setCoveragesPct({})
+                setBlitzPct({})
+                setOverallBlitzPct(0)
+                console.log('DEBUG: Set empty defensive data due to failed scouting report load')
+              }
+            } else {
+              console.log('No opponent ID found in localStorage')
+            }
+          } else {
+            console.log('No team_id found in profile data')
+          }
+        } else {
+          console.log('No user found')
+        }
+      } catch (error) {
+        console.error('Error loading team/opponent info:', error)
+      }
+    }
+    
+    loadTeamAndOpponentInfo()
+  }, [supabase])
 
   useEffect(() => {
     save('motion_percentage', motionPercentage)
   }, [motionPercentage])
+
+  // Add effect to check localStorage on mount
+  useEffect(() => {
+    // Check localStorage contents
+    console.log('DEBUG - Checking localStorage on mount:', {
+      selectedTeam: localStorage.getItem('selectedTeam'),
+      selectedOpponent: localStorage.getItem('selectedOpponent'),
+      allKeys: Object.keys(localStorage)
+    })
+  }, [])
+
+  useEffect(() => {
+    loadPlays()
+  }, [])
 
   const loadPlays = async () => {
     try {
@@ -71,10 +305,14 @@ export default function PlayPoolPage() {
       console.log('Fetched plays:', playData)
       setPlays(playData)
     } catch (error) {
-      console.error('Detailed load error:', {
-        error,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
+      console.error('[UI] Failed to load play pool:', {
+        error: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        } : error,
+        timestamp: new Date().toISOString(),
+        operation: 'loadPlays'
       })
       setError(error instanceof Error ? error.message : 'An unexpected error occurred')
     } finally {
@@ -82,22 +320,46 @@ export default function PlayPoolPage() {
     }
   }
 
-  const handleRegeneratePlayPool = async () => {
+  const handleRebuildPlaypool = async () => {
     try {
-      setRegenerating(true)
+      setAnalyzing(true)
       setError(null)
-      await regeneratePlayPool()
-      await loadPlays() // Reload plays after regeneration
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to regenerate play pool')
+      setAnalysis(null)
+
+      if (!selectedTeamId) {
+        throw new Error('No team selected')
+      }
+
+      // Create scouting report object
+      const scoutingReport = {
+        team_id: selectedTeamId,
+        fronts,
+        coverages,
+        blitzes,
+        fronts_pct: frontsPct,
+        coverages_pct: coveragesPct,
+        blitz_pct: blitzPct,
+        overall_blitz_pct: overallBlitzPct,
+        notes: '',
+        keep_locked_plays: true // Add flag to indicate we want to keep locked plays
+      }
+
+      // Call analyze and update function
+      const result = await analyzeAndUpdatePlays(scoutingReport)
+
+      if (result.success && result.data) {
+        setAnalysis(result.analysis || 'Playpool successfully rebuilt with AI')
+        // Reload plays to show updates
+        await loadPlays()
+      } else {
+        setError(result.error || 'Failed to rebuild playpool')
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to rebuild playpool')
     } finally {
-      setRegenerating(false)
+      setAnalyzing(false)
     }
   }
-
-  useEffect(() => {
-    loadPlays()
-  }, [])
 
   const handleTogglePlay = async (play: Play) => {
     try {
@@ -129,24 +391,36 @@ export default function PlayPoolPage() {
   const getPlaysByCategory = (category: string) => {
     const categoryPlays = plays.filter(play => play.category === category);
     
-    // If we have more than 20 plays, prioritize locked plays
-    if (categoryPlays.length > 20) {
+    // For run plays, return up to 15 plays
+    if (category === 'run_game') {
       // First include all locked plays
       const lockedPlays = categoryPlays.filter(play => play.is_locked);
       
-      // If we have room for more, add unlocked plays until we hit 20
+      // If we have room for more, add unlocked plays until we hit 15
+      if (lockedPlays.length < 15) {
+        const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
+        // Only take enough unlocked plays to reach a total of 15
+        const unlockedPlaysToInclude = unlockedPlays.slice(0, 15 - lockedPlays.length);
+        return [...lockedPlays, ...unlockedPlaysToInclude];
+      }
+      
+      // If we have more than 15 locked plays, just return the first 15
+      return lockedPlays.slice(0, 15);
+    }
+    
+    // For other categories, keep the original logic of 20 plays max
+    if (categoryPlays.length > 20) {
+      const lockedPlays = categoryPlays.filter(play => play.is_locked);
+      
       if (lockedPlays.length < 20) {
         const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
-        // Only take enough unlocked plays to reach a total of 20
         const unlockedPlaysToInclude = unlockedPlays.slice(0, 20 - lockedPlays.length);
         return [...lockedPlays, ...unlockedPlaysToInclude];
       }
       
-      // If we have more than 20 locked plays, just return the first 20
       return lockedPlays.slice(0, 20);
     }
     
-    // If we have 20 or fewer plays, return all of them
     return categoryPlays;
   }
 
@@ -250,60 +524,19 @@ export default function PlayPoolPage() {
             {renderFieldSelect('tag', 'Tag', 'Enter custom tag')}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>Strength</Label>
-              <Select 
-                value={editForm.strength || ''} 
-                onValueChange={(value) => setEditForm({...editForm, strength: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select strength" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="+">+</SelectItem>
-                  <SelectItem value="-">-</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {renderFieldSelect('motion_shift', 'Motion/Shift', 'Enter custom motion/shift')}
+            {renderFieldSelect('strength', 'Strength', 'Enter custom strength')}
+            {renderFieldSelect('motion_shift', 'Motion/Shift', 'Enter custom motion or shift')}
           </div>
-          {renderFieldSelect('concept', 'Concept', 'Enter custom concept')}
-          {play.category === 'run_game' && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label>Run Direction</Label>
-                <Select 
-                  value={editForm.run_direction || ''} 
-                  onValueChange={(value) => setEditForm({...editForm, run_direction: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select direction" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="+">+</SelectItem>
-                    <SelectItem value="-">-</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-          {play.category === 'screen_game' && (
-            <div>
-              <Label>Screen Direction</Label>
-              <Select 
-                value={editForm.screen_direction || ''} 
-                onValueChange={(value) => setEditForm({...editForm, screen_direction: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select direction" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="+">+</SelectItem>
-                  <SelectItem value="-">-</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="grid grid-cols-2 gap-2">
+            {renderFieldSelect('concept', 'Concept', 'Enter custom concept')}
+            {renderFieldSelect('run_concept', 'Run Concept', 'Enter custom run concept')}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {renderFieldSelect('run_direction', 'Run Direction', 'Enter custom run direction')}
+            {renderFieldSelect('pass_screen_concept', 'Pass/Screen Concept', 'Enter custom pass/screen concept')}
+          </div>
+          {renderFieldSelect('screen_direction', 'Screen Direction', 'Enter custom screen direction')}
+          
           <div className="flex justify-end gap-2 mt-2">
             <Button size="sm" variant="outline" onClick={handleCancelEdit}>
               <X className="h-4 w-4 mr-1" />
@@ -322,103 +555,74 @@ export default function PlayPoolPage() {
     const isFavorite = play.is_favorite || false
     const isLocked = play.is_locked || false
 
-    // Custom lock icon with only body filled
-    const CustomLock = () => (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="lucide lucide-lock h-4 w-4"
-      >
-        {/* Shackle (not filled) */}
-        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2Z" fill="currentColor" />
-        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      </svg>
-    );
-
     return (
-      <>
-        <div className="flex-1">
-          <div className="font-medium">{formatPlay(play)}</div>
+      <div className="flex items-center justify-between w-full gap-2">
+        <div className="flex items-center gap-2 flex-grow">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`p-0 h-6 w-6 ${isFavorite ? 'text-yellow-500' : 'text-gray-400'}`}
+              onClick={() => handleToggleFavorite(play)}
+            >
+              <Star className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`p-0 h-6 w-6 ${isLocked ? 'text-blue-500' : 'text-gray-400'}`}
+              onClick={() => handleToggleLock(play)}
+            >
+              {isLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+            </Button>
+          </div>
+          <span className="flex-grow font-mono text-sm">
+            {formatPlay(play)}
+            {play.front_beaters && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" className="ml-2 p-0 h-6 w-6">
+                      <HelpCircle className="h-4 w-4 text-blue-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="font-normal">Front Beaters: {play.front_beaters}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button
-            size="sm"
             variant="ghost"
+            size="sm"
+            className="p-0 h-6 w-6"
             onClick={() => handleStartEdit(play)}
           >
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => handleToggleFavorite(play)}
-            className={isFavorite ? 'text-yellow-400' : 'text-gray-400 hover:text-gray-600'}
-          >
-            <Star className="h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => handleToggleLock(play)}
-            className={isLocked ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600'}
-            title={isLocked ? "Play will be preserved when regenerating" : "Lock to preserve when regenerating"}
-          >
-            {isLocked ? <CustomLock /> : <Unlock className="h-4 w-4" />}
-          </Button>
         </div>
-      </>
+      </div>
     )
-  }
-
-  const handleClearLockedPlays = async () => {
-    try {
-      setClearingLocks(true)
-      setError(null)
-      
-      // Get all locked plays
-      const lockedPlays = plays.filter(p => p.is_locked)
-      
-      if (lockedPlays.length === 0) {
-        setClearingLocks(false)
-        return // No locked plays to clear
-      }
-      
-      // Unlock each play
-      for (const play of lockedPlays) {
-        await updatePlay(play.id, { is_locked: false })
-      }
-      
-      // Refresh the plays list
-      await loadPlays()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to clear locked plays')
-    } finally {
-      setClearingLocks(false)
-    }
   }
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-lg">Loading play pool...</div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex flex-col justify-center items-center min-h-screen p-4">
-        <div className="text-red-500 text-lg mb-4">Error Loading Play Pool</div>
-        <div className="text-gray-700 whitespace-pre-wrap text-center">{error}</div>
-        <Button onClick={() => window.location.reload()} className="mt-4">
-          Try Again
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <div className="text-red-500 text-center">{error}</div>
+        <Button onClick={loadPlays}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Retry
         </Button>
       </div>
     )
@@ -427,31 +631,37 @@ export default function PlayPoolPage() {
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Play Pool</h1>
+        <h1 className="text-2xl font-bold">Play Pool</h1>
         <div className="flex gap-4">
           <Button 
-            variant="default" 
-            className="bg-blue-500 hover:bg-blue-600 text-white"
-            onClick={handleRegeneratePlayPool}
-            disabled={regenerating}
+            onClick={handleRebuildPlaypool}
+            disabled={analyzing || !selectedTeamId || !selectedOpponentId}
           >
-            {regenerating ? 'Regenerating...' : 'Regenerate Entire Play Pool'}
-          </Button>
-          <Button 
-            variant="default"
-            className="bg-amber-500 hover:bg-amber-600 text-white"
-            onClick={handleClearLockedPlays}
-            disabled={clearingLocks}
-          >
-            {clearingLocks ? 'Clearing...' : 'Clear All Locked Plays'}
-          </Button>
-          <Button 
-            onClick={() => router.push('/scouting')}
-          >
-            Continue to Scouting →
+            {analyzing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Rebuilding...
+              </>
+            ) : (
+              <>
+                <FileText className="h-4 w-4 mr-2" />
+                Rebuild Playpool with AI
+              </>
+            )}
           </Button>
         </div>
       </div>
+
+      {analysis && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Analysis Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm whitespace-pre-wrap">{analysis}</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="mb-8">
         <CardHeader>
@@ -485,7 +695,6 @@ export default function PlayPoolPage() {
 
       {Object.entries(CATEGORIES).map(([category, title]) => {
         const categoryPlays = getPlaysByCategory(category)
-        const enabledCount = categoryPlays.filter(p => p.is_enabled).length
 
         // Split plays into locked and unlocked
         const lockedPlays = categoryPlays.filter(p => p.is_locked)
@@ -513,7 +722,7 @@ export default function PlayPoolPage() {
               <CardTitle className="flex justify-between items-center">
                 <span>{title}</span>
                 <span className="text-sm font-normal text-gray-500">
-                  {enabledCount} / {categoryPlays.length} Enabled
+                  {categoryPlays.length} Plays
                 </span>
               </CardTitle>
             </CardHeader>
@@ -550,6 +759,88 @@ export default function PlayPoolPage() {
           </Card>
         )
       })}
+
+      {/* Debug Info Card */}
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle className="text-sm">Debug Info</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-xs space-y-1">
+            <div><strong>Team ID:</strong> {selectedTeamId || 'null'}</div>
+            <div><strong>Team Name:</strong> {selectedTeamName || 'null'}</div>
+            <div><strong>Opponent ID:</strong> {selectedOpponentId || 'null'}</div>
+            <div><strong>Opponent Name:</strong> {selectedOpponentName || 'null'}</div>
+            <div><strong>LocalStorage Team ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') || 'null' : 'unknown'}</div>
+            <div><strong>LocalStorage Opponent ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') || 'null' : 'unknown'}</div>
+            <div className="mt-2 pt-2 border-t border-gray-300"><strong>Loading Status:</strong> {loading ? 'Loading' : 'Ready'}</div>
+            <div><strong>Play Count:</strong> {plays.length}</div>
+            <div><strong>Motion Percentage:</strong> {motionPercentage}%</div>
+            
+            {/* Defensive Info */}
+            <div className="mt-2 pt-2 border-t border-gray-300">
+              <div><strong>Fronts Count:</strong> {fronts.length}</div>
+              <div><strong>Coverages Count:</strong> {coverages.length}</div>
+              <div><strong>Blitzes Count:</strong> {blitzes.length}</div>
+              <div><strong>Overall Blitz %:</strong> {overallBlitzPct}%</div>
+              
+              <div className="mt-2">
+                <details>
+                  <summary className="text-blue-500 cursor-pointer">Show Fronts Data</summary>
+                  <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
+                    {fronts.map((front, idx) => (
+                      <div key={idx} className="mb-2">
+                        <div><strong>{front.name}</strong> ({frontsPct[front.name] || 0}%)</div>
+                        {front.fieldArea && <div className="text-gray-600 pl-2">Field Area: {front.fieldArea}</div>}
+                        {front.dominateDown && <div className="text-gray-600 pl-2">Down: {front.dominateDown}</div>}
+                        {front.notes && <div className="text-gray-600 pl-2">Notes: {front.notes}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+              
+              <div className="mt-2">
+                <details>
+                  <summary className="text-blue-500 cursor-pointer">Show Coverages Data</summary>
+                  <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
+                    {coverages.map((coverage, idx) => (
+                      <div key={idx} className="mb-2">
+                        <div><strong>{coverage.name}</strong> ({coveragesPct[coverage.name] || 0}%)</div>
+                        {coverage.fieldArea && <div className="text-gray-600 pl-2">Field Area: {coverage.fieldArea}</div>}
+                        {coverage.dominateDown && <div className="text-gray-600 pl-2">Down: {coverage.dominateDown}</div>}
+                        {coverage.notes && <div className="text-gray-600 pl-2">Notes: {coverage.notes}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+              
+              <div className="mt-2">
+                <details>
+                  <summary className="text-blue-500 cursor-pointer">Show Blitzes Data</summary>
+                  <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
+                    {blitzes.map((blitz, idx) => (
+                      <div key={idx} className="mb-2">
+                        <div><strong>{blitz.name}</strong> ({blitzPct[blitz.name] || 0}%)</div>
+                        {blitz.fieldArea && <div className="text-gray-600 pl-2">Field Area: {blitz.fieldArea}</div>}
+                        {blitz.dominateDown && <div className="text-gray-600 pl-2">Down: {blitz.dominateDown}</div>}
+                        {blitz.notes && <div className="text-gray-600 pl-2">Notes: {blitz.notes}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            </div>
+            
+            {error && (
+              <div className="mt-2 pt-2 border-t border-gray-300 text-red-500">
+                <strong>Error:</strong> {error}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 } 

@@ -4,20 +4,22 @@ import { load } from '@/lib/local'
 
 export interface Play {
   id: string
-  formation?: string
-  tag?: string
-  strength?: string
-  motion_shift?: string
-  concept?: string
-  run_concept?: string
-  run_direction?: string
-  pass_screen_concept?: string
-  screen_direction?: string
-  category: 'run_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'
+  category: string
+  formation: string
+  tag: string
+  strength: string
+  motion_shift: string
+  concept: string
+  run_concept: string
+  run_direction: string
+  pass_screen_concept: string
+  screen_direction: string
   is_enabled: boolean
   is_favorite: boolean
-  is_locked?: boolean
+  is_locked: boolean
+  front_beaters?: string
   created_at?: string
+  updated_at?: string
 }
 
 // Add interface for terminology items
@@ -29,6 +31,14 @@ interface TerminologyItem {
   is_enabled: boolean
 }
 
+interface Front {
+  id?: string;
+  name: string;
+  dominateDown?: string;
+  fieldArea?: string;
+  notes?: string;
+}
+
 export async function testPlayPoolConnection(): Promise<boolean> {
   try {
     console.log('Testing playpool table connection...')
@@ -38,11 +48,15 @@ export async function testPlayPoolConnection(): Promise<boolean> {
       .limit(1)
     
     if (error) {
-      console.error('Playpool table error:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint
+      console.error('[Database] Master_Play_Pool connection failed:', {
+        error: {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        },
+        timestamp: new Date().toISOString(),
+        operation: 'testConnection'
       })
       return false
     }
@@ -191,11 +205,12 @@ export async function initializeDefaultPlayPool(existingPlayCounts: Record<strin
       return Math.random() * 100 < motionPercentage
     }
 
-    // Maximum number of plays per category
-    const PLAYS_PER_CATEGORY = 20
+    // Maximum number of plays per category - special case for run plays
+    const MAX_RUN_PLAYS = 15;
+    const PLAYS_PER_CATEGORY = 20;
 
     // Calculate how many new plays to generate for each category
-    const runGameCount = PLAYS_PER_CATEGORY - (existingPlayCounts['run_game'] || 0)
+    const runGameCount = MAX_RUN_PLAYS - (existingPlayCounts['run_game'] || 0)
     const quickGameCount = PLAYS_PER_CATEGORY - (existingPlayCounts['quick_game'] || 0)
     const dropbackGameCount = PLAYS_PER_CATEGORY - (existingPlayCounts['dropback_game'] || 0)
     const shotPlaysCount = PLAYS_PER_CATEGORY - (existingPlayCounts['shot_plays'] || 0)
@@ -357,7 +372,8 @@ export async function regeneratePlayPool(): Promise<void> {
   try {
     console.log('Starting play pool regeneration...')
     
-    // Constants
+    // Constants - special case for run plays
+    const MAX_RUN_PLAYS = 15;
     const MAX_PLAYS_PER_CATEGORY = 20;
     const categories = ['run_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'];
     
@@ -372,17 +388,6 @@ export async function regeneratePlayPool(): Promise<void> {
       throw lockedError
     }
     
-    const lockedPlaysByCategory: Record<string, Play[]> = {};
-    categories.forEach(category => {
-      lockedPlaysByCategory[category] = (lockedPlays || []).filter(p => p.category === category);
-      console.log(`Found ${lockedPlaysByCategory[category].length} locked plays in ${category}`);
-      
-      // If we have more than MAX_PLAYS_PER_CATEGORY locked plays, we need to delete the excess
-      if (lockedPlaysByCategory[category].length > MAX_PLAYS_PER_CATEGORY) {
-        console.warn(`Warning: ${category} has ${lockedPlaysByCategory[category].length} locked plays, which exceeds the limit of ${MAX_PLAYS_PER_CATEGORY}. Some locked plays will be deleted.`);
-      }
-    });
-    
     // Delete all unlocked plays
     const { error: deleteError } = await supabase
       .from('playpool')
@@ -393,172 +398,146 @@ export async function regeneratePlayPool(): Promise<void> {
       console.error('Error deleting unlocked plays:', deleteError)
       throw deleteError
     }
-    
+
+    // Get locked plays by category
+    const lockedPlaysByCategory: Record<string, Play[]> = {};
+    categories.forEach(category => {
+      lockedPlaysByCategory[category] = (lockedPlays || []).filter(p => p.category === category);
+      console.log(`Found ${lockedPlaysByCategory[category].length} locked plays in ${category}`);
+    });
+
     // Calculate how many new plays we need for each category
     const playsToGenerate: Record<string, number> = {};
-    
     for (const category of categories) {
       const lockedPlayCount = lockedPlaysByCategory[category].length;
-      playsToGenerate[category] = Math.max(0, MAX_PLAYS_PER_CATEGORY - lockedPlayCount);
-      console.log(`Will generate ${playsToGenerate[category]} new plays for ${category}`);
-    }
-    
-    // Get terminology for generating new plays
-    const { data: terminology, error: termError } = await supabase
-      .from('terminology')
-      .select('*')
-
-    if (termError) {
-      console.error('Error fetching terminology:', termError)
-      throw termError
-    }
-    
-    if (!terminology || terminology.length === 0) {
-      throw new Error('No terminology found')
+      const maxPlays = category === 'run_game' ? MAX_RUN_PLAYS : MAX_PLAYS_PER_CATEGORY;
+      playsToGenerate[category] = Math.max(0, maxPlays - lockedPlayCount);
+      console.log(`Need to generate ${playsToGenerate[category]} new plays for ${category}`);
     }
 
-    // Filter terminology by category
-    const formations = terminology.filter(t => t.category === 'formations')
-    const tags = terminology.filter(t => t.category === 'tags')
-    const runConcepts = terminology.filter(t => t.category === 'run_game')
-    const quickGame = terminology.filter(t => t.category === 'quick_game')
-    const dropback = terminology.filter(t => t.category === 'dropback')
-    const shotPlays = terminology.filter(t => t.category === 'shot_plays')
-    const screens = terminology.filter(t => t.category === 'screens')
-    const motions = terminology.filter(t => t.category === 'motions')
-    
-    // Helper functions
-    const getRandomItem = <T>(array: T[]): T => array[Math.floor(Math.random() * array.length)]
-    const shouldInclude = () => Math.random() > 0.5
-    const shouldIncludeMotion = () => {
-      const motionPercentage = load('motion_percentage', 25)
-      return Math.random() * 100 < motionPercentage
+    // Get the current team and opponent IDs from the scouting report
+    const { data: scoutingData, error: scoutingError } = await supabase
+      .from('scouting_reports')
+      .select('team_id, opponent_id, fronts, fronts_pct')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (scoutingError) {
+      console.error('Error fetching scouting report:', scoutingError);
+      throw scoutingError;
     }
-    
-    // Generate new plays
+
+    if (!scoutingData || scoutingData.length === 0) {
+      throw new Error('No scouting report found');
+    }
+
+    const { team_id, opponent_id, fronts, fronts_pct } = scoutingData[0];
+
+    // Fetch plays from master_play_pool for each category
     const newPlays: Partial<Play>[] = [];
     
-    // Run game plays
-    for (let i = 0; i < playsToGenerate['run_game']; i++) {
-      const formation = getRandomItem(formations);
-      const tag = shouldInclude() ? getRandomItem(tags) : null;
-      const runConcept = getRandomItem(runConcepts);
-      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
-      const strength = Math.random() > 0.5 ? '+' : '-';
-      const direction = Math.random() > 0.5 ? '+' : '-';
+    for (const category of categories) {
+      const maxPlays = category === 'run_game' ? MAX_RUN_PLAYS : MAX_PLAYS_PER_CATEGORY;
+      const neededPlays = playsToGenerate[category];
+      
+      if (neededPlays > 0) {
+        if (category === 'run_game') {
+          // For run plays, we need to consider the defensive fronts
+          const frontNames = fronts.map((f: Front) => f.name);
+          
+          // Calculate how many plays to get for each front based on percentage
+          const playsByFront: Record<string, number> = {};
+          frontNames.forEach((front: string) => {
+            const percentage = fronts_pct[front] || 0;
+            playsByFront[front] = Math.ceil((percentage / 100) * neededPlays);
+          });
 
-      newPlays.push({
-        formation: formation.label || '',
-        tag: tag?.label || '',
-        strength,
-        motion_shift: motion?.label || '',
-        concept: runConcept.label || '',
-        run_concept: '',
-        run_direction: direction,
-        pass_screen_concept: '',
-        category: 'run_game',
-        is_enabled: true,
-        is_locked: false
-      });
-    }
-    
-    // Quick game plays
-    for (let i = 0; i < playsToGenerate['quick_game']; i++) {
-      const formation = getRandomItem(formations);
-      const tag = shouldInclude() ? getRandomItem(tags) : null;
-      const quickGameConcept = getRandomItem(quickGame);
-      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
-      const strength = Math.random() > 0.5 ? '+' : '-';
+          // Fetch plays for each front
+          for (const front of frontNames) {
+            const playsNeeded = playsByFront[front];
+            if (playsNeeded > 0) {
+              const { data: frontPlays, error: frontError } = await supabase
+                .from('master_play_pool')
+                .select('*')
+                .eq('category', 'run_game')
+                .ilike('front_beaters', `%${front}%`)
+                .order('random()')
+                .limit(playsNeeded);
 
-      newPlays.push({
-        formation: formation.label || '',
-        tag: tag?.label || '',
-        strength,
-        motion_shift: motion?.label || '',
-        concept: quickGameConcept.label || '',
-        run_concept: '',
-        run_direction: '',
-        pass_screen_concept: '',
-        category: 'quick_game',
-        is_enabled: true,
-        is_locked: false
-      });
-    }
-    
-    // Dropback plays
-    for (let i = 0; i < playsToGenerate['dropback_game']; i++) {
-      const formation = getRandomItem(formations);
-      const tag = shouldInclude() ? getRandomItem(tags) : null;
-      const dropbackConcept = getRandomItem(dropback);
-      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
-      const strength = Math.random() > 0.5 ? '+' : '-';
+              if (frontError) {
+                console.error(`Error fetching run plays for front ${front}:`, frontError);
+                continue;
+              }
 
-      newPlays.push({
-        formation: formation.label || '',
-        tag: tag?.label || '',
-        strength,
-        motion_shift: motion?.label || '',
-        concept: dropbackConcept.label || '',
-        run_concept: '',
-        run_direction: '',
-        pass_screen_concept: '',
-        category: 'dropback_game',
-        is_enabled: true,
-        is_locked: false
-      });
-    }
-    
-    // Shot plays
-    for (let i = 0; i < playsToGenerate['shot_plays']; i++) {
-      const formation = getRandomItem(formations);
-      const tag = shouldInclude() ? getRandomItem(tags) : null;
-      const shotPlayConcept = getRandomItem(shotPlays);
-      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
-      const strength = Math.random() > 0.5 ? '+' : '-';
+              if (frontPlays && frontPlays.length > 0) {
+                const formattedPlays = frontPlays.map(play => ({
+                  ...play,
+                  team_id,
+                  opponent_id,
+                  is_enabled: true,
+                  is_locked: false
+                }));
+                newPlays.push(...formattedPlays);
+                console.log(`Added ${formattedPlays.length} run plays that beat front: ${front}`);
+              }
+            }
+          }
 
-      newPlays.push({
-        formation: formation.label || '',
-        tag: tag?.label || '',
-        strength,
-        motion_shift: motion?.label || '',
-        concept: shotPlayConcept.label || '',
-        run_concept: '',
-        run_direction: '',
-        pass_screen_concept: '',
-        category: 'shot_plays',
-        is_enabled: true,
-        is_locked: false
-      });
-    }
-    
-    // Screen plays
-    for (let i = 0; i < playsToGenerate['screen_game']; i++) {
-      const formation = getRandomItem(formations);
-      const tag = shouldInclude() ? getRandomItem(tags) : null;
-      const screenConcept = getRandomItem(screens);
-      const motion = shouldIncludeMotion() ? getRandomItem(motions) : null;
-      const strength = Math.random() > 0.5 ? '+' : '-';
-      const direction = Math.random() > 0.5 ? '+' : '-';
+          // If we still need more plays, get additional random run plays
+          const currentRunPlays = newPlays.filter(p => p.category === 'run_game').length;
+          if (currentRunPlays < neededPlays) {
+            const additionalPlaysNeeded = neededPlays - currentRunPlays;
+            const { data: additionalPlays, error: additionalError } = await supabase
+              .from('master_play_pool')
+              .select('*')
+              .eq('category', 'run_game')
+              .order('random()')
+              .limit(additionalPlaysNeeded);
 
-      newPlays.push({
-        formation: formation.label || '',
-        tag: tag?.label || '',
-        strength,
-        motion_shift: motion?.label || '',
-        concept: '',
-        run_concept: '',
-        run_direction: '',
-        pass_screen_concept: screenConcept.label || '',
-        screen_direction: direction,
-        category: 'screen_game',
-        is_enabled: true,
-        is_locked: false
-      });
+            if (!additionalError && additionalPlays) {
+              const formattedPlays = additionalPlays.map(play => ({
+                ...play,
+                team_id,
+                opponent_id,
+                is_enabled: true,
+                is_locked: false
+              }));
+              newPlays.push(...formattedPlays);
+              console.log(`Added ${formattedPlays.length} additional run plays`);
+            }
+          }
+        } else {
+          // For other categories, continue with the normal random selection
+          const { data: masterPlays, error: masterError } = await supabase
+            .from('master_play_pool')
+            .select('*')
+            .eq('category', category)
+            .order('random()')
+            .limit(neededPlays);
+
+          if (masterError) {
+            console.error(`Error fetching ${category} plays from master_play_pool:`, masterError);
+            continue;
+          }
+
+          if (masterPlays && masterPlays.length > 0) {
+            const formattedPlays = masterPlays.map(play => ({
+              ...play,
+              team_id,
+              opponent_id,
+              is_enabled: true,
+              is_locked: false
+            }));
+            newPlays.push(...formattedPlays);
+            console.log(`Added ${formattedPlays.length} ${category} plays from master_play_pool`);
+          }
+        }
+      }
     }
-    
+
     // Insert the new plays if any
     if (newPlays.length > 0) {
-      console.log(`Inserting ${newPlays.length} new plays`);
+      console.log(`Inserting ${newPlays.length} new plays from master_play_pool`);
       const { error: insertError } = await supabase
         .from('playpool')
         .insert(newPlays);
