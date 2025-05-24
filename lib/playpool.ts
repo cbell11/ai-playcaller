@@ -1,9 +1,12 @@
 import { supabase } from './supabase'
 import { initializeDefaultTerminology } from './terminology'
 import { load } from '@/lib/local'
+import { createClient } from '@supabase/supabase-js'
 
 export interface Play {
   id: string
+  play_id: string
+  team_id: string
   category: string
   formation: string
   tag: string
@@ -14,10 +17,13 @@ export interface Play {
   run_direction: string
   pass_screen_concept: string
   screen_direction: string
+  front_beaters: string
+  coverage_beaters: string
+  blitz_beaters: string
   is_enabled: boolean
-  is_favorite: boolean
   is_locked: boolean
-  front_beaters?: string
+  is_favorite: boolean
+  customized_edit: string | null
   created_at?: string
   updated_at?: string
 }
@@ -99,20 +105,33 @@ export async function getPlayPool(): Promise<Play[]> {
   }
 }
 
-export async function updatePlay(id: string, updates: Partial<Omit<Play, 'id'>>): Promise<Play> {
-  const { data, error } = await supabase
-    .from('playpool')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single()
-  
-  if (error) {
+export async function updatePlay(id: string, updates: Partial<Play>): Promise<Play> {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    // If customized_edit is explicitly set to null, we need to handle that
+    const updateData = updates.customized_edit === null
+      ? { ...updates, customized_edit: null }
+      : updates
+
+    const { data, error } = await supabase
+      .from('playpool')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    if (!data) throw new Error('No data returned from update')
+
+    return data
+  } catch (error) {
     console.error('Error updating play:', error)
     throw error
   }
-  
-  return data
 }
 
 export async function toggleFavoritePlay(id: string, isFavorite: boolean): Promise<Play> {

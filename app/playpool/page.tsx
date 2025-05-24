@@ -22,7 +22,8 @@ import {
   RefreshCw, 
   Loader2, 
   FileText,
-  HelpCircle 
+  HelpCircle,
+  ArrowLeftRight
 } from "lucide-react"
 import {
   Tooltip,
@@ -78,7 +79,6 @@ export default function PlayPoolPage() {
   const [motionPercentage, setMotionPercentage] = useState(() => load('motion_percentage', 25))
   const [editingPlay, setEditingPlay] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<Play>>({})
-  const [showCustomInput, setShowCustomInput] = useState<{ [key: string]: boolean }>({})
   const [analysis, setAnalysis] = useState<string | null>(null)
   
   // Add state for debug info
@@ -426,7 +426,9 @@ export default function PlayPoolPage() {
 
   const handleStartEdit = (play: Play) => {
     setEditingPlay(play.id)
-    setEditForm(play)
+    setEditForm({
+      customized_edit: play.customized_edit || formatPlay(play)
+    })
   }
 
   const handleCancelEdit = () => {
@@ -445,97 +447,21 @@ export default function PlayPoolPage() {
     }
   }
 
-  // Helper functions to get unique values for each field
-  const getUniqueValues = (field: keyof Play) => {
-    return Array.from(new Set(plays.map(play => play[field]).filter(Boolean))) as string[]
-  }
-
-  const handleCustomInputChange = (field: keyof Play, value: string) => {
-    setEditForm({ ...editForm, [field]: value })
-  }
-
-  const handleFieldChange = (field: keyof Play, value: string) => {
-    if (value === 'custom') {
-      setShowCustomInput({ ...showCustomInput, [field]: true })
-      return
-    }
-    setEditForm({ ...editForm, [field]: value })
-    setShowCustomInput({ ...showCustomInput, [field]: false })
-  }
-
-  const renderFieldSelect = (field: keyof Play, label: string, customPlaceholder: string) => {
-    const uniqueValues = getUniqueValues(field)
-    const currentValue = editForm[field] as string
-
-    if (showCustomInput[field]) {
-      return (
-        <div>
-          <Label>{label}</Label>
-          <div className="flex gap-2">
-            <Input
-              value={currentValue || ''}
-              placeholder={customPlaceholder}
-              onChange={(e) => handleCustomInputChange(field, e.target.value)}
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowCustomInput({ ...showCustomInput, [field]: false })}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div>
-        <Label>{label}</Label>
-        <Select
-          value={currentValue || ''}
-          onValueChange={(value) => handleFieldChange(field, value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
-          </SelectTrigger>
-          <SelectContent>
-            {uniqueValues.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-            <SelectItem value="custom" className="text-blue-600">
-              <Plus className="h-4 w-4 mr-2 inline-block" />
-              Add Custom {label}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-    )
-  }
-
   const renderPlayContent = (play: Play) => {
     if (editingPlay === play.id) {
       return (
         <div className="flex flex-col gap-2 w-full">
-          <div className="grid grid-cols-2 gap-2">
-            {renderFieldSelect('formation', 'Formation', 'Enter custom formation')}
-            {renderFieldSelect('tag', 'Tag', 'Enter custom tag')}
+          <div>
+            <Label>Play</Label>
+            <div className="flex gap-2">
+              <Input
+                value={editForm.customized_edit || formatPlay(play)}
+                onChange={(e) => setEditForm({ customized_edit: e.target.value })}
+                placeholder="Enter play"
+                className="flex-grow font-mono"
+              />
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {renderFieldSelect('strength', 'Strength', 'Enter custom strength')}
-            {renderFieldSelect('motion_shift', 'Motion/Shift', 'Enter custom motion or shift')}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {renderFieldSelect('concept', 'Concept', 'Enter custom concept')}
-            {renderFieldSelect('run_concept', 'Run Concept', 'Enter custom run concept')}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {renderFieldSelect('run_direction', 'Run Direction', 'Enter custom run direction')}
-            {renderFieldSelect('pass_screen_concept', 'Pass/Screen Concept', 'Enter custom pass/screen concept')}
-          </div>
-          {renderFieldSelect('screen_direction', 'Screen Direction', 'Enter custom screen direction')}
           
           <div className="flex justify-end gap-2 mt-2">
             <Button size="sm" variant="outline" onClick={handleCancelEdit}>
@@ -577,7 +503,7 @@ export default function PlayPoolPage() {
             </Button>
           </div>
           <span className="flex-grow font-mono text-sm">
-            {formatPlay(play)}
+            {play.customized_edit || formatPlay(play)}
             {play.front_beaters && (
               <TooltipProvider>
                 <Tooltip>
