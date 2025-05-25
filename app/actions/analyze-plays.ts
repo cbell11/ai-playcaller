@@ -12,6 +12,7 @@ interface ScoutingOption {
 
 interface ScoutingReport {
   team_id: string;
+  opponent_id: string;
   fronts: ScoutingOption[];
   coverages: ScoutingOption[];
   blitzes: ScoutingOption[];
@@ -244,6 +245,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       
       return {
         team_id: teamId,
+        opponent_id: scoutingReport.opponent_id,
         play_id: play.play_id,
         shifts: play.shifts,
         to_motions: play.to_motions,
@@ -251,8 +253,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         tags: play.tags,
         from_motions: play.from_motions,
         pass_protections: play.pass_protections,
-        concept: teamConcept, // Use translated concept
-        combined_call: formatCompletePlay({...play, concept: teamConcept}), // Update combined call with translated concept
+        concept: teamConcept,
+        combined_call: formatCompletePlay({...play, concept: teamConcept}),
         concept_tag: play.concept_tag,
         rpo_tag: play.rpo_tag,
         category: play.category,
@@ -272,11 +274,12 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       };
     });
 
-    // Delete any existing non-locked run plays for this team
+    // Delete any existing non-locked run plays for this team AND opponent
     const { error: deleteError } = await supabase
       .from('playpool')
       .delete()
       .eq('team_id', teamId)
+      .eq('opponent_id', scoutingReport.opponent_id)
       .in('category', ['run_game', 'front_beaters'])
       .eq('is_locked', false);
 

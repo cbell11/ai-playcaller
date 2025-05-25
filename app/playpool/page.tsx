@@ -345,9 +345,14 @@ export default function PlayPoolPage() {
         throw new Error('No team selected')
       }
 
+      if (!selectedOpponentId) {
+        throw new Error('No opponent selected')
+      }
+
       // Create scouting report object
       const scoutingReport = {
         team_id: selectedTeamId,
+        opponent_id: selectedOpponentId,
         fronts,
         coverages,
         blitzes,
@@ -356,7 +361,7 @@ export default function PlayPoolPage() {
         blitz_pct: blitzPct,
         overall_blitz_pct: overallBlitzPct,
         notes: '',
-        keep_locked_plays: true // Add flag to indicate we want to keep locked plays
+        keep_locked_plays: true
       }
 
       // Call analyze and update function
