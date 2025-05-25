@@ -117,11 +117,11 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       .map(([front, percentage]) => ({ front, percentage }))
       .sort((a, b) => b.percentage - a.percentage);
 
-    // Query master play pool for all run plays
+    // Query master play pool for all plays
     const { data: allMasterPlays, error: queryError } = await supabase
       .from('master_play_pool')
       .select('*')
-      .in('category', ['run_game', 'quick_game', 'front_beaters']);
+      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game', 'front_beaters']);
 
     if (queryError) {
       throw new Error(`Failed to query master plays: ${queryError.message}`);
@@ -151,18 +151,34 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
     // Target number of plays to select (15 minus the number of locked plays for each category)
     const lockedRunPlays = lockedPlays?.filter(play => play.category === 'run_game') || [];
+    const lockedRpoPlays = lockedPlays?.filter(play => play.category === 'rpo_game') || [];
     const lockedQuickPlays = lockedPlays?.filter(play => play.category === 'quick_game') || [];
+    const lockedDropbackPlays = lockedPlays?.filter(play => play.category === 'dropback_game') || [];
+    const lockedShotPlays = lockedPlays?.filter(play => play.category === 'shot_plays') || [];
+    const lockedScreenPlays = lockedPlays?.filter(play => play.category === 'screen_game') || [];
     
     const runPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedRunPlays.length);
+    const rpoPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedRpoPlays.length);
     const quickPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedQuickPlays.length);
+    const dropbackPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedDropbackPlays.length);
+    const shotPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedShotPlays.length);
+    const screenPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedScreenPlays.length);
 
     // Separate available plays by category
     const availableRunPlays = availableMasterPlays.filter(play => play.category === 'run_game');
+    const availableRpoPlays = availableMasterPlays.filter(play => play.category === 'rpo_game');
     const availableQuickPlays = availableMasterPlays.filter(play => play.category === 'quick_game');
+    const availableDropbackPlays = availableMasterPlays.filter(play => play.category === 'dropback_game');
+    const availableShotPlays = availableMasterPlays.filter(play => play.category === 'shot_plays');
+    const availableScreenPlays = availableMasterPlays.filter(play => play.category === 'screen_game');
 
     // Select plays based on front percentages
     let selectedRunPlays: any[] = [];
+    let selectedRpoPlays: any[] = [];
     let selectedQuickPlays: any[] = [];
+    let selectedDropbackPlays: any[] = [];
+    let selectedShotPlays: any[] = [];
+    let selectedScreenPlays: any[] = [];
     const selectedPlayIds = new Set<string>();
 
     // Helper function to select plays for a category
@@ -254,15 +270,28 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       }
     };
 
-    // Select plays for both categories
+    // Select plays for all categories
     selectPlaysForCategory(runPlaysToSelect, availableRunPlays, 'run_game', selectedRunPlays);
+    selectPlaysForCategory(rpoPlaysToSelect, availableRpoPlays, 'rpo_game', selectedRpoPlays);
     selectPlaysForCategory(quickPlaysToSelect, availableQuickPlays, 'quick_game', selectedQuickPlays);
+    selectPlaysForCategory(dropbackPlaysToSelect, availableDropbackPlays, 'dropback_game', selectedDropbackPlays);
+    selectPlaysForCategory(shotPlaysToSelect, availableShotPlays, 'shot_plays', selectedShotPlays);
+    selectPlaysForCategory(screenPlaysToSelect, availableScreenPlays, 'screen_game', selectedScreenPlays);
 
     // Combine all selected plays
-    const selectedPlays = [...selectedRunPlays, ...selectedQuickPlays];
+    const selectedPlays = [
+      ...selectedRunPlays,
+      ...selectedRpoPlays,
+      ...selectedQuickPlays,
+      ...selectedDropbackPlays,
+      ...selectedShotPlays,
+      ...selectedScreenPlays
+    ];
 
     // Calculate how many plays should have motion
-    const targetMotionPlays = Math.round((scoutingReport.motion_percentage / 100) * (runPlaysToSelect + quickPlaysToSelect));
+    const targetMotionPlays = Math.round((scoutingReport.motion_percentage / 100) * 
+      (runPlaysToSelect + rpoPlaysToSelect + quickPlaysToSelect + dropbackPlaysToSelect + 
+       shotPlaysToSelect + screenPlaysToSelect));
     
     // Sort plays by whether they have motion components
     const playsWithMotion = selectedPlays.filter(play => hasMotionComponents(play));
@@ -328,13 +357,13 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       };
     });
 
-    // Delete any existing non-locked run and quick plays for this team AND opponent
+    // Delete any existing non-locked plays for this team AND opponent
     const { error: deleteError } = await supabase
       .from('playpool')
       .delete()
       .eq('team_id', teamId)
       .eq('opponent_id', scoutingReport.opponent_id)
-      .in('category', ['run_game', 'quick_game', 'front_beaters'])
+      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game', 'front_beaters'])
       .eq('is_locked', false);
 
     if (deleteError) {
@@ -359,10 +388,18 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       success: true,
       data: true,
       analysis: `Successfully rebuilt playpool:\n` +
-        `- Kept ${lockedRunPlays.length} locked run plays and ${lockedQuickPlays.length} locked quick plays\n` +
-        `- Added ${selectedRunPlays.length} new run plays and ${selectedQuickPlays.length} new quick plays\n` +
+        `- Kept ${lockedRunPlays.length} locked run plays, ${lockedRpoPlays.length} locked RPO plays, ` +
+        `${lockedQuickPlays.length} locked quick plays, ${lockedDropbackPlays.length} locked dropback plays, ` +
+        `${lockedShotPlays.length} locked shot plays, and ${lockedScreenPlays.length} locked screen plays\n` +
+        `- Added ${selectedRunPlays.length} new run plays, ${selectedRpoPlays.length} new RPO plays, ` +
+        `${selectedQuickPlays.length} new quick plays, ${selectedDropbackPlays.length} new dropback plays, ` +
+        `${selectedShotPlays.length} new shot plays, and ${selectedScreenPlays.length} new screen plays\n` +
         `- Total run plays: ${lockedRunPlays.length + selectedRunPlays.length}\n` +
+        `- Total RPO plays: ${lockedRpoPlays.length + selectedRpoPlays.length}\n` +
         `- Total quick plays: ${lockedQuickPlays.length + selectedQuickPlays.length}\n` +
+        `- Total dropback plays: ${lockedDropbackPlays.length + selectedDropbackPlays.length}\n` +
+        `- Total shot plays: ${lockedShotPlays.length + selectedShotPlays.length}\n` +
+        `- Total screen plays: ${lockedScreenPlays.length + selectedScreenPlays.length}\n` +
         `- Target motion percentage: ${scoutingReport.motion_percentage}%\n` +
         `- Actual motion percentage: ${actualMotionPercentage.toFixed(1)}%\n\n` +
         `New plays were selected based on defensive front percentages and effectiveness.`
