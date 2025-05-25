@@ -298,14 +298,76 @@ export default function PlayPoolPage() {
     })
   }, [])
 
+  // Add effect to reload plays when opponent changes
   useEffect(() => {
-    loadPlays()
-  }, [])
+    console.log('Opponent selection changed:', {
+      selectedOpponentId,
+      selectedOpponentName,
+      localStorageOpponent: typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') : null
+    });
+    
+    if (selectedOpponentId) {
+      console.log('Loading plays for opponent:', selectedOpponentId);
+      loadPlays();
+    }
+  }, [selectedOpponentId, selectedOpponentName]);
+
+  // Add effect to reload plays when team changes
+  useEffect(() => {
+    console.log('Team selection changed:', {
+      selectedTeamId,
+      selectedTeamName,
+      localStorageTeam: typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') : null
+    });
+    
+    if (selectedTeamId) {
+      console.log('Loading plays for team:', selectedTeamId);
+      loadPlays();
+    }
+  }, [selectedTeamId, selectedTeamName]);
+
+  // Add effect to listen for opponent changes
+  useEffect(() => {
+    const handleOpponentChange = (event: CustomEvent) => {
+      const opponentId = event.detail?.opponentId;
+      console.log('Received opponentChanged event with ID:', opponentId);
+      
+      if (opponentId && opponentId !== selectedOpponentId) {
+        setSelectedOpponentId(opponentId);
+        
+        // Fetch opponent name
+        supabase
+          .from('opponents')
+          .select('name')
+          .eq('id', opponentId)
+          .single()
+          .then(({ data, error }) => {
+            if (!error && data) {
+              setSelectedOpponentName(data.name);
+            }
+          });
+      }
+    };
+
+    window.addEventListener('opponentChanged', handleOpponentChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('opponentChanged', handleOpponentChange as EventListener);
+    };
+  }, [selectedOpponentId, supabase]);
 
   const loadPlays = async () => {
     try {
       setLoading(true)
       setError(null)
+
+      // Log current state before loading
+      console.log('Loading plays with current state:', {
+        selectedTeamId,
+        selectedOpponentId,
+        localStorageTeam: typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') : null,
+        localStorageOpponent: typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') : null
+      });
 
       // First test connection
       console.log('Testing playpool connection...')
@@ -329,7 +391,19 @@ export default function PlayPoolPage() {
         timestamp: new Date().toISOString(),
         operation: 'loadPlays'
       })
-      setError(error instanceof Error ? error.message : 'An unexpected error occurred')
+
+      // Set user-friendly error message
+      let errorMessage = 'An unexpected error occurred'
+      if (error instanceof Error) {
+        if (error.message.includes('No team selected')) {
+          errorMessage = 'Please select a team from the sidebar first'
+        } else if (error.message.includes('No opponent selected')) {
+          errorMessage = 'Please select an opponent from the sidebar first'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
