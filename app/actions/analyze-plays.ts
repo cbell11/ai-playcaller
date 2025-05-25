@@ -21,6 +21,7 @@ interface ScoutingReport {
   blitz_pct: Record<string, number>;
   overall_blitz_pct: number;
   notes: string;
+  motion_percentage: number;
 }
 
 interface AnalyzePlayResponse {
@@ -37,13 +38,13 @@ interface Terminology {
 }
 
 // Helper function to format a complete play string
-function formatCompletePlay(play: any): string {
+function formatCompletePlay(play: any, includeMotion: boolean = true): string {
   const components = [
-    play.shifts,
-    play.to_motions,
+    includeMotion ? play.shifts : null,
+    includeMotion ? play.to_motions : null,
     play.formations,
     play.tags,
-    play.from_motions,
+    includeMotion ? play.from_motions : null,
     play.pass_protections,
     play.concept,
     play.concept_tag,
@@ -63,6 +64,11 @@ function formatFrontBeaters(frontBeaters: string, frontPercentages: { front: str
     const matchingFront = frontPercentages.find(fp => fp.front === front);
     return matchingFront ? `${front} (${matchingFront.percentage}%)` : front;
   }).join(', ');
+}
+
+// Helper function to determine if a play has motion components
+function hasMotionComponents(play: any): boolean {
+  return Boolean(play.shifts || play.to_motions || play.from_motions);
 }
 
 export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Promise<AnalyzePlayResponse> {
@@ -232,11 +238,36 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       }
     }
 
-    // Format complete play strings
-    const formattedPlays = selectedPlays.map(play => formatCompletePlay(play));
+    // Calculate how many plays should have motion
+    const targetMotionPlays = Math.round((scoutingReport.motion_percentage / 100) * playsToSelect);
+    
+    // Sort plays by whether they have motion components
+    const playsWithMotion = selectedPlays.filter(play => hasMotionComponents(play));
+    const playsWithoutMotion = selectedPlays.filter(play => !hasMotionComponents(play));
+    
+    // Determine which plays will show motion based on the target percentage
+    const finalPlays = selectedPlays.map(play => {
+      const hasMotion = hasMotionComponents(play);
+      let shouldShowMotion = hasMotion;
 
-    // Modify the playsToInsert mapping to translate concepts
-    const playsToInsert = selectedPlays.map(play => {
+      // If we have motion components but want less motion, sometimes hide them
+      if (hasMotion && playsWithMotion.length > targetMotionPlays) {
+        // Calculate probability of hiding motion to achieve target percentage
+        const hideMotionProbability = 1 - (targetMotionPlays / playsWithMotion.length);
+        shouldShowMotion = Math.random() > hideMotionProbability;
+      }
+
+      return {
+        ...play,
+        shouldShowMotion
+      };
+    });
+
+    // Format complete play strings with motion control
+    const formattedPlays = finalPlays.map(play => formatCompletePlay(play, play.shouldShowMotion));
+
+    // Prepare plays for insertion into team's play pool
+    const playsToInsert = finalPlays.map(play => {
       // Format front beaters with percentages
       const formattedFrontBeaters = formatFrontBeaters(play.front_beaters, frontPercentages);
       
@@ -247,14 +278,14 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         team_id: teamId,
         opponent_id: scoutingReport.opponent_id,
         play_id: play.play_id,
-        shifts: play.shifts,
-        to_motions: play.to_motions,
+        shifts: play.shouldShowMotion ? play.shifts : null,
+        to_motions: play.shouldShowMotion ? play.to_motions : null,
         formations: play.formations,
         tags: play.tags,
-        from_motions: play.from_motions,
+        from_motions: play.shouldShowMotion ? play.from_motions : null,
         pass_protections: play.pass_protections,
         concept: teamConcept,
-        combined_call: formatCompletePlay({...play, concept: teamConcept}),
+        combined_call: formatCompletePlay({...play, concept: teamConcept}, play.shouldShowMotion),
         concept_tag: play.concept_tag,
         rpo_tag: play.rpo_tag,
         category: play.category,
@@ -298,17 +329,18 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       }
     }
 
-    // Return success with analysis
-    const lockedCount = lockedRunPlays.length;
-    const newCount = selectedPlays.length;
+    // Update the analysis message to include motion information
+    const actualMotionPercentage = (finalPlays.filter(p => p.shouldShowMotion).length / finalPlays.length) * 100;
     
     return {
       success: true,
       data: true,
       analysis: `Successfully rebuilt playpool:\n` +
-        `- Kept ${lockedCount} locked run plays\n` +
-        `- Added ${newCount} new run plays\n` +
-        `- Total run plays: ${lockedCount + newCount}\n\n` +
+        `- Kept ${lockedRunPlays.length} locked run plays\n` +
+        `- Added ${selectedPlays.length} new run plays\n` +
+        `- Total run plays: ${lockedRunPlays.length + selectedPlays.length}\n` +
+        `- Target motion percentage: ${scoutingReport.motion_percentage}%\n` +
+        `- Actual motion percentage: ${actualMotionPercentage.toFixed(1)}%\n\n` +
         `New plays were selected based on defensive front percentages and effectiveness.`
     };
 

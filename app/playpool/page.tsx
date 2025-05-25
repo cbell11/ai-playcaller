@@ -360,6 +360,7 @@ export default function PlayPoolPage() {
         coverages_pct: coveragesPct,
         blitz_pct: blitzPct,
         overall_blitz_pct: overallBlitzPct,
+        motion_percentage: motionPercentage,
         notes: '',
         keep_locked_plays: true
       }
