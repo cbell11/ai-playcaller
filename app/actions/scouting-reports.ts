@@ -62,58 +62,24 @@ interface GetScoutingReportResult {
 // Function to save a scouting report
 export async function saveScoutingReport(params: SaveScoutingReportParams): Promise<SaveScoutingReportResult> {
   try {
-    // Initialize the Supabase client with server-side credentials
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Filter out unwanted fronts, coverages, and blitzes before saving
-    const filteredFronts = params.fronts.filter(front => !['Even', 'Odd'].includes(front.name));
-    const filteredCoverages = params.coverages.filter(coverage => 
-      !['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].includes(coverage.name)
-    );
-    const filteredBlitzes = params.blitzes.filter(blitz => {
-      const name = blitz.name.toLowerCase();
-      return !(
-        name === 'inside' || 
-        name === 'outside' || 
-        name === 'corner' || 
-        name === 'safety'
-      );
-    });
-    
-    // Clean up percentages for unwanted items
-    const filteredFrontPct = { ...params.fronts_pct };
-    ['Even', 'Odd'].forEach(frontName => {
-      delete filteredFrontPct[frontName];
-    });
-    
-    const filteredCoverPct = { ...params.coverages_pct };
-    ['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4'].forEach(coverageName => {
-      delete filteredCoverPct[coverageName];
-    });
-    
-    const filteredBlitzPct = { ...params.blitz_pct };
-    ['Inside', 'Outside', 'Corner', 'Safety', 'inside', 'outside', 'corner', 'safety'].forEach(blitzName => {
-      delete filteredBlitzPct[blitzName];
-    });
-
-    // Prepare report data
     const reportData = {
       team_id: params.team_id,
       opponent_id: params.opponent_id,
-      fronts: filteredFronts,
-      coverages: filteredCoverages,
-      blitzes: filteredBlitzes,
-      fronts_pct: filteredFrontPct,
-      coverages_pct: filteredCoverPct,
-      blitz_pct: filteredBlitzPct,
+      fronts: params.fronts,
+      coverages: params.coverages,
+      blitzes: params.blitzes,
+      fronts_pct: params.fronts_pct,
+      coverages_pct: params.coverages_pct,
+      blitz_pct: params.blitz_pct,
       overall_blitz_pct: params.overall_blitz_pct,
       notes: params.notes
     };
 
-    // Upsert the record (insert if not exists, update if exists)
     const { data, error } = await supabase
       .from('scouting_reports')
       .upsert(reportData, { 
@@ -132,7 +98,6 @@ export async function saveScoutingReport(params: SaveScoutingReportParams): Prom
       };
     }
 
-    // Return success response with data or undefined if no data returned
     return {
       success: true,
       data: data?.[0] as ScoutingReport | undefined
@@ -154,13 +119,11 @@ export async function getScoutingReport(
   opponent_id: string
 ): Promise<GetScoutingReportResult> {
   try {
-    // Initialize the Supabase client with server-side credentials
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Fetch the scouting report
     const { data, error } = await supabase
       .from('scouting_reports')
       .select('*')
@@ -168,7 +131,7 @@ export async function getScoutingReport(
       .eq('opponent_id', opponent_id)
       .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned" which is fine
+    if (error && error.code !== 'PGRST116') {
       console.error('Error fetching scouting report:', error);
       return {
         success: false,
@@ -180,7 +143,6 @@ export async function getScoutingReport(
       };
     }
 
-    // Return success response
     return {
       success: true,
       data: data as ScoutingReport | null
@@ -199,13 +161,11 @@ export async function getScoutingReport(
 // Function to list all scouting reports for a team
 export async function listTeamScoutingReports(team_id: string): Promise<GetScoutingReportResult> {
   try {
-    // Initialize the Supabase client with server-side credentials
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Fetch all scouting reports for the team
     const { data, error } = await supabase
       .from('scouting_reports')
       .select(`
@@ -230,7 +190,6 @@ export async function listTeamScoutingReports(team_id: string): Promise<GetScout
       };
     }
 
-    // Return success response
     return {
       success: true,
       data: data as any

@@ -796,6 +796,13 @@ export default function ScoutingPage() {
       console.log(`Saving data to database for team ${selectedTeamId} and opponent ${selectedOpponentId}`);
       console.log(`Data summary: fronts=${fronts.length}, coverages=${coverages.length}, blitzes=${blitzes.length}`);
       
+      // Add detailed logging of blitz data
+      console.log('Blitz data being saved:', {
+        blitzes: blitzes,
+        blitzPct: blitzPct,
+        overallBlitzPct: overallBlitzPct
+      });
+      
       const result = await saveScoutingReport({
         team_id: selectedTeamId,
         opponent_id: selectedOpponentId,
@@ -810,16 +817,18 @@ export default function ScoutingPage() {
       });
       
       if (result.success) {
+        console.log('Successfully saved data to database');
         setLastSaved(new Date());
         return { success: true };
       } else {
+        console.error('Failed to save data:', result.error);
         setSavingError(result.error?.message || 'Failed to save');
         return { success: false };
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-      setSavingError(errorMessage);
       console.error('Error saving to database:', error);
+      setSavingError(errorMessage);
       return { success: false };
     } finally {
       setIsSaving(false);
@@ -1313,6 +1322,13 @@ export default function ScoutingPage() {
             blitzes: result.data.blitzes?.length || 0
           });
           
+          // Add detailed logging of blitz data
+          console.log('Blitz data loaded from database:', {
+            blitzes: result.data.blitzes,
+            blitz_pct: result.data.blitz_pct,
+            overall_blitz_pct: result.data.overall_blitz_pct
+          });
+          
           // Make sure we're not setting undefined arrays
           const safeData = {
             fronts: Array.isArray(result.data.fronts) ? result.data.fronts : [],
@@ -1330,6 +1346,8 @@ export default function ScoutingPage() {
           console.log("FRONTS:", safeData.fronts.map(f => f.name));
           console.log("COVERAGES:", safeData.coverages.map(c => c.name));
           console.log("BLITZES:", safeData.blitzes.map(b => b.name));
+          console.log("BLITZ PERCENTAGES:", safeData.blitz_pct);
+          console.log("OVERALL BLITZ PERCENTAGE:", safeData.overall_blitz_pct);
           
           // Set state with the safe data
           setFronts(safeData.fronts);
@@ -1929,7 +1947,7 @@ export default function ScoutingPage() {
     setSelectedCoverageId("");
   };
 
-  // Add blitz from dialog - Remove selectedBlitzId parameter as it's provided by selector
+  // Add blitz from dialog
   const handleAddBlitz = (blitzId: string) => {
     if (!blitzId) {
       setErrorMessage("Please select a blitz to add");
@@ -1958,13 +1976,19 @@ export default function ScoutingPage() {
       fieldArea: "no_tendency"
     };
     
-    setBlitzes([...blitzes, newBlitz]);
+    // Update state
+    const newBlitzes = [...blitzes, newBlitz];
+    setBlitzes(newBlitzes);
     
     // Also initialize percentage
-    setBlitzPct({
-      ...blitzPct,
-      [blitz.name]: 0
-    });
+    const newBlitzPct = { ...blitzPct };
+    newBlitzPct[blitz.name] = 0;
+    setBlitzPct(newBlitzPct);
+    
+    // Save to database immediately
+    if (selectedTeamId && selectedOpponentId) {
+      saveToDatabase();
+    }
     
     // Close dialog and clear selection
     setShowAddBlitzDialog(false);
