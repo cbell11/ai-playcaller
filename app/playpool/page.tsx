@@ -37,6 +37,10 @@ import { load, save } from "@/lib/local"
 import { checkTableAccess } from "@/lib/supabase"
 import { analyzeAndUpdatePlays } from "@/app/actions/analyze-plays"
 
+interface ExtendedPlay extends Play {
+  combined_call?: string;
+}
+
 const CATEGORIES = {
   run_game: 'Run Game',
   quick_game: 'Quick Game',
@@ -45,7 +49,18 @@ const CATEGORIES = {
   screen_game: 'Screen Game'
 } as const
 
-function formatPlay(play: Play): string {
+function formatPlay(play: ExtendedPlay): string {
+  // First check for customized_edit
+  if (play.customized_edit) {
+    return play.customized_edit;
+  }
+  
+  // If no customized_edit, use combined_call
+  if (play.combined_call) {
+    return play.combined_call;
+  }
+
+  // Fallback to old format method if neither exists
   const parts = [
     play.formation,
     play.tag,
@@ -71,14 +86,14 @@ interface ScoutingOption {
 
 export default function PlayPoolPage() {
   const router = useRouter()
-  const [plays, setPlays] = useState<Play[]>([])
+  const [plays, setPlays] = useState<ExtendedPlay[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [clearingLocks, setClearingLocks] = useState(false)
   const [motionPercentage, setMotionPercentage] = useState(() => load('motion_percentage', 25))
   const [editingPlay, setEditingPlay] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<Partial<Play>>({})
+  const [editForm, setEditForm] = useState<Partial<ExtendedPlay>>({})
   const [analysis, setAnalysis] = useState<string | null>(null)
   
   // Add state for debug info
@@ -361,7 +376,7 @@ export default function PlayPoolPage() {
     }
   }
 
-  const handleTogglePlay = async (play: Play) => {
+  const handleTogglePlay = async (play: ExtendedPlay) => {
     try {
       const updatedPlay = await updatePlay(play.id, { is_enabled: !play.is_enabled })
       setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
@@ -370,7 +385,7 @@ export default function PlayPoolPage() {
     }
   }
 
-  const handleToggleFavorite = async (play: Play) => {
+  const handleToggleFavorite = async (play: ExtendedPlay) => {
     try {
       const updatedPlay = await toggleFavoritePlay(play.id, !play.is_favorite)
       setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
@@ -379,7 +394,7 @@ export default function PlayPoolPage() {
     }
   }
 
-  const handleToggleLock = async (play: Play) => {
+  const handleToggleLock = async (play: ExtendedPlay) => {
     try {
       const updatedPlay = await updatePlay(play.id, { is_locked: !play.is_locked })
       setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
@@ -424,7 +439,7 @@ export default function PlayPoolPage() {
     return categoryPlays;
   }
 
-  const handleStartEdit = (play: Play) => {
+  const handleStartEdit = (play: ExtendedPlay) => {
     setEditingPlay(play.id)
     setEditForm({
       customized_edit: play.customized_edit || formatPlay(play)
@@ -436,7 +451,7 @@ export default function PlayPoolPage() {
     setEditForm({})
   }
 
-  const handleSaveEdit = async (play: Play) => {
+  const handleSaveEdit = async (play: ExtendedPlay) => {
     try {
       const updatedPlay = await updatePlay(play.id, editForm)
       setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
@@ -447,7 +462,7 @@ export default function PlayPoolPage() {
     }
   }
 
-  const renderPlayContent = (play: Play) => {
+  const renderPlayContent = (play: ExtendedPlay) => {
     if (editingPlay === play.id) {
       return (
         <div className="flex flex-col gap-2 w-full">

@@ -30,6 +30,11 @@ interface AnalyzePlayResponse {
   analysis?: string;
 }
 
+interface Terminology {
+  concept: string;
+  label: string;
+}
+
 // Helper function to format a complete play string
 function formatCompletePlay(play: any): string {
   const components = [
@@ -70,6 +75,25 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     const teamId = scoutingReport.team_id;
     if (!teamId) throw new Error('No team_id provided');
 
+    // Constants
+    const TARGET_PLAYS = 15;
+
+    // Fetch team's terminology
+    const { data: teamTerminology, error: terminologyError } = await supabase
+      .from('terminology')
+      .select('concept, label')
+      .eq('team_id', teamId);
+
+    if (terminologyError) {
+      throw new Error(`Failed to fetch team terminology: ${terminologyError.message}`);
+    }
+
+    // Create a map of master concepts to team labels
+    const terminologyMap = new Map<string, string>();
+    teamTerminology?.forEach((term: Terminology) => {
+      terminologyMap.set(term.concept.toLowerCase(), term.label);
+    });
+
     // First, get all locked plays for this team
     const { data: lockedPlays, error: lockedPlaysError } = await supabase
       .from('playpool')
@@ -102,11 +126,24 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
     // Filter out any plays that are already locked
     const lockedPlayIds = new Set(lockedPlays?.map(play => play.play_id) || []);
-    const availableMasterPlays = allMasterPlays.filter(play => !lockedPlayIds.has(play.play_id));
+    let availableMasterPlays = allMasterPlays.filter(play => !lockedPlayIds.has(play.play_id));
+
+    // Modify the play selection logic to check terminology
+    availableMasterPlays = availableMasterPlays.filter(play => {
+      // Skip plays without concepts
+      if (!play.concept) return false;
+      
+      // Check if the concept exists in team's terminology
+      return terminologyMap.has(play.concept.toLowerCase());
+    });
+
+    // If we don't have enough plays with matching terminology, log a warning
+    if (availableMasterPlays.length < TARGET_PLAYS) {
+      console.warn(`Warning: Only ${availableMasterPlays.length} plays found with matching terminology out of ${allMasterPlays.length} total plays`);
+    }
 
     // Target number of plays to select (15 minus the number of locked run plays)
     const lockedRunPlays = lockedPlays?.filter(play => play.category === 'run_game') || [];
-    const TARGET_PLAYS = 15;
     const playsToSelect = Math.max(0, TARGET_PLAYS - lockedRunPlays.length);
 
     // Select plays based on front percentages
@@ -197,10 +234,13 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     // Format complete play strings
     const formattedPlays = selectedPlays.map(play => formatCompletePlay(play));
 
-    // Prepare plays for insertion into team's play pool
+    // Modify the playsToInsert mapping to translate concepts
     const playsToInsert = selectedPlays.map(play => {
       // Format front beaters with percentages
       const formattedFrontBeaters = formatFrontBeaters(play.front_beaters, frontPercentages);
+      
+      // Translate the concept to team's terminology
+      const teamConcept = play.concept ? terminologyMap.get(play.concept.toLowerCase()) || play.concept : play.concept;
       
       return {
         team_id: teamId,
@@ -211,7 +251,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         tags: play.tags,
         from_motions: play.from_motions,
         pass_protections: play.pass_protections,
-        concept: formatCompletePlay(play),
+        concept: teamConcept, // Use translated concept
+        combined_call: formatCompletePlay({...play, concept: teamConcept}), // Update combined call with translated concept
         concept_tag: play.concept_tag,
         rpo_tag: play.rpo_tag,
         category: play.category,
