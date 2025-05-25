@@ -35,6 +35,7 @@ interface AnalyzePlayResponse {
 interface Terminology {
   concept: string;
   label: string;
+  category: string;
 }
 
 // Helper function to format a complete play string
@@ -48,9 +49,9 @@ function formatCompletePlay(play: any, includeMotion: boolean = true): string {
     play.pass_protections,
     play.concept,
     play.concept_tag,
-    play.concept_direction,
+    play.category === 'screen_game' ? play.screen_direction : play.concept_direction,
     play.rpo_tag
-  ].filter(Boolean); // Remove any null/undefined/empty values
+  ].filter(Boolean);
 
   return components.join(" ");
 }
@@ -88,17 +89,31 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     // Fetch team's terminology
     const { data: teamTerminology, error: terminologyError } = await supabase
       .from('terminology')
-      .select('concept, label')
+      .select('concept, label, category')
       .eq('team_id', teamId);
 
     if (terminologyError) {
       throw new Error(`Failed to fetch team terminology: ${terminologyError.message}`);
     }
 
+    // Log terminology by category
+    const terminologyByCategory = {
+      run_game: teamTerminology?.filter(t => t.category === 'run_game').length || 0,
+      rpo_game: teamTerminology?.filter(t => t.category === 'rpo_game').length || 0,
+      quick_game: teamTerminology?.filter(t => t.category === 'quick_game').length || 0,
+      dropback_game: teamTerminology?.filter(t => t.category === 'dropback_game').length || 0,
+      shot_plays: teamTerminology?.filter(t => t.category === 'shot_plays').length || 0,
+      screen_game: teamTerminology?.filter(t => t.category === 'screen_game').length || 0
+    };
+    console.log('Terminology by category:', terminologyByCategory);
+
     // Create a map of master concepts to team labels
     const terminologyMap = new Map<string, string>();
     teamTerminology?.forEach((term: Terminology) => {
       terminologyMap.set(term.concept.toLowerCase(), term.label);
+      if (term.category === 'screen_game') {
+        console.log('Found screen game terminology:', term);
+      }
     });
 
     // First, get all locked plays for this team
@@ -117,11 +132,11 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       .map(([front, percentage]) => ({ front, percentage }))
       .sort((a, b) => b.percentage - a.percentage);
 
-    // Query master play pool for all plays
+    // Query master play pool for all run plays
     const { data: allMasterPlays, error: queryError } = await supabase
       .from('master_play_pool')
       .select('*')
-      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game', 'front_beaters']);
+      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game']);
 
     if (queryError) {
       throw new Error(`Failed to query master plays: ${queryError.message}`);
@@ -131,18 +146,54 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       throw new Error('No plays found in master play pool');
     }
 
+    // Log available plays by category
+    const playsByCategory = {
+      run_game: allMasterPlays.filter(p => p.category === 'run_game').length,
+      rpo_game: allMasterPlays.filter(p => p.category === 'rpo_game').length,
+      quick_game: allMasterPlays.filter(p => p.category === 'quick_game').length,
+      dropback_game: allMasterPlays.filter(p => p.category === 'dropback_game').length,
+      shot_plays: allMasterPlays.filter(p => p.category === 'shot_plays').length,
+      screen_game: allMasterPlays.filter(p => p.category === 'screen_game').length
+    };
+    console.log('Available plays by category:', playsByCategory);
+
     // Filter out any plays that are already locked
     const lockedPlayIds = new Set(lockedPlays?.map(play => play.play_id) || []);
     let availableMasterPlays = allMasterPlays.filter(play => !lockedPlayIds.has(play.play_id));
 
     // Modify the play selection logic to check terminology
     availableMasterPlays = availableMasterPlays.filter(play => {
-      // Skip plays without concepts
-      if (!play.concept) return false;
+      // For screen plays, check concept field
+      if (play.category === 'screen_game') {
+        if (!play.concept || !play.formations) {
+          console.log('Skipping screen play due to missing fields:', play);
+          return false;
+        }
+        // Check if the concept exists in team's terminology
+        const hasTerminology = terminologyMap.has(play.concept.toLowerCase());
+        if (!hasTerminology) {
+          console.log('Skipping screen play due to missing terminology:', play.concept);
+        }
+        return hasTerminology;
+      }
+      
+      // For other plays, check concept as before
+      if (!play.concept || !play.formations) return false;
       
       // Check if the concept exists in team's terminology
       return terminologyMap.has(play.concept.toLowerCase());
     });
+
+    // Log available plays after filtering
+    const availablePlaysByCategory = {
+      run_game: availableMasterPlays.filter(p => p.category === 'run_game').length,
+      rpo_game: availableMasterPlays.filter(p => p.category === 'rpo_game').length,
+      quick_game: availableMasterPlays.filter(p => p.category === 'quick_game').length,
+      dropback_game: availableMasterPlays.filter(p => p.category === 'dropback_game').length,
+      shot_plays: availableMasterPlays.filter(p => p.category === 'shot_plays').length,
+      screen_game: availableMasterPlays.filter(p => p.category === 'screen_game').length
+    };
+    console.log('Available plays after filtering by category:', availablePlaysByCategory);
 
     // If we don't have enough plays with matching terminology, log a warning
     if (availableMasterPlays.length < TARGET_PLAYS) {
@@ -323,10 +374,11 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       // Format front beaters with percentages
       const formattedFrontBeaters = formatFrontBeaters(play.front_beaters, frontPercentages);
       
-      // Translate the concept to team's terminology
+      // For screen plays, use the concept field
+      const isScreenPlay = play.category === 'screen_game';
       const teamConcept = play.concept ? terminologyMap.get(play.concept.toLowerCase()) || play.concept : play.concept;
       
-      return {
+      const playToInsert = {
         team_id: teamId,
         opponent_id: scoutingReport.opponent_id,
         play_id: play.play_id,
@@ -349,12 +401,18 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         front_beaters: formattedFrontBeaters,
         coverage_beaters: play.coverage_beaters,
         blitz_beaters: play.blitz_beaters,
-        concept_direction: play.concept_direction,
+        concept_direction: isScreenPlay ? play.screen_direction : play.concept_direction,
         notes: `Selected based on defensive fronts: ${frontPercentages.map(fp => `${fp.front} (${fp.percentage}%)`).join(', ')}`,
         is_enabled: true,
         is_locked: false,
         is_favorite: false
       };
+
+      if (isScreenPlay) {
+        console.log('Inserting screen play:', playToInsert);
+      }
+
+      return playToInsert;
     });
 
     // Delete any existing non-locked plays for this team AND opponent
