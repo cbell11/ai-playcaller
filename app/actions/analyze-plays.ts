@@ -121,7 +121,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     const { data: allMasterPlays, error: queryError } = await supabase
       .from('master_play_pool')
       .select('*')
-      .in('category', ['run_game', 'front_beaters']);
+      .in('category', ['run_game', 'quick_game', 'front_beaters']);
 
     if (queryError) {
       throw new Error(`Failed to query master plays: ${queryError.message}`);
@@ -149,97 +149,120 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       console.warn(`Warning: Only ${availableMasterPlays.length} plays found with matching terminology out of ${allMasterPlays.length} total plays`);
     }
 
-    // Target number of plays to select (15 minus the number of locked run plays)
+    // Target number of plays to select (15 minus the number of locked plays for each category)
     const lockedRunPlays = lockedPlays?.filter(play => play.category === 'run_game') || [];
-    const playsToSelect = Math.max(0, TARGET_PLAYS - lockedRunPlays.length);
+    const lockedQuickPlays = lockedPlays?.filter(play => play.category === 'quick_game') || [];
+    
+    const runPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedRunPlays.length);
+    const quickPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedQuickPlays.length);
+
+    // Separate available plays by category
+    const availableRunPlays = availableMasterPlays.filter(play => play.category === 'run_game');
+    const availableQuickPlays = availableMasterPlays.filter(play => play.category === 'quick_game');
 
     // Select plays based on front percentages
-    let selectedPlays: any[] = [];
+    let selectedRunPlays: any[] = [];
+    let selectedQuickPlays: any[] = [];
     const selectedPlayIds = new Set<string>();
 
-    for (const { front, percentage } of frontPercentages) {
-      // Calculate how many plays we should select for this front
-      const playsForFront = Math.round((percentage / 100) * playsToSelect);
-      
-      if (playsForFront === 0) continue;
+    // Helper function to select plays for a category
+    const selectPlaysForCategory = (
+      playsToSelect: number,
+      availablePlays: any[],
+      category: string,
+      selectedPlaysArray: any[]
+    ) => {
+      for (const { front, percentage } of frontPercentages) {
+        // Calculate how many plays we should select for this front
+        const playsForFront = Math.round((percentage / 100) * playsToSelect);
+        
+        if (playsForFront === 0) continue;
 
-      // Find plays that beat this front (excluding already selected plays)
-      const frontBeaters = availableMasterPlays.filter(play => {
-        if (selectedPlayIds.has(play.play_id)) return false;
-        const frontBeatersList = play.front_beaters ? play.front_beaters.split(',').map((f: string) => f.trim()) : [];
-        return frontBeatersList.includes(front);
-      });
+        // Find plays that beat this front (excluding already selected plays)
+        const frontBeaters = availablePlays.filter(play => {
+          if (selectedPlayIds.has(play.play_id)) return false;
+          const frontBeatersList = play.front_beaters ? play.front_beaters.split(',').map((f: string) => f.trim()) : [];
+          return frontBeatersList.includes(front);
+        });
 
-      // If we don't have enough front beaters, also include some general run plays
-      const generalRunPlays = availableMasterPlays.filter(play => 
-        !selectedPlayIds.has(play.play_id) &&
-        play.category === 'run_game' && 
-        (!play.front_beaters || play.front_beaters === '')
-      );
+        // If we don't have enough front beaters, also include some general plays
+        const generalPlays = availablePlays.filter(play => 
+          !selectedPlayIds.has(play.play_id) &&
+          play.category === category && 
+          (!play.front_beaters || play.front_beaters === '')
+        );
 
-      // Randomly select plays, prioritizing front beaters
-      let playsToAdd: any[] = [];
-      
-      if (frontBeaters.length > 0) {
-        // Use 70% front beaters and 30% general runs if possible
-        const frontBeaterCount = Math.ceil(playsForFront * 0.7);
-        const generalRunCount = playsForFront - frontBeaterCount;
+        // Randomly select plays, prioritizing front beaters
+        let playsToAdd: any[] = [];
+        
+        if (frontBeaters.length > 0) {
+          // Use 70% front beaters and 30% general plays if possible
+          const frontBeaterCount = Math.ceil(playsForFront * 0.7);
+          const generalPlayCount = playsForFront - frontBeaterCount;
 
-        // Randomly select front beaters
-        for (let i = 0; i < frontBeaterCount && frontBeaters.length > 0; i++) {
-          const randomIndex = Math.floor(Math.random() * frontBeaters.length);
-          const selectedPlay = frontBeaters.splice(randomIndex, 1)[0];
-          if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
-            playsToAdd.push(selectedPlay);
-            selectedPlayIds.add(selectedPlay.play_id);
+          // Randomly select front beaters
+          for (let i = 0; i < frontBeaterCount && frontBeaters.length > 0; i++) {
+            const randomIndex = Math.floor(Math.random() * frontBeaters.length);
+            const selectedPlay = frontBeaters.splice(randomIndex, 1)[0];
+            if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
+              playsToAdd.push(selectedPlay);
+              selectedPlayIds.add(selectedPlay.play_id);
+            }
+          }
+
+          // Add some general plays
+          for (let i = 0; i < generalPlayCount && generalPlays.length > 0; i++) {
+            const randomIndex = Math.floor(Math.random() * generalPlays.length);
+            const selectedPlay = generalPlays.splice(randomIndex, 1)[0];
+            if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
+              playsToAdd.push(selectedPlay);
+              selectedPlayIds.add(selectedPlay.play_id);
+            }
+          }
+        } else {
+          // If no front beaters, just use general plays
+          for (let i = 0; i < playsForFront && generalPlays.length > 0; i++) {
+            const randomIndex = Math.floor(Math.random() * generalPlays.length);
+            const selectedPlay = generalPlays.splice(randomIndex, 1)[0];
+            if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
+              playsToAdd.push(selectedPlay);
+              selectedPlayIds.add(selectedPlay.play_id);
+            }
           }
         }
 
-        // Add some general run plays
-        for (let i = 0; i < generalRunCount && generalRunPlays.length > 0; i++) {
-          const randomIndex = Math.floor(Math.random() * generalRunPlays.length);
-          const selectedPlay = generalRunPlays.splice(randomIndex, 1)[0];
-          if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
-            playsToAdd.push(selectedPlay);
-            selectedPlayIds.add(selectedPlay.play_id);
-          }
-        }
-      } else {
-        // If no front beaters, just use general run plays
-        for (let i = 0; i < playsForFront && generalRunPlays.length > 0; i++) {
-          const randomIndex = Math.floor(Math.random() * generalRunPlays.length);
-          const selectedPlay = generalRunPlays.splice(randomIndex, 1)[0];
-          if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
-            playsToAdd.push(selectedPlay);
+        // Add selected plays to our final list
+        selectedPlaysArray.push(...playsToAdd);
+      }
+
+      // Ensure we have enough plays by adding general plays if needed
+      if (selectedPlaysArray.length < playsToSelect) {
+        const remainingPlays = playsToSelect - selectedPlaysArray.length;
+        const availableGeneralPlays = availablePlays.filter(play => 
+          !selectedPlayIds.has(play.play_id) &&
+          play.category === category
+        );
+
+        for (let i = 0; i < remainingPlays && availableGeneralPlays.length > 0; i++) {
+          const randomIndex = Math.floor(Math.random() * availableGeneralPlays.length);
+          const selectedPlay = availableGeneralPlays.splice(randomIndex, 1)[0];
+          if (selectedPlay) {
+            selectedPlaysArray.push(selectedPlay);
             selectedPlayIds.add(selectedPlay.play_id);
           }
         }
       }
+    };
 
-      // Add selected plays to our final list
-      selectedPlays = [...selectedPlays, ...playsToAdd];
-    }
+    // Select plays for both categories
+    selectPlaysForCategory(runPlaysToSelect, availableRunPlays, 'run_game', selectedRunPlays);
+    selectPlaysForCategory(quickPlaysToSelect, availableQuickPlays, 'quick_game', selectedQuickPlays);
 
-    // Ensure we have enough plays by adding general run plays if needed
-    if (selectedPlays.length < playsToSelect) {
-      const remainingPlays = playsToSelect - selectedPlays.length;
-      const availableRunPlays = availableMasterPlays.filter(play => 
-        !selectedPlayIds.has(play.play_id) &&
-        play.category === 'run_game'
-      );
-
-      for (let i = 0; i < remainingPlays && availableRunPlays.length > 0; i++) {
-        const randomIndex = Math.floor(Math.random() * availableRunPlays.length);
-        const selectedPlay = availableRunPlays.splice(randomIndex, 1)[0];
-        if (selectedPlay) {
-          selectedPlays.push(selectedPlay);
-          selectedPlayIds.add(selectedPlay.play_id);
-        }
-      }
-    }
+    // Combine all selected plays
+    const selectedPlays = [...selectedRunPlays, ...selectedQuickPlays];
 
     // Calculate how many plays should have motion
-    const targetMotionPlays = Math.round((scoutingReport.motion_percentage / 100) * playsToSelect);
+    const targetMotionPlays = Math.round((scoutingReport.motion_percentage / 100) * (runPlaysToSelect + quickPlaysToSelect));
     
     // Sort plays by whether they have motion components
     const playsWithMotion = selectedPlays.filter(play => hasMotionComponents(play));
@@ -305,13 +328,13 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       };
     });
 
-    // Delete any existing non-locked run plays for this team AND opponent
+    // Delete any existing non-locked run and quick plays for this team AND opponent
     const { error: deleteError } = await supabase
       .from('playpool')
       .delete()
       .eq('team_id', teamId)
       .eq('opponent_id', scoutingReport.opponent_id)
-      .in('category', ['run_game', 'front_beaters'])
+      .in('category', ['run_game', 'quick_game', 'front_beaters'])
       .eq('is_locked', false);
 
     if (deleteError) {
@@ -336,9 +359,10 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       success: true,
       data: true,
       analysis: `Successfully rebuilt playpool:\n` +
-        `- Kept ${lockedRunPlays.length} locked run plays\n` +
-        `- Added ${selectedPlays.length} new run plays\n` +
-        `- Total run plays: ${lockedRunPlays.length + selectedPlays.length}\n` +
+        `- Kept ${lockedRunPlays.length} locked run plays and ${lockedQuickPlays.length} locked quick plays\n` +
+        `- Added ${selectedRunPlays.length} new run plays and ${selectedQuickPlays.length} new quick plays\n` +
+        `- Total run plays: ${lockedRunPlays.length + selectedRunPlays.length}\n` +
+        `- Total quick plays: ${lockedQuickPlays.length + selectedQuickPlays.length}\n` +
         `- Target motion percentage: ${scoutingReport.motion_percentage}%\n` +
         `- Actual motion percentage: ${actualMotionPercentage.toFixed(1)}%\n\n` +
         `New plays were selected based on defensive front percentages and effectiveness.`
