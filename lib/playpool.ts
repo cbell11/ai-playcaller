@@ -45,6 +45,27 @@ interface Front {
   notes?: string;
 }
 
+// Add interfaces for defensive data
+interface DefensivePercentage {
+  percentage: number;
+}
+
+interface CoveragePercentage extends DefensivePercentage {
+  coverage: string;
+}
+
+interface FrontPercentage extends DefensivePercentage {
+  front: string;
+}
+
+interface ScoutingOption {
+  name: string;
+  id?: string;
+  fieldArea?: string;
+  dominateDown?: string;
+  notes?: string;
+}
+
 export async function testPlayPoolConnection(): Promise<boolean> {
   try {
     console.log('Testing playpool table connection...')
@@ -85,6 +106,8 @@ export async function getPlayPool(): Promise<Play[]> {
     const team_id = typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') : null
     const opponent_id = typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') : null
 
+    console.log('Current IDs:', { team_id, opponent_id, window: typeof window });
+
     if (!team_id) {
       throw new Error('No team selected')
     }
@@ -95,7 +118,8 @@ export async function getPlayPool(): Promise<Play[]> {
 
     console.log('Fetching plays for team:', team_id, 'and opponent:', opponent_id)
 
-    const { data, error } = await supabase
+    // Get the plays first
+    const { data: plays, error } = await supabase
       .from('playpool')
       .select('*')
       .eq('team_id', team_id)
@@ -114,10 +138,176 @@ export async function getPlayPool(): Promise<Play[]> {
       throw error
     }
     
-    return data || []
+    // If we have no plays, return empty array
+    if (!plays) return [];
+
+    try {
+      console.log('Fetching scouting report for:', { team_id, opponent_id });
+      
+      // Then get the scouting report to get current defensive data
+      const scoutingResponse = await supabase
+        .from('scouting_reports')
+        .select('*')
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .single();
+
+      // Log the raw response for debugging
+      console.log('Raw scouting response:', {
+        status: scoutingResponse.status,
+        statusText: scoutingResponse.statusText,
+        hasError: !!scoutingResponse.error,
+        hasData: !!scoutingResponse.data,
+        errorType: scoutingResponse.error ? typeof scoutingResponse.error : 'no error'
+      });
+
+      if (scoutingResponse.error) {
+        // Handle specific error cases
+        if (scoutingResponse.error.code === 'PGRST116') {
+          console.log('No scouting report found for this team/opponent combination');
+          return plays;
+        }
+
+        // For other errors, log details and return unformatted plays
+        console.warn('Scouting report fetch error:', {
+          status: scoutingResponse.status,
+          code: scoutingResponse.error.code,
+          message: scoutingResponse.error.message,
+          details: scoutingResponse.error.details,
+          hint: scoutingResponse.error.hint
+        });
+        
+        return plays;
+      }
+
+      const scoutingData = scoutingResponse.data;
+
+      if (!scoutingData) {
+        console.log('No scouting report data available:', {
+          response: scoutingResponse,
+          team_id,
+          opponent_id
+        });
+        return plays;
+      }
+
+      // Log scouting data structure
+      console.log('Scouting data structure:', {
+        hasData: !!scoutingData,
+        keys: Object.keys(scoutingData),
+        frontsCount: scoutingData.fronts?.length,
+        coveragesCount: scoutingData.coverages?.length,
+        hasFrontsPct: !!scoutingData.fronts_pct,
+        hasCoveragesPct: !!scoutingData.coverages_pct
+      });
+
+      // Validate scouting data structure
+      if (!scoutingData.fronts || !scoutingData.coverages || !scoutingData.fronts_pct || !scoutingData.coverages_pct) {
+        console.warn('Invalid scouting report structure:', {
+          hasFronts: !!scoutingData.fronts,
+          hasCoverages: !!scoutingData.coverages,
+          hasFrontsPct: !!scoutingData.fronts_pct,
+          hasCoveragesPct: !!scoutingData.coverages_pct,
+          dataKeys: Object.keys(scoutingData)
+        });
+        return plays;
+      }
+
+      // Format the beaters for each play based on current defensive data
+      const formattedPlays = plays.map(play => {
+        const isPassPlay = ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(play.category);
+        
+        try {
+          // Ensure beaters are properly formatted
+          if (isPassPlay && play.coverage_beaters) {
+            // For pass plays, format coverage beaters
+            const coverages: ScoutingOption[] = scoutingData.coverages || [];
+            const coveragesPct = scoutingData.coverages_pct || {};
+            const coveragePercentages: CoveragePercentage[] = Object.entries(coveragesPct)
+              .map(([coverage, percentage]) => ({ coverage, percentage: Number(percentage) }))
+              .sort((a, b) => b.percentage - a.percentage);
+
+            // Only include beaters that match current coverages
+            const currentCoverages = new Set(coverages.map((c: ScoutingOption) => c.name.toLowerCase()));
+            const beatersList = play.coverage_beaters.split(',')
+              .map((c: string) => c.trim())
+              .filter((c: string) => currentCoverages.has(c.toLowerCase()));
+            
+            play.coverage_beaters = beatersList.join(', ');
+          } else if (!isPassPlay && play.front_beaters) {
+            // For run plays, format front beaters
+            const fronts: ScoutingOption[] = scoutingData.fronts || [];
+            const frontsPct = scoutingData.fronts_pct || {};
+            const frontPercentages: FrontPercentage[] = Object.entries(frontsPct)
+              .map(([front, percentage]) => ({ front, percentage: Number(percentage) }))
+              .sort((a, b) => b.percentage - a.percentage);
+
+            // Only include beaters that match current fronts
+            const currentFronts = new Set(fronts.map((f: ScoutingOption) => f.name.toLowerCase()));
+            const beatersList = play.front_beaters.split(',')
+              .map((f: string) => f.trim())
+              .filter((f: string) => currentFronts.has(f.toLowerCase()));
+            
+            play.front_beaters = beatersList.join(', ');
+          }
+
+          // If no beaters after filtering, use most common defense
+          if (isPassPlay && !play.coverage_beaters) {
+            const coveragesPct = scoutingData.coverages_pct || {};
+            const mostCommonCoverage = Object.entries(coveragesPct)
+              .sort((a, b) => Number(b[1]) - Number(a[1]))[0];
+            if (mostCommonCoverage) {
+              play.coverage_beaters = mostCommonCoverage[0];
+            }
+          } else if (!isPassPlay && !play.front_beaters) {
+            const frontsPct = scoutingData.fronts_pct || {};
+            const mostCommonFront = Object.entries(frontsPct)
+              .sort((a, b) => Number(b[1]) - Number(a[1]))[0];
+            if (mostCommonFront) {
+              play.front_beaters = mostCommonFront[0];
+            }
+          }
+        } catch (formatError) {
+          console.error('Error formatting beaters for play:', {
+            playId: play.id,
+            category: play.category,
+            error: formatError instanceof Error ? {
+              message: formatError.message,
+              stack: formatError.stack
+            } : formatError
+          });
+          // Return the play without modifying beaters if there's an error
+        }
+
+        return play;
+      });
+      
+      return formattedPlays;
+    } catch (scoutingError) {
+      // Log the error but don't fail the whole operation
+      console.warn('Error handling scouting data:', {
+        error: scoutingError instanceof Error ? {
+          message: scoutingError.message,
+          stack: scoutingError.stack,
+          name: scoutingError.name
+        } : scoutingError,
+        type: typeof scoutingError,
+        stringified: JSON.stringify(scoutingError)
+      });
+      // Return unformatted plays if there's an error with scouting data
+      return plays;
+    }
   } catch (error) {
-    console.error('Error in getPlayPool:', error)
-    throw error
+    console.error('Error in getPlayPool:', {
+      error: error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : error,
+      type: typeof error,
+      stringified: JSON.stringify(error)
+    });
+    throw error;
   }
 }
 
