@@ -49,7 +49,7 @@ function formatCompletePlay(play: any, includeMotion: boolean = true): string {
     play.pass_protections,
     play.concept,
     play.concept_tag,
-    play.category === 'screen_game' ? play.screen_direction : play.concept_direction,
+    play.concept_direction,
     play.rpo_tag
   ].filter(Boolean);
 
@@ -67,9 +67,25 @@ function formatFrontBeaters(frontBeaters: string, frontPercentages: { front: str
   }).join(', ');
 }
 
+// Helper function to format coverage beaters with percentages
+function formatCoverageBeaters(coverageBeaters: string, coveragePercentages: { coverage: string; percentage: number }[]): string {
+  if (!coverageBeaters) return '';
+  
+  const beatersList = coverageBeaters.split(',').map(c => c.trim());
+  return beatersList.map(coverage => {
+    const matchingCoverage = coveragePercentages.find(cp => cp.coverage === coverage);
+    return matchingCoverage ? `${coverage} (${matchingCoverage.percentage}%)` : coverage;
+  }).join(', ');
+}
+
 // Helper function to determine if a play has motion components
 function hasMotionComponents(play: any): boolean {
   return Boolean(play.shifts || play.to_motions || play.from_motions);
+}
+
+// Helper function to determine if a category is a pass play category
+function isPassPlayCategory(category: string): boolean {
+  return ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(category);
 }
 
 export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Promise<AnalyzePlayResponse> {
@@ -84,7 +100,14 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     if (!teamId) throw new Error('No team_id provided');
 
     // Constants
-    const TARGET_PLAYS = 15;
+    const TARGET_PLAYS = {
+      run_game: 15,
+      rpo_game: 15,
+      quick_game: 15,
+      dropback_game: 15,
+      shot_plays: 15,
+      screen_game: 15
+    };
 
     // Fetch team's terminology
     const { data: teamTerminology, error: terminologyError } = await supabase
@@ -111,10 +134,10 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     const terminologyMap = new Map<string, string>();
     teamTerminology?.forEach((term: Terminology) => {
       terminologyMap.set(term.concept.toLowerCase(), term.label);
-      if (term.category === 'screen_game') {
-        console.log('Found screen game terminology:', term);
-      }
     });
+
+    // Log terminology map for debugging
+    console.log('Terminology map:', Array.from(terminologyMap.entries()));
 
     // First, get all locked plays for this team
     const { data: lockedPlays, error: lockedPlaysError } = await supabase
@@ -132,7 +155,12 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       .map(([front, percentage]) => ({ front, percentage }))
       .sort((a, b) => b.percentage - a.percentage);
 
-    // Query master play pool for all run plays
+    // Get all coverages and their percentages
+    const coveragePercentages = Object.entries(scoutingReport.coverages_pct)
+      .map(([coverage, percentage]) => ({ coverage, percentage }))
+      .sort((a, b) => b.percentage - a.percentage);
+
+    // Query master play pool for all plays including screen plays
     const { data: allMasterPlays, error: queryError } = await supabase
       .from('master_play_pool')
       .select('*')
@@ -146,16 +174,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       throw new Error('No plays found in master play pool');
     }
 
-    // Log available plays by category
-    const playsByCategory = {
-      run_game: allMasterPlays.filter(p => p.category === 'run_game').length,
-      rpo_game: allMasterPlays.filter(p => p.category === 'rpo_game').length,
-      quick_game: allMasterPlays.filter(p => p.category === 'quick_game').length,
-      dropback_game: allMasterPlays.filter(p => p.category === 'dropback_game').length,
-      shot_plays: allMasterPlays.filter(p => p.category === 'shot_plays').length,
-      screen_game: allMasterPlays.filter(p => p.category === 'screen_game').length
-    };
-    console.log('Available plays by category:', playsByCategory);
+    // Log all screen plays from master pool for debugging
+    console.log('All screen plays from master pool:', allMasterPlays.filter(p => p.category === 'screen_game'));
 
     // Filter out any plays that are already locked
     const lockedPlayIds = new Set(lockedPlays?.map(play => play.play_id) || []);
@@ -163,29 +183,31 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
     // Modify the play selection logic to check terminology
     availableMasterPlays = availableMasterPlays.filter(play => {
-      // For screen plays, check concept field
-      if (play.category === 'screen_game') {
-        if (!play.concept || !play.formations) {
-          console.log('Skipping screen play due to missing fields:', play);
-          return false;
-        }
-        // Check if the concept exists in team's terminology
-        const hasTerminology = terminologyMap.has(play.concept.toLowerCase());
-        if (!hasTerminology) {
-          console.log('Skipping screen play due to missing terminology:', play.concept);
-        }
-        return hasTerminology;
+      // Skip plays without required fields
+      if (!play.concept || !play.formations) {
+        console.log('Skipping play due to missing required fields:', play);
+        return false;
       }
-      
-      // For other plays, check concept as before
-      if (!play.concept || !play.formations) return false;
-      
+
+      // Special handling for screen plays - allow them through without strict terminology matching
+      if (play.category === 'screen_game') {
+        return true;
+      }
+
       // Check if the concept exists in team's terminology
-      return terminologyMap.has(play.concept.toLowerCase());
+      const hasTerminology = terminologyMap.has(play.concept.toLowerCase());
+      if (!hasTerminology) {
+        console.log('Skipping play due to missing terminology:', {
+          category: play.category,
+          concept: play.concept,
+          availableTerminology: Array.from(terminologyMap.keys())
+        });
+      }
+      return hasTerminology;
     });
 
-    // Log available plays after filtering
-    const availablePlaysByCategory = {
+    // Log available plays by category
+    const playsByCategory = {
       run_game: availableMasterPlays.filter(p => p.category === 'run_game').length,
       rpo_game: availableMasterPlays.filter(p => p.category === 'rpo_game').length,
       quick_game: availableMasterPlays.filter(p => p.category === 'quick_game').length,
@@ -193,10 +215,11 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       shot_plays: availableMasterPlays.filter(p => p.category === 'shot_plays').length,
       screen_game: availableMasterPlays.filter(p => p.category === 'screen_game').length
     };
-    console.log('Available plays after filtering by category:', availablePlaysByCategory);
+    console.log('Available plays by category:', playsByCategory);
+    console.log('Available screen plays after filtering:', availableMasterPlays.filter(p => p.category === 'screen_game'));
 
     // If we don't have enough plays with matching terminology, log a warning
-    if (availableMasterPlays.length < TARGET_PLAYS) {
+    if (availableMasterPlays.length < TARGET_PLAYS.run_game) {
       console.warn(`Warning: Only ${availableMasterPlays.length} plays found with matching terminology out of ${allMasterPlays.length} total plays`);
     }
 
@@ -208,12 +231,12 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     const lockedShotPlays = lockedPlays?.filter(play => play.category === 'shot_plays') || [];
     const lockedScreenPlays = lockedPlays?.filter(play => play.category === 'screen_game') || [];
     
-    const runPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedRunPlays.length);
-    const rpoPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedRpoPlays.length);
-    const quickPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedQuickPlays.length);
-    const dropbackPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedDropbackPlays.length);
-    const shotPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedShotPlays.length);
-    const screenPlaysToSelect = Math.max(0, TARGET_PLAYS - lockedScreenPlays.length);
+    const runPlaysToSelect = Math.max(0, TARGET_PLAYS.run_game - lockedRunPlays.length);
+    const rpoPlaysToSelect = Math.max(0, TARGET_PLAYS.rpo_game - lockedRpoPlays.length);
+    const quickPlaysToSelect = Math.max(0, TARGET_PLAYS.quick_game - lockedQuickPlays.length);
+    const dropbackPlaysToSelect = Math.max(0, TARGET_PLAYS.dropback_game - lockedDropbackPlays.length);
+    const shotPlaysToSelect = Math.max(0, TARGET_PLAYS.shot_plays - lockedShotPlays.length);
+    const screenPlaysToSelect = Math.max(0, TARGET_PLAYS.screen_game - lockedScreenPlays.length);
 
     // Separate available plays by category
     const availableRunPlays = availableMasterPlays.filter(play => play.category === 'run_game');
@@ -223,7 +246,9 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     const availableShotPlays = availableMasterPlays.filter(play => play.category === 'shot_plays');
     const availableScreenPlays = availableMasterPlays.filter(play => play.category === 'screen_game');
 
-    // Select plays based on front percentages
+    console.log('Screen plays available for selection:', availableScreenPlays.length);
+
+    // Select plays based on defensive tendencies
     let selectedRunPlays: any[] = [];
     let selectedRpoPlays: any[] = [];
     let selectedQuickPlays: any[] = [];
@@ -232,87 +257,125 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     let selectedScreenPlays: any[] = [];
     const selectedPlayIds = new Set<string>();
 
-    // Helper function to select plays for a category
     const selectPlaysForCategory = (
       playsToSelect: number,
       availablePlays: any[],
       category: string,
       selectedPlaysArray: any[]
     ) => {
-      for (const { front, percentage } of frontPercentages) {
-        // Calculate how many plays we should select for this front
-        const playsForFront = Math.round((percentage / 100) * playsToSelect);
-        
-        if (playsForFront === 0) continue;
+      const isPassPlay = isPassPlayCategory(category);
+      const defensePercentages = isPassPlay ? coveragePercentages : frontPercentages;
+      
+      // Special handling for screen plays
+      if (category === 'screen_game') {
+        console.log('Selecting screen plays:', {
+          playsToSelect,
+          availablePlays: availablePlays.length,
+          defensePercentages: defensePercentages.length
+        });
+      }
 
-        // Find plays that beat this front (excluding already selected plays)
-        const frontBeaters = availablePlays.filter(play => {
+      for (const defenseItem of defensePercentages) {
+        // Calculate how many plays we should select for this defense
+        const playsForDefense = Math.round((defenseItem.percentage / 100) * playsToSelect);
+        
+        if (playsForDefense === 0) continue;
+
+        // Find plays that beat this defense (excluding already selected plays)
+        const defenseBeaters = availablePlays.filter(play => {
           if (selectedPlayIds.has(play.play_id)) return false;
-          const frontBeatersList = play.front_beaters ? play.front_beaters.split(',').map((f: string) => f.trim()) : [];
-          return frontBeatersList.includes(front);
+          
+          // For screen plays, be more lenient with coverage beaters
+          if (play.category === 'screen_game') {
+            return true; // Include all screen plays as potential options
+          }
+          
+          const beatersList = isPassPlay
+            ? (play.coverage_beaters ? play.coverage_beaters.split(',').map((c: string) => c.trim()) : [])
+            : (play.front_beaters ? play.front_beaters.split(',').map((f: string) => f.trim()) : []);
+          
+          const defenseValue = isPassPlay ? (defenseItem as { coverage: string }).coverage : (defenseItem as { front: string }).front;
+          return beatersList.includes(defenseValue);
         });
 
-        // If we don't have enough front beaters, also include some general plays
+        // If we don't have enough defense beaters, also include some general plays
         const generalPlays = availablePlays.filter(play => 
           !selectedPlayIds.has(play.play_id) &&
           play.category === category && 
-          (!play.front_beaters || play.front_beaters === '')
+          (play.category === 'screen_game' || // Include all screen plays as general plays
+           (!isPassPlay ? (!play.front_beaters || play.front_beaters === '') : (!play.coverage_beaters || play.coverage_beaters === '')))
         );
 
-        // Randomly select plays, prioritizing front beaters
+        // For screen plays, combine all available plays
+        const playsPool = category === 'screen_game' 
+          ? Array.from(new Set([...defenseBeaters, ...generalPlays]))
+          : defenseBeaters;
+
+        // Randomly select plays
         let playsToAdd: any[] = [];
         
-        if (frontBeaters.length > 0) {
-          // Use 70% front beaters and 30% general plays if possible
-          const frontBeaterCount = Math.ceil(playsForFront * 0.7);
-          const generalPlayCount = playsForFront - frontBeaterCount;
+        if (playsPool.length > 0) {
+          const targetCount = category === 'screen_game'
+            ? playsForDefense  // For screen plays, just take what we need
+            : Math.ceil(playsForDefense * 0.7); // For other plays, use 70% defense beaters
 
-          // Randomly select front beaters
-          for (let i = 0; i < frontBeaterCount && frontBeaters.length > 0; i++) {
-            const randomIndex = Math.floor(Math.random() * frontBeaters.length);
-            const selectedPlay = frontBeaters.splice(randomIndex, 1)[0];
+          // Randomly select plays
+          for (let i = 0; i < targetCount && playsPool.length > 0; i++) {
+            const randomIndex = Math.floor(Math.random() * playsPool.length);
+            const selectedPlay = playsPool.splice(randomIndex, 1)[0];
             if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
               playsToAdd.push(selectedPlay);
               selectedPlayIds.add(selectedPlay.play_id);
             }
           }
 
-          // Add some general plays
-          for (let i = 0; i < generalPlayCount && generalPlays.length > 0; i++) {
-            const randomIndex = Math.floor(Math.random() * generalPlays.length);
-            const selectedPlay = generalPlays.splice(randomIndex, 1)[0];
-            if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
-              playsToAdd.push(selectedPlay);
-              selectedPlayIds.add(selectedPlay.play_id);
-            }
-          }
-        } else {
-          // If no front beaters, just use general plays
-          for (let i = 0; i < playsForFront && generalPlays.length > 0; i++) {
-            const randomIndex = Math.floor(Math.random() * generalPlays.length);
-            const selectedPlay = generalPlays.splice(randomIndex, 1)[0];
-            if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
-              playsToAdd.push(selectedPlay);
-              selectedPlayIds.add(selectedPlay.play_id);
+          // For non-screen plays, add some general plays to reach the target
+          if (category !== 'screen_game' && generalPlays.length > 0) {
+            const remainingCount = playsForDefense - playsToAdd.length;
+            for (let i = 0; i < remainingCount && generalPlays.length > 0; i++) {
+              const randomIndex = Math.floor(Math.random() * generalPlays.length);
+              const selectedPlay = generalPlays.splice(randomIndex, 1)[0];
+              if (selectedPlay && !selectedPlayIds.has(selectedPlay.play_id)) {
+                playsToAdd.push(selectedPlay);
+                selectedPlayIds.add(selectedPlay.play_id);
+              }
             }
           }
         }
 
         // Add selected plays to our final list
         selectedPlaysArray.push(...playsToAdd);
+
+        // Log progress for screen plays
+        if (category === 'screen_game') {
+          console.log('Added screen plays:', {
+            defense: defenseItem,
+            playsForDefense,
+            playsAdded: playsToAdd.length,
+            totalSelected: selectedPlaysArray.length
+          });
+        }
       }
 
-      // Ensure we have enough plays by adding general plays if needed
+      // Ensure we have enough plays by adding any remaining available plays if needed
       if (selectedPlaysArray.length < playsToSelect) {
         const remainingPlays = playsToSelect - selectedPlaysArray.length;
-        const availableGeneralPlays = availablePlays.filter(play => 
+        const remainingAvailablePlays = availablePlays.filter(play => 
           !selectedPlayIds.has(play.play_id) &&
           play.category === category
         );
 
-        for (let i = 0; i < remainingPlays && availableGeneralPlays.length > 0; i++) {
-          const randomIndex = Math.floor(Math.random() * availableGeneralPlays.length);
-          const selectedPlay = availableGeneralPlays.splice(randomIndex, 1)[0];
+        // Log for screen plays
+        if (category === 'screen_game') {
+          console.log('Filling remaining screen plays:', {
+            needed: remainingPlays,
+            available: remainingAvailablePlays.length
+          });
+        }
+
+        for (let i = 0; i < remainingPlays && remainingAvailablePlays.length > 0; i++) {
+          const randomIndex = Math.floor(Math.random() * remainingAvailablePlays.length);
+          const selectedPlay = remainingAvailablePlays.splice(randomIndex, 1)[0];
           if (selectedPlay) {
             selectedPlaysArray.push(selectedPlay);
             selectedPlayIds.add(selectedPlay.play_id);
@@ -329,6 +392,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     selectPlaysForCategory(shotPlaysToSelect, availableShotPlays, 'shot_plays', selectedShotPlays);
     selectPlaysForCategory(screenPlaysToSelect, availableScreenPlays, 'screen_game', selectedScreenPlays);
 
+    console.log('Final screen plays selected:', selectedScreenPlays.length);
+
     // Combine all selected plays
     const selectedPlays = [
       ...selectedRunPlays,
@@ -340,11 +405,10 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     ];
 
     // Calculate how many plays should have motion
-    const targetMotionPlays = Math.round((scoutingReport.motion_percentage / 100) * 
-      (runPlaysToSelect + rpoPlaysToSelect + quickPlaysToSelect + dropbackPlaysToSelect + 
-       shotPlaysToSelect + screenPlaysToSelect));
+    const totalSelectedPlays = selectedPlays.length;
+    const targetMotionPlays = Math.round((scoutingReport.motion_percentage / 100) * totalSelectedPlays);
     
-    // Sort plays by whether they have motion components
+    // Sort plays by whether they have motion components and priority
     const playsWithMotion = selectedPlays.filter(play => hasMotionComponents(play));
     const playsWithoutMotion = selectedPlays.filter(play => !hasMotionComponents(play));
     
@@ -357,7 +421,9 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       if (hasMotion && playsWithMotion.length > targetMotionPlays) {
         // Calculate probability of hiding motion to achieve target percentage
         const hideMotionProbability = 1 - (targetMotionPlays / playsWithMotion.length);
-        shouldShowMotion = Math.random() > hideMotionProbability;
+        // Use the play's category to influence motion probability
+        const categoryMotionPriority = play.category === 'run_game' ? 0.7 : 0.3; // Favor motion in run plays
+        shouldShowMotion = Math.random() > (hideMotionProbability * categoryMotionPriority);
       }
 
       return {
@@ -366,19 +432,37 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       };
     });
 
+    // Verify we have plays for each category
+    const finalPlaysByCategory = {
+      run_game: finalPlays.filter(p => p.category === 'run_game').length,
+      rpo_game: finalPlays.filter(p => p.category === 'rpo_game').length,
+      quick_game: finalPlays.filter(p => p.category === 'quick_game').length,
+      dropback_game: finalPlays.filter(p => p.category === 'dropback_game').length,
+      shot_plays: finalPlays.filter(p => p.category === 'shot_plays').length,
+      screen_game: finalPlays.filter(p => p.category === 'screen_game').length
+    };
+
+    console.log('Final plays by category:', finalPlaysByCategory);
+    console.log('Motion percentage target:', scoutingReport.motion_percentage);
+    console.log('Actual motion plays:', finalPlays.filter(p => p.shouldShowMotion).length);
+    console.log('Total plays:', finalPlays.length);
+
     // Format complete play strings with motion control
     const formattedPlays = finalPlays.map(play => formatCompletePlay(play, play.shouldShowMotion));
 
     // Prepare plays for insertion into team's play pool
     const playsToInsert = finalPlays.map(play => {
-      // Format front beaters with percentages
-      const formattedFrontBeaters = formatFrontBeaters(play.front_beaters, frontPercentages);
+      const isPassPlay = isPassPlayCategory(play.category);
       
-      // For screen plays, use the concept field
-      const isScreenPlay = play.category === 'screen_game';
+      // Format beaters with percentages based on play type
+      const formattedBeaters = isPassPlay
+        ? formatCoverageBeaters(play.coverage_beaters, coveragePercentages)
+        : formatFrontBeaters(play.front_beaters, frontPercentages);
+      
+      // Get team concept from terminology map
       const teamConcept = play.concept ? terminologyMap.get(play.concept.toLowerCase()) || play.concept : play.concept;
       
-      const playToInsert = {
+      return {
         team_id: teamId,
         opponent_id: scoutingReport.opponent_id,
         play_id: play.play_id,
@@ -398,21 +482,19 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         third_l: play.third_l,
         rz: play.rz,
         gl: play.gl,
-        front_beaters: formattedFrontBeaters,
-        coverage_beaters: play.coverage_beaters,
+        front_beaters: !isPassPlay ? formattedBeaters : play.front_beaters,
+        coverage_beaters: isPassPlay ? formattedBeaters : play.coverage_beaters,
         blitz_beaters: play.blitz_beaters,
-        concept_direction: isScreenPlay ? play.screen_direction : play.concept_direction,
-        notes: `Selected based on defensive fronts: ${frontPercentages.map(fp => `${fp.front} (${fp.percentage}%)`).join(', ')}`,
+        concept_direction: play.concept_direction,
+        notes: `Selected based on ${isPassPlay ? 'defensive coverages' : 'defensive fronts'}: ${
+          isPassPlay 
+            ? coveragePercentages.map(cp => `${cp.coverage} (${cp.percentage}%)`).join(', ')
+            : frontPercentages.map(fp => `${fp.front} (${fp.percentage}%)`).join(', ')
+        }`,
         is_enabled: true,
         is_locked: false,
         is_favorite: false
       };
-
-      if (isScreenPlay) {
-        console.log('Inserting screen play:', playToInsert);
-      }
-
-      return playToInsert;
     });
 
     // Delete any existing non-locked plays for this team AND opponent
@@ -421,7 +503,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       .delete()
       .eq('team_id', teamId)
       .eq('opponent_id', scoutingReport.opponent_id)
-      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game', 'front_beaters'])
+      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'])
       .eq('is_locked', false);
 
     if (deleteError) {
@@ -460,7 +542,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         `- Total screen plays: ${lockedScreenPlays.length + selectedScreenPlays.length}\n` +
         `- Target motion percentage: ${scoutingReport.motion_percentage}%\n` +
         `- Actual motion percentage: ${actualMotionPercentage.toFixed(1)}%\n\n` +
-        `New plays were selected based on defensive front percentages and effectiveness.`
+        `New plays were selected based on defensive tendencies and motion preferences.`
     };
 
   } catch (error) {

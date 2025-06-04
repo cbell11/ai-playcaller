@@ -81,9 +81,25 @@ export async function getPlayPool(): Promise<Play[]> {
       throw new Error('Unable to connect to playpool table. Please ensure the table exists in your Supabase database.')
     }
 
+    // Get team_id and opponent_id from localStorage
+    const team_id = typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') : null
+    const opponent_id = typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') : null
+
+    if (!team_id) {
+      throw new Error('No team selected')
+    }
+
+    if (!opponent_id) {
+      throw new Error('No opponent selected')
+    }
+
+    console.log('Fetching plays for team:', team_id, 'and opponent:', opponent_id)
+
     const { data, error } = await supabase
       .from('playpool')
       .select('*')
+      .eq('team_id', team_id)
+      .eq('opponent_id', opponent_id)
       .order('category')
       .order('is_locked', { ascending: false })
       .order('concept')
@@ -203,7 +219,7 @@ export async function initializeDefaultPlayPool(existingPlayCounts: Record<strin
     const quickGame = terminology.filter(t => t.category === 'quick_game')
     const dropback = terminology.filter(t => t.category === 'dropback')
     const shotPlays = terminology.filter(t => t.category === 'shot_plays')
-    const screens = terminology.filter(t => t.category === 'screens')
+    const screens = terminology.filter(t => t.category === 'screen_game')
     const motions = terminology.filter(t => t.category === 'motions')
 
     if (!formations.length || !tags.length || !runConcepts.length) {
@@ -342,10 +358,10 @@ export async function initializeDefaultPlayPool(existingPlayCounts: Record<strin
         tag: tag?.label || '',
         strength,
         motion_shift: motion?.label || '',
-        concept: '',
+        concept: screenConcept.label || '',
         run_concept: '',
         run_direction: '',
-        pass_screen_concept: screenConcept.label || '',
+        pass_screen_concept: '',
         screen_direction: direction,
         category: 'screen_game' as const,
         is_enabled: true,
@@ -545,7 +561,12 @@ export async function regeneratePlayPool(): Promise<void> {
               team_id,
               opponent_id,
               is_enabled: true,
-              is_locked: false
+              is_locked: false,
+              // For screen plays, ensure we're using the concept field
+              ...(play.category === 'screen_game' && play.pass_screen_concept ? {
+                concept: play.pass_screen_concept,
+                pass_screen_concept: ''
+              } : {})
             }));
             newPlays.push(...formattedPlays);
             console.log(`Added ${formattedPlays.length} ${category} plays from master_play_pool`);
@@ -614,7 +635,7 @@ export async function updatePlayPoolTerminology(): Promise<void> {
     const quickGame = terminology.filter(t => t.category === 'quick_game')
     const dropback = terminology.filter(t => t.category === 'dropback')
     const shotPlays = terminology.filter(t => t.category === 'shot_plays')
-    const screens = terminology.filter(t => t.category === 'screens')
+    const screens = terminology.filter(t => t.category === 'screen_game')
     const motions = terminology.filter(t => t.category === 'motions')
 
     // Update each play with new terminology

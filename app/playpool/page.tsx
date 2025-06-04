@@ -23,7 +23,9 @@ import {
   Loader2, 
   FileText,
   HelpCircle,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Shield,
+  Swords
 } from "lucide-react"
 import {
   Tooltip,
@@ -43,6 +45,7 @@ interface ExtendedPlay extends Play {
 
 const CATEGORIES = {
   run_game: 'Run Game',
+  rpo_game: 'RPO Game',
   quick_game: 'Quick Game',
   dropback_game: 'Dropback Game',
   shot_plays: 'Shot Plays',
@@ -82,6 +85,11 @@ interface ScoutingOption {
   fieldArea?: string;
   dominateDown?: string;
   notes?: string;
+}
+
+// Helper function to determine if a category is a pass play category
+function isPassPlayCategory(category: string): boolean {
+  return ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(category);
 }
 
 export default function PlayPoolPage() {
@@ -575,6 +583,7 @@ export default function PlayPoolPage() {
     // Handle case where is_favorite and is_locked might be undefined
     const isFavorite = play.is_favorite || false
     const isLocked = play.is_locked || false
+    const isPassPlay = isPassPlayCategory(play.category)
 
     return (
       <div className="flex items-center justify-between w-full gap-2">
@@ -599,19 +608,36 @@ export default function PlayPoolPage() {
           </div>
           <span className="flex-grow font-mono text-sm">
             {play.customized_edit || formatPlay(play)}
-            {play.front_beaters && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="ml-2 p-0 h-6 w-6">
-                      <HelpCircle className="h-4 w-4 text-blue-500" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="font-normal">Front Beaters: {play.front_beaters}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            {isPassPlay ? (
+              play.coverage_beaters && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" className="ml-2 p-0 h-6 w-6">
+                        <HelpCircle className="h-4 w-4 text-blue-500" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="font-normal">Coverage Beaters: {play.coverage_beaters}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )
+            ) : (
+              play.front_beaters && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" className="ml-2 p-0 h-6 w-6">
+                        <HelpCircle className="h-4 w-4 text-blue-500" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="font-normal">Front Beaters: {play.front_beaters}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )
             )}
           </span>
         </div>
