@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, MouseEventHandler } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
-import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer } from "lucide-react"
+import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2 } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
 // import { makeGamePlan } from "@/app/actions"
@@ -588,28 +588,8 @@ export default function PlanPage() {
   const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape');
   const [showPrintDialog, setShowPrintDialog] = useState(false);
 
-  // Define concept options for each category
-  const conceptOptions: Record<ConceptCategory, ConceptOption[]> = {
-    run: [
-      { category: 'run', value: 'Inside Zone', label: 'iz' },
-      { category: 'run', value: 'Outside Zone', label: 'oz' },
-      { category: 'run', value: 'Power', label: 'pwr' },
-      { category: 'run', value: 'Counter', label: 'ctr' },
-      { category: 'run', value: 'Draw', label: 'drw' }
-    ],
-    pass: [
-      { category: 'pass', value: 'Hoss', label: 'hoss' },
-      { category: 'pass', value: 'Stick', label: 'stick' },
-      { category: 'pass', value: 'Quick Out', label: 'qo' },
-      { category: 'pass', value: 'Slot Fade', label: 'slfade' },
-      { category: 'pass', value: 'Snag', label: 'snag' }
-    ],
-    screen: [
-      { category: 'screen', value: 'Bubble', label: 'bub' },
-      { category: 'screen', value: 'Tunnel', label: 'tnl' },
-      { category: 'screen', value: 'Quick', label: 'qck' }
-    ]
-  }
+  // Add new state for AI generation
+  const [isGenerating, setIsGenerating] = useState(false)
 
   const printRef = useRef<HTMLDivElement>(null)
 
@@ -705,9 +685,9 @@ export default function PlanPage() {
           setPlan(dbPlan);
           save('plan', dbPlan);
         }
-      } catch (error) {
+        } catch (error) {
         console.error('Error loading initial plan:', error);
-      } finally {
+        } finally {
         setLoading(false);
       }
     };
@@ -776,7 +756,7 @@ export default function PlanPage() {
                 setPlan(updatedPlan);
                 save('plan', updatedPlan);
               }
-            } catch (error) {
+      } catch (error) {
               console.error('Error handling real-time update:', error);
             }
           }
@@ -942,7 +922,7 @@ export default function PlanPage() {
           await updatePlayPositionsInDatabase(sectionId, team_id, opponent_id, updates);
           
           // Only update local state if database update succeeds
-          updatedPlays.splice(result.destination.index, 0, movedPlay);
+      updatedPlays.splice(result.destination.index, 0, movedPlay);
           updatedPlan[sectionId] = updatedPlays;
           setPlan(updatedPlan);
           save('plan', updatedPlan);
@@ -954,9 +934,9 @@ export default function PlanPage() {
         } else {
           // If it's an empty play, just update the local state
           updatedPlays.splice(result.destination.index, 0, movedPlay);
-          updatedPlan[sectionId] = updatedPlays;
-          setPlan(updatedPlan);
-          save('plan', updatedPlan);
+      updatedPlan[sectionId] = updatedPlays;
+      setPlan(updatedPlan);
+      save('plan', updatedPlan);
         }
       }
     } catch (error) {
@@ -1010,9 +990,9 @@ export default function PlanPage() {
     console.log(`Filled plays for ${title}:`, filledPlays);
     
     return (
-      <Card className="bg-white rounded shadow h-full">
+    <Card className="bg-white rounded shadow h-full">
         <CardHeader className={`${bgColor} border-b flex flex-row justify-between items-center`}>
-          <CardTitle className="font-bold">{title}</CardTitle>
+        <CardTitle className="font-bold">{title}</CardTitle>
           <Button 
             variant="outline" 
             size="sm" 
@@ -1029,8 +1009,8 @@ export default function PlanPage() {
           >
             {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
           </Button>
-        </CardHeader>
-        <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
+      </CardHeader>
+      <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
           <Droppable 
             droppableId={`section-${section}`} 
             type="PLAY" 
@@ -1103,17 +1083,17 @@ export default function PlanPage() {
                               </Button>
                             </div>
                           )}
-                        </div>
+            </div>
                       )}
                     </Draggable>
                   );
                 })}
                 {provided.placeholder}
-              </div>
+        </div>
             )}
           </Droppable>
-        </CardContent>
-      </Card>
+      </CardContent>
+    </Card>
     );
   };
 
@@ -1126,19 +1106,19 @@ export default function PlanPage() {
       await deletePlayFromGamePlan(section, index);
       
       // Then update local state
-      const updatedPlan = { ...plan };
-      const updatedPlays = [...updatedPlan[section]];
-      updatedPlays[index] = {
-        formation: '',
-        fieldAlignment: '+',
-        motion: '',
-        play: '',
-        runDirection: '+'
-      };
-      updatedPlan[section] = updatedPlays;
-      
-      setPlan(updatedPlan);
-      save('plan', updatedPlan);
+    const updatedPlan = { ...plan };
+    const updatedPlays = [...updatedPlan[section]];
+    updatedPlays[index] = {
+      formation: '',
+      fieldAlignment: '+',
+      motion: '',
+      play: '',
+      runDirection: '+'
+    };
+    updatedPlan[section] = updatedPlays;
+    
+    setPlan(updatedPlan);
+    save('plan', updatedPlan);
 
       // Show success notification
       setNotification({
@@ -1240,18 +1220,18 @@ export default function PlanPage() {
         // Only update UI if database save was successful
         sectionPlays[nextPosition] = newPlay;
         updatedPlan[playPoolSection] = sectionPlays;
-        setPlan(updatedPlan);
-        save('plan', updatedPlan);
-        
+      setPlan(updatedPlan);
+      save('plan', updatedPlan);
+      
         // Show success notification with the correct 1-based position
-        setNotification({
-          message: `Added to ${playPoolSection === 'openingScript' ? 'Opening Script' : 
-                   playPoolSection === 'basePackage1' ? 'Base Package 1' : 
-                   playPoolSection === 'basePackage2' ? 'Base Package 2' : 
-                   playPoolSection === 'basePackage3' ? 'Base Package 3' : 
+      setNotification({
+        message: `Added to ${playPoolSection === 'openingScript' ? 'Opening Script' : 
+                 playPoolSection === 'basePackage1' ? 'Base Package 1' : 
+                 playPoolSection === 'basePackage2' ? 'Base Package 2' : 
+                 playPoolSection === 'basePackage3' ? 'Base Package 3' : 
                    playPoolSection} (Position ${nextPosition + 1})`,
-          type: 'success'
-        });
+        type: 'success'
+      });
       } catch (saveError) {
         console.error("Failed to save to game plan table:", saveError);
         throw saveError;
@@ -1382,7 +1362,7 @@ export default function PlanPage() {
                     {label}
                   </button>
                 ))}
-              </div>
+            </div>
             )}
             
             {/* Play list area */}
@@ -1501,6 +1481,95 @@ export default function PlanPage() {
       );
     }
     return null;
+  };
+
+  // Add the generation handler
+  const handleGenerateGamePlan = async () => {
+    if (!selectedOpponent || !playPool.length) {
+      setNotification({
+        message: 'Please select an opponent and ensure plays are loaded first',
+        type: 'error'
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      // First, clear the existing game plan from the database
+      const team_id = localStorage.getItem('selectedTeam');
+      const opponent_id = localStorage.getItem('selectedOpponent');
+
+      if (!team_id || !opponent_id) {
+        throw new Error('Team or opponent not selected');
+      }
+
+      // Delete all existing plays for this game plan
+      const { error: deleteError } = await supabase
+        .from('game_plan')
+        .delete()
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id);
+
+      if (deleteError) {
+        throw new Error('Failed to clear existing game plan');
+      }
+
+      // Format plays for the API
+      const formattedPlays = playPool.map(p => formatPlayFromPool(p));
+
+      // Call our API route
+      const response = await fetch('/api/generate-gameplan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playPool: formattedPlays
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate game plan');
+      }
+
+      const gamePlan = await response.json();
+      
+      // Helper function to find a play in the pool by its formatted name
+      const findPlayByName = (name: string) => {
+        return playPool.find(p => formatPlayFromPool(p) === name);
+      };
+
+      // Update each section
+      for (const [section, plays] of Object.entries(gamePlan)) {
+        const sectionKey = section as keyof GamePlan;
+        for (let i = 0; i < (plays as string[]).length; i++) {
+          const playName = (plays as string[])[i];
+          const play = findPlayByName(playName);
+          if (play) {
+            await savePlayToGamePlan(play, sectionKey, i);
+          }
+        }
+      }
+
+      // Refresh the page to show the new game plan
+      window.location.reload();
+
+      // Show success message
+      setNotification({
+        message: 'Game plan generated successfully!',
+        type: 'success'
+      });
+
+    } catch (error) {
+      console.error('Error generating game plan:', error);
+      setNotification({
+        message: error instanceof Error ? error.message : 'Failed to generate game plan',
+        type: 'error'
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // Show loading state while fetching data
@@ -1735,6 +1804,27 @@ export default function PlanPage() {
                   Use the "Add a Play" button on each section to build your game plan from the play pool.
                 </p>
         </div>
+
+            <Button 
+                onClick={handleGenerateGamePlan}
+                className="w-full mb-4"
+                variant="default"
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <>
+                    <div className="animate-spin mr-2">
+                      <Wand2 className="h-4 w-4" />
+                    </div>
+                    Generating Game Plan...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Generate Game Plan with AI
+                  </>
+                )}
+              </Button>
 
             <Button 
                 onClick={() => {
