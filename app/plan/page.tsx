@@ -72,7 +72,7 @@ interface PlayCall {
 }
 
 // Add new types for the cascading dropdowns - currently unused but may be used in future versions
-type ConceptCategory = 'formation' | 'run' | 'pass' | 'screen'
+type ConceptCategory = 'run' | 'pass' | 'screen'
 
 interface ConceptOption {
   category: ConceptCategory
@@ -582,8 +582,7 @@ export default function PlanPage() {
   const [playPoolCategory, setPlayPoolCategory] = useState<'run_game' | 'rpo_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'>('run_game');
   const [playPoolSection, setPlayPoolSection] = useState<keyof GamePlan | null>(null);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'formation' | 'favorites'>('category');
-  const [selectedFormation, setSelectedFormation] = useState<string>('Trips');
+  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'favorites'>('category');
 
   // Add state for print orientation
   const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape');
@@ -591,16 +590,6 @@ export default function PlanPage() {
 
   // Define concept options for each category
   const conceptOptions: Record<ConceptCategory, ConceptOption[]> = {
-    formation: [
-      { category: 'formation', value: 'Trips', label: 'trps' },
-      { category: 'formation', value: 'Deuce', label: 'duce' },
-      { category: 'formation', value: 'Trey', label: 'trey' },
-      { category: 'formation', value: 'Empty', label: 'mt' },
-      { category: 'formation', value: 'Queen', label: 'q' },
-      { category: 'formation', value: 'Sam', label: 'sam' },
-      { category: 'formation', value: 'Will', label: 'will' },
-      { category: 'formation', value: 'Bunch', label: 'bunch' }
-    ],
     run: [
       { category: 'run', value: 'Inside Zone', label: 'iz' },
       { category: 'run', value: 'Outside Zone', label: 'oz' },
@@ -696,7 +685,66 @@ export default function PlanPage() {
     return `${formationLabel} ${play.fieldAlignment}${motionLabel ? ` ${motionLabel}` : ''} ${playLabel}${runDirectionText}`;
   }
 
-  // Add effect to watch for team/opponent changes
+  // Add initialization effect that depends on selectedOpponent
+  useEffect(() => {
+    const loadInitialPlan = async () => {
+      const team = localStorage.getItem('selectedTeam');
+      const opponent = localStorage.getItem('selectedOpponent');
+      
+      if (!team || !opponent) {
+        console.log('Team or opponent not selected');
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const dbPlan = await fetchGamePlanFromDatabase();
+        if (dbPlan) {
+          console.log('Loaded plan from database');
+          setPlan(dbPlan);
+          save('plan', dbPlan);
+        }
+      } catch (error) {
+        console.error('Error loading initial plan:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Only load if we have an opponent selected
+    if (selectedOpponent) {
+      console.log('Selected opponent changed, loading game plan...');
+      loadInitialPlan();
+    } else {
+      console.log('No opponent selected, waiting...');
+      setLoading(false);
+    }
+  }, [selectedOpponent]); // Add selectedOpponent as dependency
+
+  // Update the opponent change effect to just update the state
+  useEffect(() => {
+    const handleOpponentChange = () => {
+      console.log('Opponent changed from sidebar, updating state...');
+      const opponent = localStorage.getItem('selectedOpponent');
+      setSelectedOpponent(opponent);
+    };
+
+    window.addEventListener('opponentChanged', handleOpponentChange);
+    return () => {
+      window.removeEventListener('opponentChanged', handleOpponentChange);
+    };
+  }, []);
+
+  // Update the storage change handler
+  const handleStorageChange = (e: StorageEvent) => {
+    if (e.key === 'selectedOpponent' && e.newValue !== e.oldValue) {
+      console.log('Opponent changed in storage, updating state...');
+      setSelectedOpponent(e.newValue);
+    }
+  };
+
+  // Update the main team/opponent effect
   useEffect(() => {
     const team = localStorage.getItem('selectedTeam');
     const opponent = localStorage.getItem('selectedOpponent');
@@ -704,12 +752,8 @@ export default function PlanPage() {
     setSelectedTeam(team);
     setSelectedOpponent(opponent);
     
-    if (team !== selectedTeam || opponent !== selectedOpponent) {
-      console.log('Team or opponent changed, reloading game plan');
-      initializePlan();
-    }
-
-    // Set up real-time subscription when team/opponent changes
+    window.addEventListener('storage', handleStorageChange);
+    
     if (team && opponent) {
       console.log('Setting up real-time subscription for:', { team, opponent });
       
@@ -718,7 +762,7 @@ export default function PlanPage() {
         .on(
           'postgres_changes',
           {
-            event: '*', // Listen for all events (insert, update, delete)
+            event: '*',
             schema: 'public',
             table: 'game_plan',
             filter: `team_id=eq.${team}&opponent_id=eq.${opponent}`
@@ -726,7 +770,6 @@ export default function PlanPage() {
           async (payload) => {
             console.log('Received database change:', payload);
             try {
-              // Refresh the game plan data when changes occur
               const updatedPlan = await fetchGamePlanFromDatabase();
               if (updatedPlan) {
                 console.log('Updating plan from real-time change');
@@ -742,145 +785,12 @@ export default function PlanPage() {
           console.log('Subscription status:', status);
         });
 
-      // Cleanup subscription on unmount or when team/opponent changes
       return () => {
-        console.log('Cleaning up subscription');
+        console.log('Cleaning up subscription and storage listener');
         subscription.unsubscribe();
+        window.removeEventListener('storage', handleStorageChange);
       };
     }
-  }, [selectedTeam, selectedOpponent]);
-
-  // Move initializePlan outside useEffect to reuse it
-  const initializePlan = async () => {
-    setLoading(true);
-    try {
-      const dbPlan = await fetchGamePlanFromDatabase();
-      if (dbPlan) {
-        console.log('Loaded plan from database');
-        setPlan(dbPlan);
-        save('plan', dbPlan);
-      } else {
-        console.log('Creating empty plan');
-        const emptyPlan: GamePlan = {
-          openingScript: Array(10).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          basePackage1: Array(10).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          basePackage2: Array(10).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          basePackage3: Array(10).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          firstDowns: Array(10).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          secondAndShort: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          secondAndLong: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          shortYardage: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          thirdAndLong: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          redZone: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          goalline: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          backedUp: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          screens: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          playAction: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          }),
-          deepShots: Array(5).fill({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
-          })
-        };
-        setPlan(emptyPlan);
-        save('plan', emptyPlan);
-      }
-    } catch (error) {
-      console.error('Error initializing plan:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Initial load
-  useEffect(() => {
-    initializePlan();
   }, []);
 
   // Load the play pool when the component mounts
@@ -1382,9 +1292,6 @@ export default function PlanPage() {
       if (playPoolFilterType === 'favorites') {
         // Filter by favorited plays
         return play.is_favorite === true;
-      } else if (playPoolFilterType === 'formation') {
-        // Filter by selected formation
-        return play.formation === selectedFormation;
       } else {
         // Filter by category (existing logic)
         if (playPoolCategory === 'run_game') {
@@ -1404,18 +1311,6 @@ export default function PlanPage() {
         return play.category === Object.keys(CATEGORIES)[0];
       }
     });
-
-    // Get unique formations for the formation filter
-    const formationsMap: Record<string, boolean> = {};
-    playPool.forEach(play => {
-      if (play.formation) {
-        formationsMap[play.formation] = true;
-      }
-    });
-    const formations = Object.keys(formationsMap).sort();
-
-    // Get current section plays for checking if a play is already in the section
-    const sectionPlays = plan[playPoolSection] || [];
 
     return (
       <Card className="bg-white rounded shadow-md w-full h-full">
@@ -1439,7 +1334,7 @@ export default function PlanPage() {
             <div className="inline-flex rounded-md shadow-sm" role="group">
               <button
                 type="button"
-                className={`px-2 py-1 text-xs font-medium rounded-l-lg ${
+                className={`px-4 py-1 text-xs font-medium rounded-l-lg ${
                   playPoolFilterType === 'category' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -1450,18 +1345,7 @@ export default function PlanPage() {
               </button>
               <button
                 type="button"
-                className={`px-2 py-1 text-xs font-medium ${
-                  playPoolFilterType === 'formation' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-                onClick={() => setPlayPoolFilterType('formation')}
-              >
-                By Formation
-              </button>
-              <button
-                type="button"
-                className={`px-2 py-1 text-xs font-medium rounded-r-lg ${
+                className={`px-4 py-1 text-xs font-medium rounded-r-lg ${
                   playPoolFilterType === 'favorites' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -1474,11 +1358,10 @@ export default function PlanPage() {
           </div>
           
           <div className="flex flex-1 min-h-0 overflow-hidden">
-            {/* Vertical tabs for either categories or formations */}
-            <div className={`${playPoolFilterType === 'favorites' ? 'hidden' : 'w-1/3'} border-r pr-1 overflow-y-auto`}>
-              {playPoolFilterType === 'category' ? (
-                // Render category tabs
-                Object.entries(CATEGORIES).map(([key, label]) => (
+            {/* Category tabs - only show if not in favorites mode */}
+            {playPoolFilterType === 'category' && (
+              <div className="w-1/3 border-r pr-1 overflow-y-auto">
+                {Object.entries(CATEGORIES).map(([key, label]) => (
                   <button 
                     key={key}
                     className={`w-full text-left py-1 px-2 mb-1 text-xs rounded ${playPoolCategory === key ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
@@ -1486,20 +1369,9 @@ export default function PlanPage() {
                   >
                     {label}
                   </button>
-                ))
-              ) : (
-                // Render formation tabs
-                formations.map((formation) => (
-                  <button 
-                    key={formation}
-                    className={`w-full text-left py-1 px-2 mb-1 text-xs rounded ${selectedFormation === formation ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
-                    onClick={() => setSelectedFormation(formation)}
-                  >
-                    {formation}
-                  </button>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
             
             {/* Play list area */}
             <div className={`${playPoolFilterType === 'favorites' ? 'w-full' : 'w-2/3'} pl-1 flex-1 min-h-0`}>
@@ -1512,7 +1384,7 @@ export default function PlanPage() {
               <div className="h-full overflow-y-auto space-y-1 pr-1">
                 {filteredPlays.length > 0 ? (
                   filteredPlays.map((play, index) => {
-                    const alreadyInSection = isPlayInSection(play, sectionPlays);
+                    const alreadyInSection = isPlayInSection(play, plan[playPoolSection]);
                     return (
                       <div 
                         key={index}
@@ -1545,7 +1417,7 @@ export default function PlanPage() {
                   <p className="text-gray-500 italic text-xs text-center p-4">
                     {playPoolFilterType === 'favorites'
                       ? "No favorite plays yet. Star plays in the Play Pool page."
-                      : `No plays available in this ${playPoolFilterType === 'category' ? 'category' : 'formation'}`}
+                      : "No plays available in this category"}
                   </p>
                 )}
               </div>
@@ -1619,14 +1491,16 @@ export default function PlanPage() {
     return null;
   };
 
+  // Show loading state while fetching data
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center h-[60vh]">
-          <div className="text-xl font-semibold animate-pulse">Generating Game Plan...</div>
+        <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="text-xl font-semibold text-gray-600">Loading Game Plan...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!plan) {
