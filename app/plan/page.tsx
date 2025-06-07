@@ -9,6 +9,7 @@ import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
 // import { makeGamePlan } from "@/app/actions"
 import { getPlayPool, Play } from "@/lib/playpool"
+import { supabase } from '@/lib/supabase'
 // import { Input } from "../components/ui/input"
 // import { Label } from "../components/ui/label"
 // import { Slider } from "../components/ui/slider"
@@ -35,7 +36,7 @@ function DragItem({ play }: { play: Play, snapshot: any }) {
 }
 
 // Add a global drag layer component
-function DragLayer({ isDragging, play }: { isDragging: boolean, play: Play | null }) {
+function DragLayer({ isDragging, play }: { isDragging: boolean, play: ExtendedPlay | null }) {
   if (!isDragging || !play) return null;
   
   return (
@@ -80,7 +81,7 @@ interface ConceptOption {
 }
 
 interface GamePlan {
-  openingScript: PlayCall[]
+  openingScript: PlayCall[]; // Now can hold up to 10 plays
   basePackage1: PlayCall[]
   basePackage2: PlayCall[]
   basePackage3: PlayCall[]
@@ -97,8 +98,23 @@ interface GamePlan {
   deepShots: PlayCall[]
 }
 
+interface ExtendedPlay extends Play {
+  combined_call?: string;
+}
+
 // Add new utility function to format a play from the play pool
-function formatPlayFromPool(play: Play): string {
+function formatPlayFromPool(play: ExtendedPlay): string {
+  // First check for customized_edit
+  if (play.customized_edit) {
+    return play.customized_edit;
+  }
+  
+  // If no customized_edit, use combined_call
+  if (play.combined_call) {
+    return play.combined_call;
+  }
+
+  // Fallback to old format method if neither exists
   const parts = [
     play.formation,
     play.tag,
@@ -108,7 +124,7 @@ function formatPlayFromPool(play: Play): string {
     play.run_concept,
     play.run_direction,
     play.pass_screen_concept,
-    play.category === 'screen_game' ? play.screen_direction : null
+    play.screen_direction
   ].filter(Boolean)
 
   return parts.join(" ")
@@ -116,11 +132,17 @@ function formatPlayFromPool(play: Play): string {
 
 // Add categories for filtering
 const CATEGORIES = {
-  run_game: "Run Game",
-  quick_game: "Quick Game",
-  dropback_game: "Dropback Game",
-  shot_plays: "Shot Plays",
-  screen_game: "Screen Game"
+  run_game: 'Run Game',
+  rpo_game: 'RPO Game',
+  quick_game: 'Quick Game',
+  dropback_game: 'Dropback Game',
+  shot_plays: 'Shot Plays',
+  screen_game: 'Screen Game'
+} as const
+
+// Helper function to determine if a category is a pass play category
+function isPassPlayCategory(category: string): boolean {
+  return ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(category);
 }
 
 // Add a helper function to convert Play type to PlayCall for the formatter
@@ -134,11 +156,407 @@ const playToPlayCall = (play: Play): PlayCall => {
   };
 };
 
+// Add a mapping of database section names to GamePlan keys
+const sectionMapping: Record<string, keyof GamePlan> = {
+  'openingscript': 'openingScript',
+  'basepackage1': 'basePackage1',
+  'basepackage2': 'basePackage2',
+  'basepackage3': 'basePackage3',
+  'firstdowns': 'firstDowns',
+  'secondandshort': 'secondAndShort',
+  'secondandlong': 'secondAndLong',
+  'shortyardage': 'shortYardage',
+  'thirdandlong': 'thirdAndLong',
+  'redzone': 'redZone',
+  'goalline': 'goalline',
+  'backedup': 'backedUp',
+  'screens': 'screens',
+  'playaction': 'playAction',
+  'deepshots': 'deepShots'
+};
+
+// Modify savePlayToGamePlan function to handle sequential positions
+async function savePlayToGamePlan(
+  play: ExtendedPlay,
+  section: keyof GamePlan,
+  position: number
+): Promise<void> {
+  try {
+    // Get team_id and opponent_id from localStorage
+    const team_id = localStorage.getItem('selectedTeam');
+    const opponent_id = localStorage.getItem('selectedOpponent');
+
+    if (!team_id || !opponent_id) {
+      throw new Error('Please select both a team and opponent in the sidebar first');
+    }
+
+    // First, get the current highest position for this section
+    const { data: existingPlays, error: queryError } = await supabase
+      .from('game_plan')
+      .select('position')
+      .eq('team_id', team_id)
+      .eq('opponent_id', opponent_id)
+      .eq('section', section.toLowerCase())
+      .order('position', { ascending: false })
+      .limit(1);
+
+    if (queryError) {
+      console.error('Error querying current positions:', queryError);
+      throw queryError;
+    }
+
+    // Calculate the next position (if no plays exist, start at 0)
+    const nextPosition = existingPlays && existingPlays.length > 0 ? 
+      existingPlays[0].position + 1 : 0;
+
+    console.log('Saving play to game plan:', {
+      team_id,
+      opponent_id,
+      play_id: play.id,
+      section: section.toLowerCase(),
+      position: nextPosition,
+      combined_call: formatPlayFromPool(play),
+      customized_edit: play.customized_edit
+    });
+
+    // Create the game plan entry with team and opponent IDs
+    const { data, error } = await supabase
+      .from('game_plan')
+      .insert({
+        team_id,
+        opponent_id,
+        play_id: play.id,
+        section: section.toLowerCase(),
+        position: nextPosition,
+        combined_call: formatPlayFromPool(play),
+        customized_edit: play.customized_edit
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+
+      throw new Error(`Database error: ${error.message}`);
+    }
+
+    console.log('Successfully saved play to game plan:', data);
+  } catch (error) {
+    console.error('Error saving play to game plan:', error);
+    throw error;
+  }
+}
+
+// Simplify validateTeamIds to just return the IDs without validation
+async function validateTeamIds(): Promise<{ team_id: string | null; opponent_id: string | null }> {
+  const team_id = typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') : null;
+  const opponent_id = typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') : null;
+  return { team_id, opponent_id };
+}
+
+// Add this function to create a play if it doesn't exist
+async function ensurePlayExists(play: ExtendedPlay): Promise<{ id: string | null; error: string | null }> {
+  try {
+    // If play doesn't exist, create it
+    const { data, error } = await supabase
+      .from('plays')
+      .insert({
+        id: play.id,
+        play_id: play.play_id,
+        team_id: play.team_id,
+        category: play.category,
+        formation: play.formation,
+        tag: play.tag,
+        strength: play.strength,
+        motion_shift: play.motion_shift,
+        concept: play.concept,
+        run_concept: play.run_concept,
+        run_direction: play.run_direction,
+        pass_screen_concept: play.pass_screen_concept,
+        screen_direction: play.screen_direction,
+        front_beaters: play.front_beaters,
+        coverage_beaters: play.coverage_beaters,
+        blitz_beaters: play.blitz_beaters,
+        is_enabled: play.is_enabled,
+        is_locked: play.is_locked,
+        is_favorite: play.is_favorite,
+        customized_edit: play.customized_edit,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating play:', error);
+      return { id: null, error: `Failed to create play: ${error.message}` };
+    }
+
+    return { id: data.id, error: null };
+  } catch (error) {
+    console.error('Error in ensurePlayExists:', error);
+    return { 
+      id: null, 
+      error: error instanceof Error ? error.message : 'Unknown error creating play' 
+    };
+  }
+}
+
+// Add this function after savePlayToGamePlan
+async function deletePlayFromGamePlan(
+  section: keyof GamePlan,
+  position: number
+): Promise<void> {
+  try {
+    // Get team_id and opponent_id from localStorage
+    const team_id = typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') : null
+    const opponent_id = typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') : null
+
+    if (!team_id || !opponent_id) {
+      throw new Error('Team or opponent not selected')
+    }
+
+    // Delete the game plan entry
+    const { error } = await supabase
+      .from('game_plan')
+      .delete()
+      .eq('team_id', team_id)
+      .eq('opponent_id', opponent_id)
+      .eq('section', section.toLowerCase())
+      .eq('position', position)
+
+    if (error) {
+      console.error('Error deleting play from game plan:', error)
+      throw error
+    }
+  } catch (error) {
+    console.error('Failed to delete play from game plan:', error)
+    throw error
+  }
+}
+
+// Add this function after deletePlayFromGamePlan
+async function updatePlayPosition(
+  section: keyof GamePlan,
+  oldPosition: number,
+  newPosition: number
+): Promise<void> {
+  try {
+    // Get team_id and opponent_id from localStorage
+    const team_id = typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') : null
+    const opponent_id = typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') : null
+
+    if (!team_id || !opponent_id) {
+      throw new Error('Team or opponent not selected')
+    }
+
+    // First, get the play at the old position
+    const { data: play, error: fetchError } = await supabase
+      .from('game_plan')
+      .select('*')
+      .eq('team_id', team_id)
+      .eq('opponent_id', opponent_id)
+      .eq('section', section.toLowerCase())
+      .eq('position', oldPosition)
+      .single()
+
+    if (fetchError) {
+      console.error('Error fetching play for position update:', fetchError)
+      throw fetchError
+    }
+
+    if (!play) {
+      console.log('No play found at position to update')
+      return
+    }
+
+    // Update the position
+    const { error: updateError } = await supabase
+      .from('game_plan')
+      .update({ position: newPosition })
+      .eq('id', play.id)
+
+    if (updateError) {
+      console.error('Error updating play position:', updateError)
+      throw updateError
+    }
+  } catch (error) {
+    console.error('Failed to update play position:', error)
+    throw error
+  }
+}
+
+// Add this function after the other async functions
+async function fetchGamePlanFromDatabase(): Promise<GamePlan | null> {
+  try {
+    const team_id = localStorage.getItem('selectedTeam');
+    const opponent_id = localStorage.getItem('selectedOpponent');
+
+    if (!team_id || !opponent_id) {
+      console.log('Team or opponent not selected');
+      return null;
+    }
+
+    console.log('Fetching game plan for:', { team_id, opponent_id });
+
+    // Fetch all plays for this team and opponent
+    const { data: gamePlanData, error } = await supabase
+      .from('game_plan')
+      .select('*')
+      .eq('team_id', team_id)
+      .eq('opponent_id', opponent_id)
+      .order('position', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching game plan:', error.message, error.details);
+      return null;
+    }
+
+    // Log the raw data from database
+    console.log('Raw game plan data from database:', JSON.stringify(gamePlanData, null, 2));
+
+    // Create an empty game plan with 10 slots for openingScript
+    const emptyPlan: GamePlan = {
+      openingScript: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      basePackage1: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      basePackage2: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      basePackage3: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      firstDowns: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      secondAndShort: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      secondAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      shortYardage: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      thirdAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      redZone: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      goalline: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      backedUp: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      screens: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      playAction: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      deepShots: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' })
+    };
+
+    // Populate the plan with database data
+    if (gamePlanData && gamePlanData.length > 0) {
+      console.log('Found game plan data, processing entries...');
+      
+      gamePlanData.forEach((entry, index) => {
+        // Map the database section name to our GamePlan key
+        const dbSection = entry.section.toLowerCase();
+        const section = sectionMapping[dbSection];
+        const position = entry.position;
+        
+        console.log(`Processing entry ${index + 1}/${gamePlanData.length}:`, {
+          dbSection,
+          mappedSection: section,
+          position,
+          customized_edit: entry.customized_edit,
+          combined_call: entry.combined_call
+        });
+        
+        // Skip if we don't have a valid section mapping
+        if (!section) {
+          console.warn(`No mapping found for database section "${dbSection}"`);
+          return;
+        }
+
+        // Create PlayCall object from the entry data
+        const playCall: PlayCall = {
+          formation: '',
+          fieldAlignment: '+',
+          motion: '',
+          play: entry.customized_edit || entry.combined_call || '',
+          runDirection: '+'
+        };
+
+        // Check if the position is valid
+        if (position >= emptyPlan[section].length) {
+          console.warn(`Position ${position} is out of bounds for section "${section}" (max: ${emptyPlan[section].length - 1})`);
+          return;
+        }
+
+        // Update the plan at the correct position
+        emptyPlan[section][position] = playCall;
+        console.log(`Updated ${section} at position ${position} with:`, playCall);
+      });
+
+      // Log the final plan structure after population
+      console.log('Final plan structure after population:', {
+        openingScript: emptyPlan.openingScript.map(p => p.play).filter(Boolean),
+        basePackage1: emptyPlan.basePackage1.map(p => p.play).filter(Boolean),
+        // ... etc
+      });
+    } else {
+      console.log('No game plan data found in database');
+    }
+
+    return emptyPlan;
+  } catch (error) {
+    console.error('Error in fetchGamePlanFromDatabase:', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+// Modify the updatePlayPositionsInDatabase function with better error handling
+async function updatePlayPositionsInDatabase(
+  section: string,
+  team_id: string,
+  opponent_id: string,
+  updates: { play: PlayCall; oldPosition: number; newPosition: number }[]
+): Promise<void> {
+  try {
+    console.log('Attempting to update positions in database:', {
+      section,
+      team_id,
+      opponent_id,
+      updates: updates.map(u => ({
+        oldPos: u.oldPosition,
+        newPos: u.newPosition,
+        play: u.play.play
+      }))
+    });
+
+    // First verify we have the function available
+    const { data: functions, error: functionError } = await supabase
+      .rpc('update_game_plan_positions', {
+        p_team_id: team_id,
+        p_opponent_id: opponent_id,
+        p_section: section.toLowerCase(),
+        p_old_positions: updates.map(u => u.oldPosition),
+        p_new_positions: updates.map(u => u.newPosition)
+      });
+
+    if (functionError) {
+      console.error('Detailed error from Supabase:', {
+        message: functionError.message,
+        details: functionError.details,
+        hint: functionError.hint,
+        code: functionError.code
+      });
+      throw new Error(`Database error: ${functionError.message}`);
+    }
+
+    console.log('Successfully updated positions in database');
+  } catch (error) {
+    console.error('Failed to update positions:', error);
+    if (error instanceof Error) {
+      throw new Error(`Position update failed: ${error.message}`);
+    } else {
+      throw new Error('Position update failed: Unknown error');
+    }
+  }
+}
+
 export default function PlanPage() {
   const router = useRouter()
   const componentRef = useRef<HTMLDivElement>(null)
   const [plan, setPlan] = useState<GamePlan | null>(() => load('plan', null))
   const [loading, setLoading] = useState(false)
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [selectedOpponent, setSelectedOpponent] = useState<string | null>(null);
   
   // State variables defined but currently unused - retained for future development
   // const [runPassRatio, setRunPassRatio] = useState<number>(50)
@@ -157,11 +575,11 @@ export default function PlanPage() {
   // const [selectedConcept3, setSelectedConcept3] = useState<string>("none")
 
   const [isDragging, setIsDragging] = useState(false);
-  const [draggingPlay, setDraggingPlay] = useState<Play | null>(null);
+  const [draggingPlay, setDraggingPlay] = useState<ExtendedPlay | null>(null);
 
-  const [playPool, setPlayPool] = useState<Play[]>([]);
+  const [playPool, setPlayPool] = useState<ExtendedPlay[]>([]);
   const [showPlayPool, setShowPlayPool] = useState(false);
-  const [playPoolCategory, setPlayPoolCategory] = useState<keyof typeof CATEGORIES>('run_game');
+  const [playPoolCategory, setPlayPoolCategory] = useState<'run_game' | 'rpo_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'>('run_game');
   const [playPoolSection, setPlayPoolSection] = useState<keyof GamePlan | null>(null);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'formation' | 'favorites'>('category');
@@ -278,144 +696,210 @@ export default function PlanPage() {
     return `${formationLabel} ${play.fieldAlignment}${motionLabel ? ` ${motionLabel}` : ''} ${playLabel}${runDirectionText}`;
   }
 
+  // Add effect to watch for team/opponent changes
   useEffect(() => {
-    async function generatePlan() {
-      if (!plan) {
-        setLoading(true)
-        try {
-          // Create an empty plan with no auto-generated plays
-          const emptyPlan: GamePlan = {
-            openingScript: Array(7).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            basePackage1: Array(10).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            basePackage2: Array(10).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            basePackage3: Array(10).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            firstDowns: Array(10).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            secondAndShort: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            secondAndLong: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            shortYardage: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            thirdAndLong: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            redZone: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            goalline: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            backedUp: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            screens: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            playAction: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            }),
-            deepShots: Array(5).fill({
-              formation: '',
-              fieldAlignment: '+',
-              motion: '',
-              play: '',
-              runDirection: '+'
-            })
-          };
-          
-          setPlan(emptyPlan);
-          save('plan', emptyPlan);
-        } catch (error) {
-          console.error('Error creating empty plan:', error)
-        } finally {
-          setLoading(false)
-        }
-      }
+    const team = localStorage.getItem('selectedTeam');
+    const opponent = localStorage.getItem('selectedOpponent');
+    
+    setSelectedTeam(team);
+    setSelectedOpponent(opponent);
+    
+    if (team !== selectedTeam || opponent !== selectedOpponent) {
+      console.log('Team or opponent changed, reloading game plan');
+      initializePlan();
     }
-    generatePlan()
-  }, [plan])
+
+    // Set up real-time subscription when team/opponent changes
+    if (team && opponent) {
+      console.log('Setting up real-time subscription for:', { team, opponent });
+      
+      const subscription = supabase
+        .channel('game_plan_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen for all events (insert, update, delete)
+            schema: 'public',
+            table: 'game_plan',
+            filter: `team_id=eq.${team}&opponent_id=eq.${opponent}`
+          },
+          async (payload) => {
+            console.log('Received database change:', payload);
+            try {
+              // Refresh the game plan data when changes occur
+              const updatedPlan = await fetchGamePlanFromDatabase();
+              if (updatedPlan) {
+                console.log('Updating plan from real-time change');
+                setPlan(updatedPlan);
+                save('plan', updatedPlan);
+              }
+            } catch (error) {
+              console.error('Error handling real-time update:', error);
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('Subscription status:', status);
+        });
+
+      // Cleanup subscription on unmount or when team/opponent changes
+      return () => {
+        console.log('Cleaning up subscription');
+        subscription.unsubscribe();
+      };
+    }
+  }, [selectedTeam, selectedOpponent]);
+
+  // Move initializePlan outside useEffect to reuse it
+  const initializePlan = async () => {
+    setLoading(true);
+    try {
+      const dbPlan = await fetchGamePlanFromDatabase();
+      if (dbPlan) {
+        console.log('Loaded plan from database');
+        setPlan(dbPlan);
+        save('plan', dbPlan);
+      } else {
+        console.log('Creating empty plan');
+        const emptyPlan: GamePlan = {
+          openingScript: Array(10).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          basePackage1: Array(10).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          basePackage2: Array(10).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          basePackage3: Array(10).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          firstDowns: Array(10).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          secondAndShort: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          secondAndLong: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          shortYardage: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          thirdAndLong: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          redZone: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          goalline: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          backedUp: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          screens: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          playAction: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          }),
+          deepShots: Array(5).fill({
+            formation: '',
+            fieldAlignment: '+',
+            motion: '',
+            play: '',
+            runDirection: '+'
+          })
+        };
+        setPlan(emptyPlan);
+        save('plan', emptyPlan);
+      }
+    } catch (error) {
+      console.error('Error initializing plan:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    initializePlan();
+  }, []);
 
   // Load the play pool when the component mounts
   useEffect(() => {
-    async function loadPlayPool() {
+    async function loadPlays() {
       try {
-        const plays = await getPlayPool();
-        setPlayPool(plays.filter(play => play.is_enabled));
+        setLoading(true)
+        console.log('Loading plays...')
+        const playData = await getPlayPool()
+        console.log('Plays loaded:', playData.length)
+        setPlayPool(playData)
       } catch (error) {
-        console.error('Error loading play pool:', error);
+        console.error('Failed to load play pool:', error)
+      } finally {
+        setLoading(false)
       }
     }
-    loadPlayPool();
-  }, []);
+    loadPlays()
+  }, [])
 
   // Handle before drag start
   const handleBeforeDragStart = (start: any) => {
@@ -442,150 +926,132 @@ export default function PlanPage() {
     }
   };
 
-  // Handle drag end
-  const handleDragEnd = (result: DropResult) => {
+  // Modify handleDragEnd to update positions in database
+  const handleDragEnd = async (result: DropResult) => {
     setIsDragging(false);
     setDraggingPlay(null);
     
     console.log("Drag end result:", JSON.stringify(result, null, 2));
     
-    // Drop outside the list or no movement
     if (!result.destination) {
       console.log("No destination");
       return;
     }
     
-    // Check if dragging from play pool to game plan
-    if (result.source.droppableId === 'pool-plays' && result.destination.droppableId.startsWith('section-')) {
-      console.log("Dragging from pool to section");
-      
-      try {
-        // Get the play from the pool
-        const playId = result.draggableId.split('-')[1];
-        console.log("Play ID:", playId);
-        
-        const play = playPool.find(p => p.id === playId);
-        
-        if (!play) {
-          console.log("Play not found:", playId);
-          console.log("Available play IDs:", playPool.map(p => p.id));
-          return;
-        }
-        
-        console.log("Found play:", play);
-        
-        // Convert Play to PlayCall
-        const newPlay: PlayCall = {
-          formation: play.formation || '',
-          fieldAlignment: (play.strength as "+" | "-") || '+',
-          motion: play.motion_shift || '',
-          play: play.concept || play.pass_screen_concept || '',
-          runDirection: (play.run_direction as "+" | "-") || '+'
-        };
-        
-        console.log("New play:", newPlay);
-        
-        // Get the destination section
-        const sectionId = result.destination.droppableId.split('-')[1] as keyof GamePlan;
+    try {
+      // Handle reordering within a section
+      if (result.source.droppableId === result.destination.droppableId) {
+        const sectionId = result.source.droppableId.split('-')[1] as keyof GamePlan;
         
         if (!plan || !plan[sectionId]) {
-          console.log("No plan or section:", sectionId);
-          return;
+          throw new Error('Invalid plan or section');
+        }
+
+        const team_id = localStorage.getItem('selectedTeam');
+        const opponent_id = localStorage.getItem('selectedOpponent');
+
+        if (!team_id || !opponent_id) {
+          throw new Error('Team or opponent not selected');
         }
         
         // Make a copy of the current plan
         const updatedPlan = { ...plan };
-        const sectionPlays = [...updatedPlan[sectionId]];
+        const updatedPlays = [...updatedPlan[sectionId]];
         
-        // Get the target length based on section
-        const targetLength = sectionId === 'openingScript' ? 7 : 
-                           (sectionId.startsWith('basePackage') || sectionId === 'firstDowns') ? 10 : 5;
+        // Get the play being moved
+        const [movedPlay] = updatedPlays.splice(result.source.index, 1);
         
-        console.log("Target length for section:", targetLength);
-        console.log("Current plays in section:", sectionPlays);
-        
-        // Separate empty and non-empty plays
-        const nonEmptyPlays = sectionPlays.filter(p => p.formation);
-        const emptyPlays = sectionPlays.filter(p => !p.formation);
-        
-        console.log("Non-empty plays:", nonEmptyPlays);
-        console.log("Empty plays:", emptyPlays);
-        
-        // Create the new list of plays with the new play inserted
-        let updatedPlays: PlayCall[];
-        
-        // Insert at beginning if dropping at index 0
-        if (result.destination.index === 0) {
-          updatedPlays = [newPlay, ...nonEmptyPlays];
-        } 
-        // Append if dropping at end or after last non-empty
-        else if (result.destination.index >= nonEmptyPlays.length) {
-          updatedPlays = [...nonEmptyPlays, newPlay];
-        } 
-        // Insert in the middle
-        else {
-          updatedPlays = [
-            ...nonEmptyPlays.slice(0, result.destination.index),
-            newPlay,
-            ...nonEmptyPlays.slice(result.destination.index)
-          ];
-        }
-        
-        console.log("After insertion:", updatedPlays);
-        
-        // Trim if too many
-        if (updatedPlays.length > targetLength) {
-          updatedPlays = updatedPlays.slice(0, targetLength);
-          console.log("Trimmed plays:", updatedPlays);
-        }
-        
-        // Fill with empty plays if needed
-        while (updatedPlays.length < targetLength) {
-          updatedPlays.push({
-            formation: '',
-            fieldAlignment: '+',
-            motion: '',
-            play: '',
-            runDirection: '+'
+        // Only proceed with database update if it's not an empty play
+        if (movedPlay.play) {
+          const sourceIdx = result.source.index;
+          const destIdx = result.destination.index;
+          
+          console.log('Attempting to reorder play:', {
+            section: sectionId,
+            play: movedPlay.play,
+            from: sourceIdx,
+            to: destIdx,
+            team_id,
+            opponent_id
           });
+
+          // Create updates array for all affected positions
+          const updates: { play: PlayCall; oldPosition: number; newPosition: number }[] = [];
+          
+          // Moving down
+          if (sourceIdx < destIdx) {
+            for (let i = sourceIdx + 1; i <= destIdx; i++) {
+              if (updatedPlays[i - 1].play) {
+                updates.push({
+                  play: updatedPlays[i - 1],
+                  oldPosition: i,
+                  newPosition: i - 1
+                });
+              }
+            }
+          }
+          // Moving up
+          else if (sourceIdx > destIdx) {
+            for (let i = destIdx; i < sourceIdx; i++) {
+              if (updatedPlays[i].play) {
+                updates.push({
+                  play: updatedPlays[i],
+                  oldPosition: i,
+                  newPosition: i + 1
+                });
+              }
+            }
+          }
+          
+          // Add the moved play's position update
+          updates.push({
+            play: movedPlay,
+            oldPosition: sourceIdx,
+            newPosition: destIdx
+          });
+
+          console.log('Position updates to be made:', updates.map(u => ({
+            play: u.play.play,
+            from: u.oldPosition,
+            to: u.newPosition
+          })));
+
+          // Update positions in the database
+          await updatePlayPositionsInDatabase(sectionId, team_id, opponent_id, updates);
+          
+          // Only update local state if database update succeeds
+          updatedPlays.splice(result.destination.index, 0, movedPlay);
+          updatedPlan[sectionId] = updatedPlays;
+          setPlan(updatedPlan);
+          save('plan', updatedPlan);
+
+          setNotification({
+            message: 'Play order updated successfully',
+            type: 'success'
+          });
+        } else {
+          // If it's an empty play, just update the local state
+          updatedPlays.splice(result.destination.index, 0, movedPlay);
+          updatedPlan[sectionId] = updatedPlays;
+          setPlan(updatedPlan);
+          save('plan', updatedPlan);
         }
-        
-        console.log("Final updated plays:", updatedPlays);
-        
-        // Update the section in the plan
-        updatedPlan[sectionId] = updatedPlays;
-        
-        // Save the updated plan
-        setPlan(updatedPlan);
-        save('plan', updatedPlan);
-        
-        console.log("Plan updated successfully");
-      } catch (error) {
-        console.error("Error handling drag:", error);
       }
+    } catch (error) {
+      console.error("Error in handleDragEnd:", error);
       
-      return;
-    }
-    
-    // Handle normal reordering within a section
-    if (result.source.droppableId === result.destination.droppableId) {
-      // Identify which section was affected
-      const sectionId = result.source.droppableId.split('-')[1] as keyof GamePlan;
-      
-      if (!plan || !plan[sectionId]) return;
-      
-      // Make a copy of the current plan
-      const updatedPlan = { ...plan };
-      const updatedPlays = [...updatedPlan[sectionId]];
-      
-      // Reorder the plays
-      const [movedPlay] = updatedPlays.splice(result.source.index, 1);
-      updatedPlays.splice(result.destination.index, 0, movedPlay);
-      
-      // Update the plan
-      updatedPlan[sectionId] = updatedPlays;
-      setPlan(updatedPlan);
-      save('plan', updatedPlan);
+      // Show more detailed error message
+      setNotification({
+        message: error instanceof Error ? 
+          `Failed to update play positions: ${error.message}` : 
+          "Failed to update play positions",
+        type: 'error'
+      });
+    } finally {
+      // Clear notification after 3 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 3000);
     }
   };
 
@@ -600,6 +1066,12 @@ export default function PlanPage() {
     // Add safety check for undefined
     const safetyPlays = plays || [];
     
+    console.log(`Rendering ${title} card:`, {
+      plays: safetyPlays,
+      expectedLength,
+      section
+    });
+    
     const filledPlays = [...safetyPlays];
     
     // Ensure the array has exactly expectedLength items
@@ -612,11 +1084,13 @@ export default function PlanPage() {
         runDirection: '+'
       });
     }
+
+    console.log(`Filled plays for ${title}:`, filledPlays);
     
     return (
-    <Card className="bg-white rounded shadow h-full">
+      <Card className="bg-white rounded shadow h-full">
         <CardHeader className={`${bgColor} border-b flex flex-row justify-between items-center`}>
-        <CardTitle className="font-bold">{title}</CardTitle>
+          <CardTitle className="font-bold">{title}</CardTitle>
           <Button 
             variant="outline" 
             size="sm" 
@@ -633,8 +1107,8 @@ export default function PlanPage() {
           >
             {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
           </Button>
-      </CardHeader>
-      <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
+        </CardHeader>
+        <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
           <Droppable 
             droppableId={`section-${section}`} 
             type="PLAY" 
@@ -651,7 +1125,12 @@ export default function PlanPage() {
                 }`}
               >
                 {filledPlays.map((play, index) => {
-                  const hasContent = !!play.formation;
+                  const hasContent = !!play.play; // Check if play has content based on the play field
+                  
+                  console.log(`Rendering play ${index} in ${title}:`, {
+                    play,
+                    hasContent
+                  });
                   
                   if (!hasContent) {
                     // Render empty slot without draggable
@@ -667,7 +1146,7 @@ export default function PlanPage() {
                   
                   return (
                     <Draggable 
-                      key={`${section}-${index}`} 
+                      key={`play-${section}-${index}`} 
                       draggableId={`play-${section}-${index}`} 
                       index={index}
                     >
@@ -687,7 +1166,7 @@ export default function PlanPage() {
                               <GripVertical className="h-4 w-4 text-gray-400" />
                             </div>
                             <span className="w-6 text-slate-500">{index + 1}.</span>
-                            <span>{formatPlayCall(play)}</span>
+                            <span>{play.play}</span>
                           </div>
                           
                           {hasContent && (
@@ -702,110 +1181,159 @@ export default function PlanPage() {
                               </Button>
                             </div>
                           )}
-            </div>
+                        </div>
                       )}
                     </Draggable>
                   );
                 })}
                 {provided.placeholder}
-        </div>
+              </div>
             )}
           </Droppable>
-      </CardContent>
-    </Card>
-  )
-  }
-
-  // Function to delete a play
-  const handleDeletePlay = (section: keyof GamePlan, index: number) => {
-    if (!plan) return;
-    
-    const updatedPlan = { ...plan };
-    const updatedPlays = [...updatedPlan[section]];
-    updatedPlays[index] = {
-      formation: '',
-      fieldAlignment: '+',
-      motion: '',
-      play: '',
-      runDirection: '+'
-    };
-    updatedPlan[section] = updatedPlays;
-    
-    setPlan(updatedPlan);
-    save('plan', updatedPlan);
+        </CardContent>
+      </Card>
+    );
   };
 
-  // Function to add a play from the pool to the current section
-  const handleAddPlayToSection = (play: Play) => {
+  // Modify the handleDeletePlay function
+  const handleDeletePlay = async (section: keyof GamePlan, index: number) => {
+    if (!plan) return;
+    
+    try {
+      // Delete from Supabase first
+      await deletePlayFromGamePlan(section, index);
+      
+      // Then update local state
+      const updatedPlan = { ...plan };
+      const updatedPlays = [...updatedPlan[section]];
+      updatedPlays[index] = {
+        formation: '',
+        fieldAlignment: '+',
+        motion: '',
+        play: '',
+        runDirection: '+'
+      };
+      updatedPlan[section] = updatedPlays;
+      
+      setPlan(updatedPlan);
+      save('plan', updatedPlan);
+
+      // Show success notification
+      setNotification({
+        message: 'Play removed successfully',
+        type: 'success'
+      });
+      
+      // Clear notification after 3 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 3000);
+    } catch (error) {
+      console.error('Error deleting play:', error);
+      
+      // Show error notification
+      setNotification({
+        message: error instanceof Error ? error.message : 'Failed to remove play',
+        type: 'error'
+      });
+      
+      // Clear notification after 3 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 3000);
+    }
+  };
+
+  // Modify the handleAddPlayToSection function
+  const handleAddPlayToSection = async (play: ExtendedPlay) => {
     if (!plan || !playPoolSection) return;
     
     try {
-      console.log("Adding play to section:", playPoolSection);
-      console.log("Play being added:", play);
+      console.log("Adding play to section:", {
+        section: playPoolSection,
+        play: {
+          id: play.id,
+          formation: play.formation,
+          strength: play.strength,
+          motion_shift: play.motion_shift,
+          concept: play.concept,
+          customized_edit: play.customized_edit
+        }
+      });
       
-      // Get the formatted play string directly
-      const playString = formatPlayFromPool(play);
-      
-      // Create a PlayCall object with the full string
+      // Create a PlayCall object with the play details
       const newPlay: PlayCall = {
         formation: play.formation || '',
         fieldAlignment: (play.strength as "+" | "-") || '+',
         motion: play.motion_shift || '',
-        play: playString, // Use the full formatted string as the play
+        play: formatPlayFromPool(play),
         runDirection: (play.run_direction as "+" | "-") || '+'
       };
-      
-      console.log("New play created:", newPlay);
       
       // Make a copy of the current plan
       const updatedPlan = { ...plan };
       const sectionPlays = [...updatedPlan[playPoolSection]];
       
       // Get the target length based on section
-      const targetLength = playPoolSection === 'openingScript' ? 7 : 
+      const targetLength = playPoolSection === 'openingScript' ? 10 : // Changed from 7 to 10
                           (playPoolSection.startsWith('basePackage') || playPoolSection === 'firstDowns') ? 10 : 5;
       
-      // Separate empty and non-empty plays
-      const nonEmptyPlays = sectionPlays.filter(p => p.formation);
-      const emptyPlays = sectionPlays.filter(p => !p.formation);
+      // Count existing non-empty plays
+      const nonEmptyPlays = sectionPlays.filter(p => p.play);
+      const currentPosition = nonEmptyPlays.length;
       
-      let updatedPlays: PlayCall[];
-      
-      // If we already have the max number of non-empty plays, replace the last one
-      if (nonEmptyPlays.length >= targetLength) {
-        // Replace the last play
-        nonEmptyPlays[nonEmptyPlays.length - 1] = newPlay;
-        updatedPlays = nonEmptyPlays;
-      } else {
-        // Add the new play to the end of non-empty plays
-        updatedPlays = [...nonEmptyPlays, newPlay];
-      }
-      
-      // Add empty plays to fill to target length
-      while (updatedPlays.length < targetLength) {
-        updatedPlays.push({
-          formation: '',
-          fieldAlignment: '+',
-          motion: '',
-          play: '',
-          runDirection: '+'
+      // Check if we've reached the maximum
+      if (currentPosition >= targetLength) {
+        setNotification({
+          message: `Maximum plays (${targetLength}) reached for this section`,
+          type: 'error'
         });
+        setTimeout(() => setNotification(null), 3000);
+        return;
       }
       
-      // Update the plan
-      updatedPlan[playPoolSection] = updatedPlays;
-      setPlan(updatedPlan);
-      save('plan', updatedPlan);
-      
-      // Show success notification
-      setNotification({
-        message: `Added to ${playPoolSection === 'openingScript' ? 'Opening Script' : 
-                 playPoolSection === 'basePackage1' ? 'Base Package 1' : 
-                 playPoolSection === 'basePackage2' ? 'Base Package 2' : 
-                 playPoolSection === 'basePackage3' ? 'Base Package 3' : 
-                 playPoolSection}`,
-        type: 'success'
-      });
+      // Save to database first
+      try {
+        // Get the current highest position for this section
+        const { data: existingPlays, error: queryError } = await supabase
+          .from('game_plan')
+          .select('position')
+          .eq('team_id', localStorage.getItem('selectedTeam'))
+          .eq('opponent_id', localStorage.getItem('selectedOpponent'))
+          .eq('section', playPoolSection.toLowerCase())
+          .order('position', { ascending: false })
+          .limit(1);
+
+        if (queryError) {
+          throw queryError;
+        }
+
+        // Calculate the next position (if no plays exist, start at 0)
+        const nextPosition = existingPlays && existingPlays.length > 0 ? 
+          existingPlays[0].position + 1 : 0;
+
+        await savePlayToGamePlan(play, playPoolSection, nextPosition);
+        console.log("Successfully saved to game plan table");
+        
+        // Only update UI if database save was successful
+        sectionPlays[nextPosition] = newPlay;
+        updatedPlan[playPoolSection] = sectionPlays;
+        setPlan(updatedPlan);
+        save('plan', updatedPlan);
+        
+        // Show success notification with the correct 1-based position
+        setNotification({
+          message: `Added to ${playPoolSection === 'openingScript' ? 'Opening Script' : 
+                   playPoolSection === 'basePackage1' ? 'Base Package 1' : 
+                   playPoolSection === 'basePackage2' ? 'Base Package 2' : 
+                   playPoolSection === 'basePackage3' ? 'Base Package 3' : 
+                   playPoolSection} (Position ${nextPosition + 1})`,
+          type: 'success'
+        });
+      } catch (saveError) {
+        console.error("Failed to save to game plan table:", saveError);
+        throw saveError;
+      }
       
       // Clear notification after 3 seconds
       setTimeout(() => {
@@ -817,7 +1345,7 @@ export default function PlanPage() {
       
       // Show error notification
       setNotification({
-        message: "Failed to add play",
+        message: error instanceof Error ? error.message : "Failed to add play",
         type: 'error'
       });
       
@@ -829,7 +1357,7 @@ export default function PlanPage() {
   };
 
   // Function to check if a play is already in a section
-  const isPlayInSection = (play: Play, sectionPlays: PlayCall[] | undefined): boolean => {
+  const isPlayInSection = (play: ExtendedPlay, sectionPlays: PlayCall[] | undefined): boolean => {
     if (!playPoolSection) return false;
     
     // Add safety check for undefined
@@ -861,6 +1389,8 @@ export default function PlanPage() {
         // Filter by category (existing logic)
         if (playPoolCategory === 'run_game') {
           return play.category === 'run_game';
+        } else if (playPoolCategory === 'rpo_game') {
+          return play.category === 'rpo_game';
         } else if (playPoolCategory === 'quick_game') {
           return play.category === 'quick_game';
         } else if (playPoolCategory === 'dropback_game') {
@@ -1035,7 +1565,7 @@ export default function PlanPage() {
     const filledPlays = safetyPlays.filter(p => p.formation);
     
     // Determine the number of plays to show based on the script type
-    const maxPlaysToShow = title === "Opening Script" ? 7 : 
+    const maxPlaysToShow = title === "Opening Script" ? 10 : 
                           (title.startsWith("Base Package") || title === "First Downs") ? 10 : 5;
     
     return (
@@ -1339,7 +1869,7 @@ export default function PlanPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="col-span-3">
               <div className="relative">
-                {renderPlayListCard("Opening Script", plan.openingScript, 7, "bg-amber-100", "openingScript")}
+                {renderPlayListCard("Opening Script", plan.openingScript, 10, "bg-amber-100", "openingScript")}
                 {renderPlayPoolAbsolute('openingScript')}
               </div>
             </div>
