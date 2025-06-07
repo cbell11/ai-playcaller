@@ -793,23 +793,35 @@ export default function PlanPage() {
     }
   }, []);
 
-  // Load the play pool when the component mounts
+  // Update the play pool loading effect to depend on selectedOpponent
   useEffect(() => {
     async function loadPlays() {
+      if (!selectedOpponent) {
+        setPlayPool([]);
+        return;
+      }
+
       try {
-        setLoading(true)
-        console.log('Loading plays...')
-        const playData = await getPlayPool()
-        console.log('Plays loaded:', playData.length)
-        setPlayPool(playData)
+        setLoading(true);
+        console.log('Loading plays for new opponent...');
+        const playData = await getPlayPool();
+        console.log('Plays loaded:', playData.length);
+        setPlayPool(playData);
+        
+        // Reset play pool related states
+        setShowPlayPool(false);
+        setPlayPoolSection(null);
+        setPlayPoolCategory('run_game');
+        setPlayPoolFilterType('category');
       } catch (error) {
-        console.error('Failed to load play pool:', error)
+        console.error('Failed to load play pool:', error);
+        setPlayPool([]);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
-    loadPlays()
-  }, [])
+    loadPlays();
+  }, [selectedOpponent]); // Add selectedOpponent as dependency
 
   // Handle before drag start
   const handleBeforeDragStart = (start: any) => {
