@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase'
 // import { Textarea } from "../components/ui/textarea"
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
+import { LoadingModal } from "../components/loading-modal"
 
 // Helper component for displaying a dragging item - currently unused but may be needed in future
 function DragItem({ play }: { play: Play, snapshot: any }) {
@@ -1595,360 +1596,363 @@ export default function PlanPage() {
   }
 
   return (
-    <DragDropContext onDragEnd={handleDragEnd} onBeforeDragStart={handleBeforeDragStart}>
-      <div className={`container mx-auto px-4 py-8 ${isDragging ? 'bg-gray-50' : ''}`}>
-        {isDragging && (
-          <div className="fixed top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded shadow-lg z-50">
-            Drag to add play to game plan
-          </div>
-        )}
-        
-        {notification && (
-          <div 
-            className={`fixed bottom-4 right-4 px-4 py-3 rounded shadow-lg z-50 ${
-              notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-            }`}
-          >
-            {notification.message}
-          </div>
-        )}
-        
-        {/* Print Orientation Dialog */}
-        {showPrintDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-              <h3 className="text-xl font-bold mb-4">Select Print Orientation</h3>
-              <div className="flex space-x-4 mb-6">
-                <div 
-                  className={`border p-4 rounded cursor-pointer flex-1 flex flex-col items-center ${printOrientation === 'portrait' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
-                  onClick={() => setPrintOrientation('portrait')}
-                >
-                  <div className="w-16 h-24 border border-gray-400 mb-2"></div>
-                  <span>Portrait</span>
-                </div>
-                <div 
-                  className={`border p-4 rounded cursor-pointer flex-1 flex flex-col items-center ${printOrientation === 'landscape' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
-                  onClick={() => setPrintOrientation('landscape')}
-                >
-                  <div className="w-24 h-16 border border-gray-400 mb-2"></div>
-                  <span>Landscape</span>
-                </div>
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={() => printHandler()} className="flex items-center gap-2">
-                  <Printer className="h-4 w-4" />
-                  Print
-                </Button>
-              </div>
+    <>
+      {isGenerating && <LoadingModal />}
+      <DragDropContext onDragEnd={handleDragEnd} onBeforeDragStart={handleBeforeDragStart}>
+        <div className={`container mx-auto px-4 py-8 ${isDragging ? 'bg-gray-50' : ''}`}>
+          {isDragging && (
+            <div className="fixed top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded shadow-lg z-50">
+              Drag to add play to game plan
             </div>
-          </div>
-        )}
-
-        {/* Printable content (hidden from normal view) */}
-        <div className="hidden">
-          <div ref={printRef} className={`p-2 ${printOrientation === 'landscape' ? 'landscape' : 'portrait'}`}>
-            <style type="text/css" media="print">
-              {`
-                @page {
-                  size: ${printOrientation};
-                  margin: 5mm;
-                }
-                
-                body {
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
-                  font-size: 7pt !important;
-                }
-                
-                .landscape {
-                  width: 297mm;
-                  height: 210mm;
-                }
-                
-                .portrait {
-                  width: 210mm;
-                  height: 297mm;
-                }
-                
-                table {
-                  page-break-inside: avoid;
-                }
-                
-                .break-inside-avoid {
-                  page-break-inside: avoid;
-                }
-
-                .print-grid {
-                  display: grid;
-                  grid-template-columns: repeat(3, 1fr);
-                  gap: 1mm;
-                  page-break-after: avoid;
-                }
-
-                .col-span-full {
-                  grid-column: 1 / -1;
-                }
-
-                /* Shrink table rows for compactness */
-                .print-grid tr {
-                  line-height: 1;
-                }
-
-                /* Minimize cell padding */
-                .print-grid td, .print-grid th {
-                  padding: 0.3mm 0.5mm;
-                }
-
-                /* Override any hover effects in print */
-                .print-grid tr:hover {
-                  background-color: transparent !important;
-                }
-
-                /* Ensure proper table width */
-                .print-grid table {
-                  width: 100%;
-                  table-layout: fixed;
-                }
-
-                /* Set smaller font for play text */
-                .print-grid .font-mono {
-                  font-size: 6.5pt;
-                }
-              `}
-            </style>
-            
-            <div className="text-center mb-1">
-              <h1 className="text-sm font-bold mb-0">Game Plan</h1>
-              <p className="text-xs mb-1">✓ = Called &nbsp;&nbsp; ★ = Key Play</p>
-            </div>
-            
-            <div className="print-grid">
-              {/* Opening Script - spans full width */}
-              <div className="col-span-full mb-1">
-                {renderPrintableList("Opening Script", plan.openingScript, "bg-amber-100")}
-              </div>
-              
-              {/* Base Packages - all in same row */}
-              <div>
-                {renderPrintableList("Base Package 1", plan.basePackage1, "bg-green-100")}
-              </div>
-              <div>
-                {renderPrintableList("Base Package 2", plan.basePackage2, "bg-green-100")}
-              </div>
-              <div>
-                {renderPrintableList("Base Package 3", plan.basePackage3, "bg-green-100")}
-              </div>
-              
-              {/* Down and Distance */}
-              <div>
-                {renderPrintableList("First Downs", plan.firstDowns, "bg-blue-100")}
-              </div>
-              <div>
-                {renderPrintableList("Short Yardage", plan.shortYardage, "bg-blue-100")}
-              </div>
-              <div>
-                {renderPrintableList("3rd and Long", plan.thirdAndLong, "bg-blue-100")}
-              </div>
-              
-              {/* Field Position */}
-              <div>
-                {renderPrintableList("Red Zone", plan.redZone, "bg-red-100")}
-              </div>
-              <div>
-                {renderPrintableList("Goalline", plan.goalline, "bg-red-100")}
-              </div>
-              <div>
-                {renderPrintableList("Backed Up", plan.backedUp, "bg-red-100")}
-              </div>
-              
-              {/* Special Categories */}
-              <div>
-                {renderPrintableList("Screens", plan.screens, "bg-purple-100")}
-              </div>
-              <div>
-                {renderPrintableList("Play Action", plan.playAction, "bg-purple-100")}
-              </div>
-              <div>
-                {renderPrintableList("Deep Shots", plan.deepShots, "bg-purple-100")}
-              </div>
-            </div>
-          </div>
-        </div>
-
-      <div ref={componentRef} className="space-y-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h1 className="text-3xl font-bold">Game Plan</h1>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => router.push('/scouting')} className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-          <Button variant="outline" onClick={handlePrint} className="flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            Download PDF
-          </Button>
-        </div>
-        </div>
-
-        {/* User Preferences Form */}
-        <Card className="bg-white">
-            <CardHeader>
-              <CardTitle>Game Plan Settings</CardTitle>
-            </CardHeader>
-          <CardContent className="space-y-6">
-              <div className="p-4 bg-blue-50 text-blue-800 rounded-md">
-                <p className="text-sm">
-                  Use the "Add a Play" button on each section to build your game plan from the play pool.
-                </p>
-        </div>
-
-            <Button 
-                onClick={handleGenerateGamePlan}
-                className="w-full mb-4"
-                variant="default"
-                disabled={isGenerating}
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="animate-spin mr-2">
-                      <Wand2 className="h-4 w-4" />
-                    </div>
-                    Generating Game Plan...
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    Generate Game Plan with AI
-                  </>
-                )}
-              </Button>
-
-            <Button 
-                onClick={() => {
-                  setPlan(null);
-                  setShowPlayPool(false);
-                  setDraggingPlay(null);
-                  setIsDragging(false);
-                }} 
-              className="w-full"
-              variant="default"
-            >
-                Create New Empty Game Plan
-            </Button>
-            </CardContent>
-          </Card>
-
-          {/* Opening Script - Special row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="col-span-3">
-              <div className="relative">
-                {renderPlayListCard("Opening Script", plan.openingScript, 10, "bg-amber-100", "openingScript")}
-                {renderPlayPoolAbsolute('openingScript')}
-              </div>
-            </div>
-          </div>
+          )}
           
-          {/* Base Package row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Base Package 1", plan.basePackage1, 10, "bg-green-100", "basePackage1")}
-                {renderPlayPoolAbsolute('basePackage1')}
+          {notification && (
+            <div 
+              className={`fixed bottom-4 right-4 px-4 py-3 rounded shadow-lg z-50 ${
+                notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+              }`}
+            >
+              {notification.message}
+            </div>
+          )}
+          
+          {/* Print Orientation Dialog */}
+          {showPrintDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+                <h3 className="text-xl font-bold mb-4">Select Print Orientation</h3>
+                <div className="flex space-x-4 mb-6">
+                  <div 
+                    className={`border p-4 rounded cursor-pointer flex-1 flex flex-col items-center ${printOrientation === 'portrait' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                    onClick={() => setPrintOrientation('portrait')}
+                  >
+                    <div className="w-16 h-24 border border-gray-400 mb-2"></div>
+                    <span>Portrait</span>
+                  </div>
+                  <div 
+                    className={`border p-4 rounded cursor-pointer flex-1 flex flex-col items-center ${printOrientation === 'landscape' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                    onClick={() => setPrintOrientation('landscape')}
+                  >
+                    <div className="w-24 h-16 border border-gray-400 mb-2"></div>
+                    <span>Landscape</span>
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => printHandler()} className="flex items-center gap-2">
+                    <Printer className="h-4 w-4" />
+                    Print
+                  </Button>
+                </div>
               </div>
             </div>
-            
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Base Package 2", plan.basePackage2, 10, "bg-green-100", "basePackage2")}
-                {renderPlayPoolAbsolute('basePackage2')}
+          )}
+
+          {/* Printable content (hidden from normal view) */}
+          <div className="hidden">
+            <div ref={printRef} className={`p-2 ${printOrientation === 'landscape' ? 'landscape' : 'portrait'}`}>
+              <style type="text/css" media="print">
+                {`
+                  @page {
+                    size: ${printOrientation};
+                    margin: 5mm;
+                  }
+                  
+                  body {
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    font-size: 7pt !important;
+                  }
+                  
+                  .landscape {
+                    width: 297mm;
+                    height: 210mm;
+                  }
+                  
+                  .portrait {
+                    width: 210mm;
+                    height: 297mm;
+                  }
+                  
+                  table {
+                    page-break-inside: avoid;
+                  }
+                  
+                  .break-inside-avoid {
+                    page-break-inside: avoid;
+                  }
+
+                  .print-grid {
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 1mm;
+                    page-break-after: avoid;
+                  }
+
+                  .col-span-full {
+                    grid-column: 1 / -1;
+                  }
+
+                  /* Shrink table rows for compactness */
+                  .print-grid tr {
+                    line-height: 1;
+                  }
+
+                  /* Minimize cell padding */
+                  .print-grid td, .print-grid th {
+                    padding: 0.3mm 0.5mm;
+                  }
+
+                  /* Override any hover effects in print */
+                  .print-grid tr:hover {
+                    background-color: transparent !important;
+                  }
+
+                  /* Ensure proper table width */
+                  .print-grid table {
+                    width: 100%;
+                    table-layout: fixed;
+                  }
+
+                  /* Set smaller font for play text */
+                  .print-grid .font-mono {
+                    font-size: 6.5pt;
+                  }
+                `}
+              </style>
+              
+              <div className="text-center mb-1">
+                <h1 className="text-sm font-bold mb-0">Game Plan</h1>
+                <p className="text-xs mb-1">✓ = Called &nbsp;&nbsp; ★ = Key Play</p>
               </div>
-            </div>
-            
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Base Package 3", plan.basePackage3, 10, "bg-green-100", "basePackage3")}
-                {renderPlayPoolAbsolute('basePackage3')}
+              
+              <div className="print-grid">
+                {/* Opening Script - spans full width */}
+                <div className="col-span-full mb-1">
+                  {renderPrintableList("Opening Script", plan.openingScript, "bg-amber-100")}
+                </div>
+                
+                {/* Base Packages - all in same row */}
+                <div>
+                  {renderPrintableList("Base Package 1", plan.basePackage1, "bg-green-100")}
+                </div>
+                <div>
+                  {renderPrintableList("Base Package 2", plan.basePackage2, "bg-green-100")}
+                </div>
+                <div>
+                  {renderPrintableList("Base Package 3", plan.basePackage3, "bg-green-100")}
+                </div>
+                
+                {/* Down and Distance */}
+                <div>
+                  {renderPrintableList("First Downs", plan.firstDowns, "bg-blue-100")}
+                </div>
+                <div>
+                  {renderPrintableList("Short Yardage", plan.shortYardage, "bg-blue-100")}
+                </div>
+                <div>
+                  {renderPrintableList("3rd and Long", plan.thirdAndLong, "bg-blue-100")}
+                </div>
+                
+                {/* Field Position */}
+                <div>
+                  {renderPrintableList("Red Zone", plan.redZone, "bg-red-100")}
+                </div>
+                <div>
+                  {renderPrintableList("Goalline", plan.goalline, "bg-red-100")}
+                </div>
+                <div>
+                  {renderPrintableList("Backed Up", plan.backedUp, "bg-red-100")}
+                </div>
+                
+                {/* Special Categories */}
+                <div>
+                  {renderPrintableList("Screens", plan.screens, "bg-purple-100")}
+                </div>
+                <div>
+                  {renderPrintableList("Play Action", plan.playAction, "bg-purple-100")}
+                </div>
+                <div>
+                  {renderPrintableList("Deep Shots", plan.deepShots, "bg-purple-100")}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Down and Distance row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("First Downs", plan.firstDowns, 10, "bg-blue-100", "firstDowns")}
-                {renderPlayPoolAbsolute('firstDowns')}
-              </div>
-            </div>
-            
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Short Yardage", plan.shortYardage, 5, "bg-blue-100", "shortYardage")}
-                {renderPlayPoolAbsolute('shortYardage')}
-              </div>
-            </div>
-            
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("3rd and Long", plan.thirdAndLong, 5, "bg-blue-100", "thirdAndLong")}
-                {renderPlayPoolAbsolute('thirdAndLong')}
-              </div>
-            </div>
+        <div ref={componentRef} className="space-y-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <h1 className="text-3xl font-bold">Game Plan</h1>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => router.push('/scouting')} className="flex items-center gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+            <Button variant="outline" onClick={handlePrint} className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Download PDF
+            </Button>
+          </div>
           </div>
 
-          {/* Field Position row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Red Zone", plan.redZone, 5, "bg-red-100", "redZone")}
-                {renderPlayPoolAbsolute('redZone')}
-              </div>
-            </div>
-            
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Goalline", plan.goalline, 5, "bg-red-100", "goalline")}
-                {renderPlayPoolAbsolute('goalline')}
-              </div>
-            </div>
-            
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Backed Up", plan.backedUp, 5, "bg-red-100", "backedUp")}
-                {renderPlayPoolAbsolute('backedUp')}
-              </div>
-            </div>
+          {/* User Preferences Form */}
+          <Card className="bg-white">
+              <CardHeader>
+                <CardTitle>Game Plan Settings</CardTitle>
+              </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="p-4 bg-blue-50 text-blue-800 rounded-md">
+                  <p className="text-sm">
+                    Use the "Add a Play" button on each section to build your game plan from the play pool.
+                  </p>
           </div>
 
-          {/* Special Categories row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Screens", plan.screens, 5, "bg-purple-100", "screens")}
-                {renderPlayPoolAbsolute('screens')}
+              <Button 
+                  onClick={handleGenerateGamePlan}
+                  className="w-full mb-4"
+                  variant="default"
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="animate-spin mr-2">
+                        <Wand2 className="h-4 w-4" />
+                      </div>
+                      Generating Game Plan...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4 mr-2" />
+                      Generate Game Plan with AI
+                    </>
+                  )}
+                </Button>
+
+              <Button 
+                  onClick={() => {
+                    setPlan(null);
+                    setShowPlayPool(false);
+                    setDraggingPlay(null);
+                    setIsDragging(false);
+                  }} 
+                className="w-full"
+                variant="default"
+              >
+                  Create New Empty Game Plan
+              </Button>
+              </CardContent>
+            </Card>
+
+            {/* Opening Script - Special row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="col-span-3">
+                <div className="relative">
+                  {renderPlayListCard("Opening Script", plan.openingScript, 10, "bg-amber-100", "openingScript")}
+                  {renderPlayPoolAbsolute('openingScript')}
+                </div>
               </div>
             </div>
             
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Play Action", plan.playAction, 5, "bg-purple-100", "playAction")}
-                {renderPlayPoolAbsolute('playAction')}
+            {/* Base Package row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Base Package 1", plan.basePackage1, 10, "bg-green-100", "basePackage1")}
+                  {renderPlayPoolAbsolute('basePackage1')}
+                </div>
+              </div>
+              
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Base Package 2", plan.basePackage2, 10, "bg-green-100", "basePackage2")}
+                  {renderPlayPoolAbsolute('basePackage2')}
+                </div>
+              </div>
+              
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Base Package 3", plan.basePackage3, 10, "bg-green-100", "basePackage3")}
+                  {renderPlayPoolAbsolute('basePackage3')}
+                </div>
               </div>
             </div>
-            
-            <div className="col-span-1">
-              <div className="relative">
-                {renderPlayListCard("Deep Shots", plan.deepShots, 5, "bg-purple-100", "deepShots")}
-                {renderPlayPoolAbsolute('deepShots')}
+
+            {/* Down and Distance row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("First Downs", plan.firstDowns, 10, "bg-blue-100", "firstDowns")}
+                  {renderPlayPoolAbsolute('firstDowns')}
+                </div>
+              </div>
+              
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Short Yardage", plan.shortYardage, 5, "bg-blue-100", "shortYardage")}
+                  {renderPlayPoolAbsolute('shortYardage')}
+                </div>
+              </div>
+              
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("3rd and Long", plan.thirdAndLong, 5, "bg-blue-100", "thirdAndLong")}
+                  {renderPlayPoolAbsolute('thirdAndLong')}
+                </div>
+              </div>
+            </div>
+
+            {/* Field Position row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Red Zone", plan.redZone, 5, "bg-red-100", "redZone")}
+                  {renderPlayPoolAbsolute('redZone')}
+                </div>
+              </div>
+              
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Goalline", plan.goalline, 5, "bg-red-100", "goalline")}
+                  {renderPlayPoolAbsolute('goalline')}
+                </div>
+              </div>
+              
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Backed Up", plan.backedUp, 5, "bg-red-100", "backedUp")}
+                  {renderPlayPoolAbsolute('backedUp')}
+                </div>
+              </div>
+            </div>
+
+            {/* Special Categories row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Screens", plan.screens, 5, "bg-purple-100", "screens")}
+                  {renderPlayPoolAbsolute('screens')}
+                </div>
+              </div>
+              
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Play Action", plan.playAction, 5, "bg-purple-100", "playAction")}
+                  {renderPlayPoolAbsolute('playAction')}
+                </div>
+              </div>
+              
+              <div className="col-span-1">
+                <div className="relative">
+                  {renderPlayListCard("Deep Shots", plan.deepShots, 5, "bg-purple-100", "deepShots")}
+                  {renderPlayPoolAbsolute('deepShots')}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-      <DragLayer isDragging={isDragging} play={draggingPlay} />
-    </DragDropContext>
+        <DragLayer isDragging={isDragging} play={draggingPlay} />
+      </DragDropContext>
+    </>
   )
 }
