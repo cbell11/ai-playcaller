@@ -1421,45 +1421,37 @@ export default function PlanPage() {
     );
   };
 
-  // Add a function to format plays for printable version
+  // Update the renderPrintableList function
   const renderPrintableList = (title: string, plays: PlayCall[] | undefined, bgColor: string = "bg-blue-100") => {
     // Check if plays is undefined and provide an empty array as fallback
     const safetyPlays = plays || [];
     
-    // Filter only non-empty plays to save space
-    const filledPlays = safetyPlays.filter(p => p.formation);
+    // Filter only non-empty plays
+    const filledPlays = safetyPlays.filter(p => p.play);
     
-    // Determine the number of plays to show based on the script type
-    const maxPlaysToShow = title === "Opening Script" ? 10 : 
-                          (title.startsWith("Base Package") || title === "First Downs") ? 10 : 5;
+    // If no plays, don't render anything
+    if (filledPlays.length === 0) {
+      return null;
+    }
     
     return (
       <div className="break-inside-avoid">
-        <div className={`${bgColor} p-0.5 font-bold border-b text-xxs`}>
-          {title}
+        <div className={`${bgColor} p-0.5 font-bold border-b text-xxs flex justify-between items-center`}>
+          <span>{title}</span>
+          <span className="text-xs">({filledPlays.length})</span>
         </div>
         <table className="w-full border-collapse text-xxs">
-          <thead>
-            <tr className="border-b">
-              <th className="py-0 px-0.5 text-left w-2">★</th>
-              <th className="py-0 px-0.5 text-left w-2">✓</th>
-              <th className="py-0 px-0.5 text-left w-2">#</th>
-              <th className="py-0 px-0.5 text-left">Play</th>
-            </tr>
-          </thead>
           <tbody>
-            {filledPlays.slice(0, maxPlaysToShow).map((play, idx) => (
+            {filledPlays.map((play, idx) => (
               <tr key={idx} className="border-b">
-                <td className="py-0 px-0.5 border-r">□</td>
-                <td className="py-0 px-0.5 border-r">□</td>
-                <td className="py-0 px-0.5 border-r">{idx + 1}</td>
-                <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">{formatPlayCall(play)}</td>
+                <td className="py-0 px-0.5 border-r w-4">□</td>
+                <td className="py-0 px-0.5 border-r w-4">□</td>
+                <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
+                <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
+                  {play.play}
+                </td>
               </tr>
             ))}
-            {/* Add empty row only if no plays */}
-            {filledPlays.length === 0 && (
-              <tr><td colSpan={4} className="py-0.25 text-center text-gray-400 italic text-xxs">Empty</td></tr>
-            )}
           </tbody>
         </table>
       </div>
@@ -1657,18 +1649,27 @@ export default function PlanPage() {
                 {`
                   @page {
                     size: ${printOrientation};
-                    margin: 5mm;
+                    margin: 3mm;
+                  }
+                  
+                  @media print {
+                    body {
+                      -webkit-print-color-adjust: exact !important;
+                      print-color-adjust: exact !important;
+                    }
                   }
                   
                   body {
                     -webkit-print-color-adjust: exact !important;
                     print-color-adjust: exact !important;
-                    font-size: 7pt !important;
+                    font-size: 6.5pt !important;
                   }
                   
                   .landscape {
                     width: 297mm;
                     height: 210mm;
+                    max-height: 210mm;
+                    overflow: hidden;
                   }
                   
                   .portrait {
@@ -1687,8 +1688,9 @@ export default function PlanPage() {
                   .print-grid {
                     display: grid;
                     grid-template-columns: repeat(3, 1fr);
-                    gap: 1mm;
+                    gap: 0.5mm;
                     page-break-after: avoid;
+                    max-height: 180mm; /* Leave room for header */
                   }
 
                   .col-span-full {
@@ -1718,14 +1720,46 @@ export default function PlanPage() {
 
                   /* Set smaller font for play text */
                   .print-grid .font-mono {
-                    font-size: 6.5pt;
+                    font-size: 6pt;
+                  }
+
+                  /* Ensure background colors print */
+                  .bg-amber-100 { background-color: #fef3c7 !important; }
+                  .bg-green-100 { background-color: #dcfce7 !important; }
+                  .bg-blue-100 { background-color: #dbeafe !important; }
+                  .bg-red-100 { background-color: #fee2e2 !important; }
+                  .bg-purple-100 { background-color: #f3e8ff !important; }
+
+                  /* Adjust header spacing */
+                  .text-center.mb-1 {
+                    margin-bottom: 1mm !important;
+                  }
+                  
+                  /* Make text smaller in landscape mode */
+                  @media print and (orientation: landscape) {
+                    body {
+                      font-size: 6pt !important;
+                    }
+                    .print-grid .font-mono {
+                      font-size: 5.5pt;
+                    }
+                    .text-xxs {
+                      font-size: 5.5pt;
+                    }
                   }
                 `}
               </style>
               
+              {/* Update the print header to be more compact */}
               <div className="text-center mb-1">
                 <h1 className="text-sm font-bold mb-0">Game Plan</h1>
-                <p className="text-xs mb-1">✓ = Called &nbsp;&nbsp; ★ = Key Play</p>
+                <div className="text-xs flex justify-center items-center gap-4">
+                  <span>✓ = Called</span>
+                  <span>★ = Key Play</span>
+                  {selectedOpponent && (
+                    <span className="font-semibold">vs. {selectedOpponent}</span>
+                  )}
+                </div>
               </div>
               
               <div className="print-grid">
@@ -1790,8 +1824,8 @@ export default function PlanPage() {
                 Back
               </Button>
             <Button variant="outline" onClick={handlePrint} className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Download PDF
+              <Printer className="h-4 w-4" />
+              Print PDF
             </Button>
           </div>
           </div>
