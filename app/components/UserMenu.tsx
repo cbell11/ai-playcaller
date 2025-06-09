@@ -85,7 +85,7 @@ export function UserMenu() {
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 focus:outline-none"
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 focus:outline-none cursor-pointer"
           aria-label="User menu"
         >
           <svg 

@@ -1327,7 +1327,7 @@ export default function PlanPage() {
             <div className="inline-flex rounded-md shadow-sm" role="group">
               <button
                 type="button"
-                className={`px-4 py-1 text-xs font-medium rounded-l-lg ${
+                className={`px-4 py-1 text-xs font-medium rounded-l-lg cursor-pointer ${
                   playPoolFilterType === 'category' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -1338,7 +1338,7 @@ export default function PlanPage() {
               </button>
               <button
                 type="button"
-                className={`px-4 py-1 text-xs font-medium rounded-r-lg ${
+                className={`px-4 py-1 text-xs font-medium rounded-r-lg cursor-pointer ${
                   playPoolFilterType === 'favorites' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -1357,7 +1357,7 @@ export default function PlanPage() {
                 {Object.entries(CATEGORIES).map(([key, label]) => (
                   <button 
                     key={key}
-                    className={`w-full text-left py-1 px-2 mb-1 text-xs rounded ${playPoolCategory === key ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
+                    className={`w-full text-left py-1 px-2 mb-1 text-xs rounded cursor-pointer ${playPoolCategory === key ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
                     onClick={() => setPlayPoolCategory(key as any)}
                   >
                     {label}
@@ -1398,7 +1398,7 @@ export default function PlanPage() {
                         ) : (
                           <button
                             onClick={() => handleAddPlayToSection(play)}
-                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0"
+                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0 cursor-pointer"
                           >
                             + Add
                           </button>
@@ -1844,8 +1844,7 @@ export default function PlanPage() {
 
               <Button 
                   onClick={handleGenerateGamePlan}
-                  className="w-full mb-4"
-                  variant="default"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   disabled={isGenerating}
                 >
                   {isGenerating ? (
@@ -1862,19 +1861,6 @@ export default function PlanPage() {
                     </>
                   )}
                 </Button>
-
-              <Button 
-                  onClick={() => {
-                    setPlan(null);
-                    setShowPlayPool(false);
-                    setDraggingPlay(null);
-                    setIsDragging(false);
-                  }} 
-                className="w-full"
-                variant="default"
-              >
-                  Create New Empty Game Plan
-              </Button>
               </CardContent>
             </Card>
 
