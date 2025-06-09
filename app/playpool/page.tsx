@@ -89,7 +89,7 @@ interface ScoutingOption {
 
 // Helper function to determine if a category is a pass play category
 function isPassPlayCategory(category: string): boolean {
-  return ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(category);
+  return ['quick_game', 'dropback_game', 'shot_plays', 'screen_game'].includes(category);
 }
 
 // Add custom event type declaration at the top of the file
@@ -593,7 +593,22 @@ export default function PlayPoolPage() {
           </div>
           <span className="flex-grow font-mono text-sm">
             {play.customized_edit || formatPlay(play)}
-            {isPassPlay ? (
+            {play.category === 'rpo_game' ? (
+              play.front_beaters && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" className="ml-2 p-0 h-6 w-6">
+                        <HelpCircle className="h-4 w-4 text-blue-500" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="font-normal">Front Beaters: {play.front_beaters}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )
+            ) : isPassPlay ? (
               play.coverage_beaters && (
                 <TooltipProvider>
                   <Tooltip>

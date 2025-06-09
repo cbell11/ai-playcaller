@@ -101,7 +101,7 @@ function hasMotionComponents(play: any): boolean {
 
 // Helper function to determine if a category is a pass play category
 function isPassPlayCategory(category: string): boolean {
-  return ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(category);
+  return ['quick_game', 'dropback_game', 'shot_plays', 'screen_game'].includes(category);
 }
 
 export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Promise<AnalyzePlayResponse> {
@@ -137,7 +137,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     // Constants
     const TARGET_PLAYS = {
       run_game: 15,
-      rpo_game: 15,
+      rpo_game: 5,
       quick_game: 15,
       dropback_game: 15,
       shot_plays: 15,
@@ -255,7 +255,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
     // Filter plays based on defensive matchups
     availableMasterPlays = availableMasterPlays.filter(play => {
-      const isPassPlay = ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(play.category);
+      const isPassPlay = ['quick_game', 'dropback_game', 'shot_plays', 'screen_game'].includes(play.category);
       
       if (isPassPlay && play.coverage_beaters) {
         const beatersList = play.coverage_beaters.split(',').map((c: string) => c.trim().toLowerCase());
@@ -295,7 +295,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     const lockedScreenPlays = lockedPlays?.filter(play => play.category === 'screen_game') || [];
     
     const runPlaysToSelect = Math.max(0, TARGET_PLAYS.run_game - lockedRunPlays.length);
-    const rpoPlaysToSelect = Math.max(0, TARGET_PLAYS.rpo_game - lockedRpoPlays.length);
+    const rpoPlaysToSelect = Math.max(5, TARGET_PLAYS.rpo_game - lockedRpoPlays.length);
     const quickPlaysToSelect = Math.max(0, TARGET_PLAYS.quick_game - lockedQuickPlays.length);
     const dropbackPlaysToSelect = Math.max(0, TARGET_PLAYS.dropback_game - lockedDropbackPlays.length);
     const shotPlaysToSelect = Math.max(0, TARGET_PLAYS.shot_plays - lockedShotPlays.length);
@@ -328,6 +328,9 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     ) => {
       const isPassPlay = isPassPlayCategory(category);
       const defensePercentages = isPassPlay ? coveragePercentages : frontPercentages;
+      
+      // Special handling for RPO plays to ensure minimum of 5
+      const minimumPlays = category === 'rpo_game' ? 5 : playsToSelect;
       
       // Special handling for screen plays
       if (category === 'screen_game') {
@@ -364,13 +367,11 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         // If we don't have enough defense beaters, also include some general plays
         const generalPlays = availablePlays.filter(play => 
           !selectedPlayIds.has(play.play_id) &&
-          play.category === category && 
-          (play.category === 'screen_game' || // Include all screen plays as general plays
-           (!isPassPlay ? (!play.front_beaters || play.front_beaters === '') : (!play.coverage_beaters || play.coverage_beaters === '')))
+          play.category === category
         );
 
-        // For screen plays, combine all available plays
-        const playsPool = category === 'screen_game' 
+        // For screen plays or RPO plays, combine all available plays
+        const playsPool = category === 'screen_game' || category === 'rpo_game'
           ? Array.from(new Set([...defenseBeaters, ...generalPlays]))
           : defenseBeaters;
 
@@ -378,8 +379,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         let playsToAdd: any[] = [];
         
         if (playsPool.length > 0) {
-          const targetCount = category === 'screen_game'
-            ? playsForDefense  // For screen plays, just take what we need
+          const targetCount = category === 'screen_game' || category === 'rpo_game'
+            ? playsForDefense  // For screen plays and RPO plays, just take what we need
             : Math.ceil(playsForDefense * 0.7); // For other plays, use 70% defense beaters
 
           // Randomly select plays
@@ -392,8 +393,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
             }
           }
 
-          // For non-screen plays, add some general plays to reach the target
-          if (category !== 'screen_game' && generalPlays.length > 0) {
+          // For non-screen plays and non-RPO plays, add some general plays to reach the target
+          if (category !== 'screen_game' && category !== 'rpo_game' && generalPlays.length > 0) {
             const remainingCount = playsForDefense - playsToAdd.length;
             for (let i = 0; i < remainingCount && generalPlays.length > 0; i++) {
               const randomIndex = Math.floor(Math.random() * generalPlays.length);
@@ -408,21 +409,11 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
         // Add selected plays to our final list
         selectedPlaysArray.push(...playsToAdd);
-
-        // Log progress for screen plays
-        if (category === 'screen_game') {
-          console.log('Added screen plays:', {
-            defense: defenseItem,
-            playsForDefense,
-            playsAdded: playsToAdd.length,
-            totalSelected: selectedPlaysArray.length
-          });
-        }
       }
 
       // Ensure we have enough plays by adding any remaining available plays if needed
-      if (selectedPlaysArray.length < playsToSelect) {
-        const remainingPlays = playsToSelect - selectedPlaysArray.length;
+      if (selectedPlaysArray.length < minimumPlays) {
+        const remainingPlays = minimumPlays - selectedPlaysArray.length;
         const remainingAvailablePlays = availablePlays.filter(play => 
           !selectedPlayIds.has(play.play_id) &&
           play.category === category
@@ -436,12 +427,42 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
           });
         }
 
+        // For RPO plays, log the count
+        if (category === 'rpo_game') {
+          console.log('Filling remaining RPO plays:', {
+            currentCount: selectedPlaysArray.length,
+            needed: remainingPlays,
+            available: remainingAvailablePlays.length,
+            minimumRequired: minimumPlays
+          });
+        }
+
         for (let i = 0; i < remainingPlays && remainingAvailablePlays.length > 0; i++) {
           const randomIndex = Math.floor(Math.random() * remainingAvailablePlays.length);
           const selectedPlay = remainingAvailablePlays.splice(randomIndex, 1)[0];
           if (selectedPlay) {
             selectedPlaysArray.push(selectedPlay);
             selectedPlayIds.add(selectedPlay.play_id);
+          }
+        }
+
+        // If we still don't have enough RPO plays, create duplicates from existing ones
+        if (category === 'rpo_game' && selectedPlaysArray.length < minimumPlays) {
+          const playsStillNeeded = minimumPlays - selectedPlaysArray.length;
+          const existingPlays = [...selectedPlaysArray];
+          
+          for (let i = 0; i < playsStillNeeded && existingPlays.length > 0; i++) {
+            const randomIndex = Math.floor(Math.random() * existingPlays.length);
+            const playToDuplicate = existingPlays[randomIndex];
+            if (playToDuplicate) {
+              const duplicatedPlay = {
+                ...playToDuplicate,
+                play_id: `${playToDuplicate.play_id}_duplicate_${i}`,
+                notes: `${playToDuplicate.notes} (Duplicate to meet minimum RPO requirement)`
+              };
+              selectedPlaysArray.push(duplicatedPlay);
+              selectedPlayIds.add(duplicatedPlay.play_id);
+            }
           }
         }
       }
