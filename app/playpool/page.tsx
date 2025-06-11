@@ -675,6 +675,65 @@ export default function PlayPoolPage() {
     )
   }
 
+  // Check if playpool is empty
+  const isPlayPoolEmpty = plays.length === 0;
+
+  // Check if we have scouting data
+  const hasScoutingData = fronts.length > 0 || coverages.length > 0 || blitzes.length > 0;
+
+  // If playpool is empty, show appropriate message
+  if (isPlayPoolEmpty) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-bold">Play Pool</h1>
+        </div>
+
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+          {!hasScoutingData ? (
+            <>
+              <div className="text-center">
+                <h2 className="text-xl font-semibold mb-2">Unfortunately, we need scouting data before building the playpool.</h2>
+                <p className="text-gray-600">Please add scouting data for your opponent first.</p>
+              </div>
+              <Button 
+                onClick={() => router.push('/scouting')}
+                className="bg-blue-900 hover:bg-blue-800 text-white"
+              >
+                <Shield className="h-4 w-4 mr-2" />
+                Scouting Data
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="text-center">
+                <h2 className="text-xl font-semibold mb-2">Let's build your playpool!</h2>
+                <p className="text-gray-600">Get started by generating plays based on your scouting data.</p>
+              </div>
+              <Button 
+                onClick={handleRebuildPlaypool}
+                disabled={analyzing || !selectedTeamId || !selectedOpponentId}
+                className="bg-blue-900 hover:bg-blue-800 text-white"
+              >
+                {analyzing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Building...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Build Playpool with AI
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
@@ -683,6 +742,7 @@ export default function PlayPoolPage() {
           <Button 
             onClick={handleRebuildPlaypool}
             disabled={analyzing || !selectedTeamId || !selectedOpponentId}
+            className="bg-blue-900 hover:bg-blue-800 text-white"
           >
             {analyzing ? (
               <>
