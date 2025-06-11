@@ -325,7 +325,7 @@ export default function AuthPage() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `https://v0-ai-playcaller.vercel.app/auth/reset-password`,
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-ai-playcaller.vercel.app'}/auth/reset-password`,
       });
 
       if (error) throw error;
