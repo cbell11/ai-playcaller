@@ -2102,15 +2102,6 @@ export default function ScoutingPage() {
                 </>
             )}
           </Button>
-            
-            {/* Generate Game Plan button */}
-          <Button
-            onClick={handleGenerateGamePlan}
-              className="gap-2"
-          >
-              <FileText className="h-4 w-4" />
-              Generate Game Plan
-          </Button>
         </div>
         )}
       </div>
