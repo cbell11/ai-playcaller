@@ -2011,38 +2011,9 @@ export default function ScoutingPage() {
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Scouting Report</h1>
-          <div className="flex items-center gap-2 mt-2">
-            {selectedTeamName && (
-              <span className="font-medium text-blue-600">{selectedTeamName}</span>
-            )}
-            {selectedTeamName && selectedOpponentName && (
-              <span className="text-gray-500">vs</span>
-            )}
-            {selectedOpponentName && (
-              <span className="font-medium text-red-600">{selectedOpponentName}</span>
-            )}
-            {(!selectedTeamName || !selectedOpponentName) && (
-              <span className="text-amber-600 text-sm">
-                {!selectedTeamName && !selectedOpponentName 
-                  ? "No team or opponent selected" 
-                  : !selectedTeamName 
-                    ? "No team selected" 
-                    : "No opponent selected. Please use the side navigation."}
-              </span>
-            )}
-            
-            {/* Loading indicator for opponent data */}
-            {isLoadingOpponentData && (
-              <span className="ml-2 flex items-center text-amber-600 text-sm">
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Loading data...
-              </span>
-              )}
-            </div>
-          
           {/* Database sync status */}
           {selectedTeamId && selectedOpponentId && (
-            <div className="mt-1 text-xs">
+            <div className="mt-1 text-xs text-gray-500">
               {isSaving ? (
                 <span className="text-amber-600 flex items-center">
                   <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -2053,13 +2024,13 @@ export default function ScoutingPage() {
                   Save failed: {savingError}
                 </span>
               ) : lastSaved ? (
-                <span className="text-green-600">
-                  Saved {lastSaved.toLocaleTimeString()}
+                <span>
+                  Last Update: {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               ) : null}
-                </div>
-              )}
             </div>
+          )}
+        </div>
         
         {/* Add buttons container with Save and Generate Game Plan buttons */}
         {!isLoadingOpponentData && selectedTeamId && selectedOpponentId && (
@@ -2122,8 +2093,7 @@ export default function ScoutingPage() {
                 onClick={() => setShowReport(!showReport)}
               >
                 <h3 className="text-lg font-semibold">
-                  AI Generated Scouting Report 
-                  {selectedOpponentName ? ` for ${selectedOpponentName}` : ''}
+                  AI Generated Scouting Report
                 </h3>
                 <Button variant="ghost" size="icon" className="h-7 w-7">
                   {showReport ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
@@ -2169,114 +2139,6 @@ export default function ScoutingPage() {
           </Card>
         </>
       )}
-
-      {/* Enhanced debug info panel */}
-      <div className="border border-gray-300 mt-4 p-4 rounded bg-gray-50">
-        <h3 className="font-bold text-sm mb-2">Debug Info:</h3>
-        <ul className="text-xs space-y-1">
-          <li><strong>Team ID:</strong> {selectedTeamId || 'null'}</li>
-          <li><strong>Team Name:</strong> {selectedTeamName || 'null'}</li>
-          <li><strong>Opponent ID:</strong> {selectedOpponentId || 'null'}</li>
-          <li><strong>Opponent Name:</strong> {selectedOpponentName || 'null'}</li>
-          <li><strong>LocalStorage Team ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') || 'null' : 'unknown'}</li>
-          <li><strong>LocalStorage Opponent ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') || 'null' : 'unknown'}</li>
-          
-          <li className="mt-2 pt-2 border-t border-gray-300"><strong>Load Status:</strong> {isAppLoading ? 'App Loading' : isLoadingOpponentData ? 'Loading Opponent Data' : 'Ready'}</li>
-          <li><strong>Initial Load:</strong> {isInitialLoad ? 'Yes' : 'No'}</li>
-          <li><strong>Data Fully Loaded:</strong> {dataFullyLoaded ? 'Yes' : 'No'}</li>
-          <li className="mt-2 pt-2 border-t border-gray-300"><strong>Fronts Count:</strong> {fronts.length}</li>
-          <li><strong>Coverages Count:</strong> {coverages.length}</li>
-          <li><strong>Blitzes Count:</strong> {blitzes.length}</li>
-          <li className="text-xs text-blue-500">
-            <details>
-              <summary>Show Fronts Data</summary>
-              <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                {JSON.stringify(fronts, null, 2)}
-              </pre>
-            </details>
-          </li>
-          <li className="text-xs text-blue-500">
-            <details>
-              <summary>Show Coverages Data</summary>
-              <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                {JSON.stringify(coverages, null, 2)}
-              </pre>
-            </details>
-          </li>
-          <li className="text-xs text-blue-500">
-            <details>
-              <summary>Show Blitzes Data</summary>
-              <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                {JSON.stringify(blitzes, null, 2)}
-              </pre>
-            </details>
-          </li>
-          <li className="mt-2"><strong>Last Saved:</strong> {lastSaved ? lastSaved.toLocaleString() : 'never'}</li>
-          <li className="mt-2 pt-2 border-t border-gray-300">
-            <Button 
-              onClick={saveToDatabase} 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs mb-2"
-              disabled={isSaving}
-            >
-              {isSaving ? 'Saving...' : 'Force Save Data to Database'}
-            </Button>
-            
-            <Button 
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  // Trigger storage event manually to reload data
-                  const storedOpponentId = localStorage.getItem('selectedOpponent');
-                  if (storedOpponentId) {
-                    const event = new CustomEvent('opponentChanged', { 
-                      detail: { opponentId: storedOpponentId }
-                    });
-                    window.dispatchEvent(event);
-                  }
-                }
-              }} 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs mb-2"
-            >
-              Refresh Data from LocalStorage
-            </Button>
-            
-            <Button 
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  // Force reload the page
-                  window.location.reload();
-                }
-              }} 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs mb-2"
-            >
-              Force Reload Page
-            </Button>
-            
-            <Button 
-              onClick={getTeamFromUserProfile} 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs mb-2"
-            >
-              Get Team From Profile
-            </Button>
-            
-            <Button 
-              onClick={resetScoutingData} 
-              variant="outline" 
-              size="sm" 
-              className="w-full text-xs mb-2 text-red-600 hover:bg-red-50"
-            >
-              Reset Scouting Data
-            </Button>
-          </li>
-        </ul>
-      </div>
 
       {/* Add Front Dialog */}
       <SelectSafeDialog open={showAddFrontDialog} onOpenChange={setShowAddFrontDialog}>
