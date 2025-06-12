@@ -2067,7 +2067,7 @@ export default function ScoutingPage() {
             {/* Save button */}
           <Button 
               variant="outline"
-              className="gap-2"
+              className="gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600"
               onClick={saveToDatabase}
               disabled={isSaving}
             >
@@ -2078,7 +2078,7 @@ export default function ScoutingPage() {
                 </>
             ) : (
                 <>
-                  Save Report
+                  Save Report Information
                 </>
             )}
           </Button>
@@ -2086,7 +2086,7 @@ export default function ScoutingPage() {
             {/* Generate AI Report button */}
           <Button
             variant="outline"
-              className="gap-2"
+              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
               onClick={handleGenerateAIReport}
               disabled={isGeneratingAIReport}
             >
@@ -2114,30 +2114,9 @@ export default function ScoutingPage() {
         </div>
       ) : (
         <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {renderCategoryCard("Fronts", "fronts", fronts, frontPct)}
-        {renderCategoryCard("Coverages", "coverages", coverages, coverPct)}
-        {renderCategoryCard("Blitz", "blitzes", blitzes, blitzPct)}
-      </div>
-
-      {/* Additional Notes */}
-      <Card className="bg-slate-50">
-        <CardHeader>
-          <CardTitle>Additional Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            placeholder="Enter any additional observations, tendencies, or notes here..."
-            className="min-h-[150px]"
-            value={notes}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
-          />
-        </CardContent>
-      </Card>
-
           {/* AI Generated Report Section - Accordion Style */}
           {report && (
-            <Card className="bg-slate-50 overflow-hidden">
+            <Card className="bg-slate-50 overflow-hidden mb-6">
               <div 
                 className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-slate-100"
                 onClick={() => setShowReport(!showReport)}
@@ -2168,115 +2147,136 @@ export default function ScoutingPage() {
             </Card>
           )}
 
-          {/* Enhanced debug info panel */}
-          <div className="border border-gray-300 mt-4 p-4 rounded bg-gray-50">
-            <h3 className="font-bold text-sm mb-2">Debug Info:</h3>
-            <ul className="text-xs space-y-1">
-              <li><strong>Team ID:</strong> {selectedTeamId || 'null'}</li>
-              <li><strong>Team Name:</strong> {selectedTeamName || 'null'}</li>
-              <li><strong>Opponent ID:</strong> {selectedOpponentId || 'null'}</li>
-              <li><strong>Opponent Name:</strong> {selectedOpponentName || 'null'}</li>
-              <li><strong>LocalStorage Team ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') || 'null' : 'unknown'}</li>
-              <li><strong>LocalStorage Opponent ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') || 'null' : 'unknown'}</li>
-              
-              <li className="mt-2 pt-2 border-t border-gray-300"><strong>Load Status:</strong> {isAppLoading ? 'App Loading' : isLoadingOpponentData ? 'Loading Opponent Data' : 'Ready'}</li>
-              <li><strong>Initial Load:</strong> {isInitialLoad ? 'Yes' : 'No'}</li>
-              <li><strong>Data Fully Loaded:</strong> {dataFullyLoaded ? 'Yes' : 'No'}</li>
-              <li className="mt-2 pt-2 border-t border-gray-300"><strong>Fronts Count:</strong> {fronts.length}</li>
-              <li><strong>Coverages Count:</strong> {coverages.length}</li>
-              <li><strong>Blitzes Count:</strong> {blitzes.length}</li>
-              <li className="text-xs text-blue-500">
-                <details>
-                  <summary>Show Fronts Data</summary>
-                  <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                    {JSON.stringify(fronts, null, 2)}
-                  </pre>
-                </details>
-              </li>
-              <li className="text-xs text-blue-500">
-                <details>
-                  <summary>Show Coverages Data</summary>
-                  <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                    {JSON.stringify(coverages, null, 2)}
-                  </pre>
-                </details>
-              </li>
-              <li className="text-xs text-blue-500">
-                <details>
-                  <summary>Show Blitzes Data</summary>
-                  <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                    {JSON.stringify(blitzes, null, 2)}
-                  </pre>
-                </details>
-              </li>
-              <li className="mt-2"><strong>Last Saved:</strong> {lastSaved ? lastSaved.toLocaleString() : 'never'}</li>
-              <li className="mt-2 pt-2 border-t border-gray-300">
-                <Button 
-                  onClick={saveToDatabase} 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full text-xs mb-2"
-                  disabled={isSaving}
-                >
-                  {isSaving ? 'Saving...' : 'Force Save Data to Database'}
-                </Button>
-                
-                <Button 
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      // Trigger storage event manually to reload data
-                      const storedOpponentId = localStorage.getItem('selectedOpponent');
-                      if (storedOpponentId) {
-                        const event = new CustomEvent('opponentChanged', { 
-                          detail: { opponentId: storedOpponentId }
-                        });
-                        window.dispatchEvent(event);
-                      }
-                    }
-                  }} 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full text-xs mb-2"
-                >
-                  Refresh Data from LocalStorage
-                </Button>
-                
-                <Button 
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      // Force reload the page
-                      window.location.reload();
-                    }
-                  }} 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full text-xs mb-2"
-                >
-                  Force Reload Page
-                </Button>
-                
-                <Button 
-                  onClick={getTeamFromUserProfile} 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full text-xs mb-2"
-                >
-                  Get Team From Profile
-                </Button>
-                
-                <Button 
-                  onClick={resetScoutingData} 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full text-xs mb-2 text-red-600 hover:bg-red-50"
-                >
-                  Reset Scouting Data
-                </Button>
-              </li>
-            </ul>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {renderCategoryCard("Fronts", "fronts", fronts, frontPct)}
+            {renderCategoryCard("Coverages", "coverages", coverages, coverPct)}
+            {renderCategoryCard("Blitz", "blitzes", blitzes, blitzPct)}
           </div>
+
+          {/* Additional Notes */}
+          <Card className="bg-slate-50">
+            <CardHeader>
+              <CardTitle>Additional Notes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                placeholder="Enter any additional observations, tendencies, or notes here..."
+                className="min-h-[150px]"
+                value={notes}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
+              />
+            </CardContent>
+          </Card>
         </>
       )}
+
+      {/* Enhanced debug info panel */}
+      <div className="border border-gray-300 mt-4 p-4 rounded bg-gray-50">
+        <h3 className="font-bold text-sm mb-2">Debug Info:</h3>
+        <ul className="text-xs space-y-1">
+          <li><strong>Team ID:</strong> {selectedTeamId || 'null'}</li>
+          <li><strong>Team Name:</strong> {selectedTeamName || 'null'}</li>
+          <li><strong>Opponent ID:</strong> {selectedOpponentId || 'null'}</li>
+          <li><strong>Opponent Name:</strong> {selectedOpponentName || 'null'}</li>
+          <li><strong>LocalStorage Team ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') || 'null' : 'unknown'}</li>
+          <li><strong>LocalStorage Opponent ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') || 'null' : 'unknown'}</li>
+          
+          <li className="mt-2 pt-2 border-t border-gray-300"><strong>Load Status:</strong> {isAppLoading ? 'App Loading' : isLoadingOpponentData ? 'Loading Opponent Data' : 'Ready'}</li>
+          <li><strong>Initial Load:</strong> {isInitialLoad ? 'Yes' : 'No'}</li>
+          <li><strong>Data Fully Loaded:</strong> {dataFullyLoaded ? 'Yes' : 'No'}</li>
+          <li className="mt-2 pt-2 border-t border-gray-300"><strong>Fronts Count:</strong> {fronts.length}</li>
+          <li><strong>Coverages Count:</strong> {coverages.length}</li>
+          <li><strong>Blitzes Count:</strong> {blitzes.length}</li>
+          <li className="text-xs text-blue-500">
+            <details>
+              <summary>Show Fronts Data</summary>
+              <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                {JSON.stringify(fronts, null, 2)}
+              </pre>
+            </details>
+          </li>
+          <li className="text-xs text-blue-500">
+            <details>
+              <summary>Show Coverages Data</summary>
+              <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                {JSON.stringify(coverages, null, 2)}
+              </pre>
+            </details>
+          </li>
+          <li className="text-xs text-blue-500">
+            <details>
+              <summary>Show Blitzes Data</summary>
+              <pre className="mt-1 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                {JSON.stringify(blitzes, null, 2)}
+              </pre>
+            </details>
+          </li>
+          <li className="mt-2"><strong>Last Saved:</strong> {lastSaved ? lastSaved.toLocaleString() : 'never'}</li>
+          <li className="mt-2 pt-2 border-t border-gray-300">
+            <Button 
+              onClick={saveToDatabase} 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs mb-2"
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving...' : 'Force Save Data to Database'}
+            </Button>
+            
+            <Button 
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  // Trigger storage event manually to reload data
+                  const storedOpponentId = localStorage.getItem('selectedOpponent');
+                  if (storedOpponentId) {
+                    const event = new CustomEvent('opponentChanged', { 
+                      detail: { opponentId: storedOpponentId }
+                    });
+                    window.dispatchEvent(event);
+                  }
+                }
+              }} 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs mb-2"
+            >
+              Refresh Data from LocalStorage
+            </Button>
+            
+            <Button 
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  // Force reload the page
+                  window.location.reload();
+                }
+              }} 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs mb-2"
+            >
+              Force Reload Page
+            </Button>
+            
+            <Button 
+              onClick={getTeamFromUserProfile} 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs mb-2"
+            >
+              Get Team From Profile
+            </Button>
+            
+            <Button 
+              onClick={resetScoutingData} 
+              variant="outline" 
+              size="sm" 
+              className="w-full text-xs mb-2 text-red-600 hover:bg-red-50"
+            >
+              Reset Scouting Data
+            </Button>
+          </li>
+        </ul>
+      </div>
 
       {/* Add Front Dialog */}
       <SelectSafeDialog open={showAddFrontDialog} onOpenChange={setShowAddFrontDialog}>
