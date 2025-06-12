@@ -34,7 +34,7 @@ ${notes}` : ''}
 
 Provide your analysis in the following format, ensuring each bullet point is on its own line with a line break after it:
 
-### QUICK HITS
+QUICK HITS
 
 • First key tendency
 
@@ -44,25 +44,25 @@ Provide your analysis in the following format, ensuring each bullet point is on 
 
 • Fourth key tendency
 
-### BASE DEFENSE
+BASE DEFENSE
 
 • Primary front analysis point
 
 • Situational front usage
 
-### COVERAGE BREAKDOWN
+COVERAGE BREAKDOWN
 
 • Main coverage tendencies
 
 • Situational coverage adjustments
 
-### PRESSURE SCHEMES
+PRESSURE SCHEMES
 
 • Blitz tendency analysis
 
 • Pressure package breakdown
 
-### ATTACK PLAN
+ATTACK PLAN
 
 • First attack concept
 
@@ -81,7 +81,7 @@ Remember:
       messages: [
         {
           role: "system",
-          content: "You are an experienced offensive coordinator breaking down defensive tendencies. Be direct and specific. Format your response exactly as shown in the prompt, with each bullet point on its own line and a blank line between points. Use ### for section headers. Make sure to incorporate any additional notes from the user into your analysis."
+          content: "You are an experienced offensive coordinator breaking down defensive tendencies. Be direct and specific. Format your response exactly as shown in the prompt, with each bullet point on its own line and a blank line between points. Use normal headers (no ###). Make sure to incorporate any additional notes from the user into your analysis."
         },
         {
           role: "user",
