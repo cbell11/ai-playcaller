@@ -1588,7 +1588,7 @@ export default function PlanPage() {
       return;
     }
 
-    setIsGenerating(true);
+    setGenerating(true);
     try {
       // First, clear the existing game plan from the database
       const team_id = localStorage.getItem('selectedTeam');
@@ -1647,8 +1647,12 @@ export default function PlanPage() {
         }
       }
 
-      // Refresh the page to show the new game plan
-      window.location.reload();
+      // Instead of reloading the page, fetch the updated game plan
+      const updatedPlan = await fetchGamePlanFromDatabase();
+      if (updatedPlan) {
+        setPlan(updatedPlan);
+        save('plan', updatedPlan);
+      }
 
       // Show success message
       setNotification({
@@ -1663,7 +1667,68 @@ export default function PlanPage() {
         type: 'error'
       });
     } finally {
-      setIsGenerating(false);
+      setGenerating(false);
+    }
+  };
+
+  // Add this new handler function near the other handlers
+  const handleDeleteGamePlan = async () => {
+    if (!selectedTeam || !selectedOpponent) {
+      setNotification({
+        message: 'No game plan to delete',
+        type: 'error'
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Delete all plays from the game plan
+      const { error: deleteError } = await supabase
+        .from('game_plan')
+        .delete()
+        .eq('team_id', selectedTeam)
+        .eq('opponent_id', selectedOpponent);
+
+      if (deleteError) {
+        throw new Error('Failed to delete game plan');
+      }
+
+      // Reset the plan state to empty
+      const emptyPlan: GamePlan = {
+        openingScript: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        basePackage1: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        basePackage2: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        basePackage3: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        firstDowns: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        secondAndShort: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        secondAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        shortYardage: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        thirdAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        redZone: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        goalline: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        backedUp: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        screens: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        playAction: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+        deepShots: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' })
+      };
+      
+      setPlan(emptyPlan);
+      save('plan', emptyPlan);
+
+      setNotification({
+        message: 'Game plan deleted successfully',
+        type: 'success'
+      });
+    } catch (error) {
+      console.error('Error deleting game plan:', error);
+      setNotification({
+        message: error instanceof Error ? error.message : 'Failed to delete game plan',
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1680,7 +1745,7 @@ export default function PlanPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <div className="text-red-500 text-center">{error}</div>
-        <Button onClick={loadInitialData}>
+        <Button onClick={() => window.location.reload()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Retry
         </Button>
@@ -1689,7 +1754,7 @@ export default function PlanPage() {
   }
 
   // Check if playpool is empty
-  const isPlayPoolEmpty = playPool.length === 0;
+  const isPlayPoolEmpty = !playPool || playPool.length === 0;
 
   // Check if gameplan is empty (all sections are empty or null)
   const isGamePlanEmpty = !plan || Object.values(plan).every(section => {
@@ -1726,75 +1791,78 @@ export default function PlanPage() {
   if (isGamePlanEmpty) {
     console.log('Game plan is empty, showing build options');
     return (
-      <div className="container mx-auto py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold">Game Plan</h1>
-        </div>
+      <>
+        {generating && <LoadingModal message="Generating your Game Plan now!" />}
+        <div className="container mx-auto py-8">
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-2xl font-bold">Game Plan</h1>
+          </div>
 
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold mb-2">Let's build your gameplan!</h2>
-            <p className="text-gray-600">Choose how you'd like to create your game plan.</p>
-          </div>
-          
-          <div className="flex flex-col items-center gap-4">
-            <Button 
-              onClick={handleGenerateGamePlan}
-              disabled={generating}
-              className="bg-blue-900 hover:bg-blue-800 text-white min-w-[250px]"
-            >
-              {generating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Building...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="h-4 w-4 mr-2" />
-                  Build your game plan with AI
-                </>
-              )}
-            </Button>
+          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold mb-2">Let's build your gameplan!</h2>
+              <p className="text-gray-600">Choose how you'd like to create your game plan.</p>
+            </div>
             
-            <div className="text-gray-500">Or</div>
+            <div className="flex flex-col items-center gap-4">
+              <Button 
+                onClick={handleGenerateGamePlan}
+                disabled={generating}
+                className="bg-blue-900 hover:bg-blue-800 text-white min-w-[250px]"
+              >
+                {generating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Building...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Build your game plan with AI
+                  </>
+                )}
+              </Button>
+              
+              <div className="text-gray-500">Or</div>
+              
+              <Button 
+                onClick={() => setPlan({ 
+                  openingScript: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  basePackage1: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  basePackage2: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  basePackage3: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  firstDowns: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  secondAndShort: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  secondAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  shortYardage: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  thirdAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  redZone: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  goalline: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  backedUp: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  screens: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  playAction: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+                  deepShots: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' })
+                })}
+                variant="outline"
+                className="bg-yellow-100 hover:bg-yellow-200 border-yellow-300 text-yellow-900 min-w-[250px]"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Build your gameplan manually
+              </Button>
+            </div>
             
-            <Button 
-              onClick={() => setPlan({ 
-                openingScript: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                basePackage1: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                basePackage2: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                basePackage3: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                firstDowns: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                secondAndShort: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                secondAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                shortYardage: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                thirdAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                redZone: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                goalline: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                backedUp: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                screens: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                playAction: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                deepShots: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' })
-              })}
-              variant="outline"
-              className="bg-yellow-100 hover:bg-yellow-200 border-yellow-300 text-yellow-900 min-w-[250px]"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Build your gameplan manually
-            </Button>
+            <p className="text-sm text-gray-500 mt-4">
+              You can still edit the gameplan after it's been generated
+            </p>
           </div>
-          
-          <p className="text-sm text-gray-500 mt-4">
-            You can still edit the gameplan after it's been generated
-          </p>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
     <>
-      {isGenerating && <LoadingModal />}
+      {generating && <LoadingModal message="Generating your Game Plan now!" />}
       <DragDropContext onDragEnd={handleDragEnd} onBeforeDragStart={handleBeforeDragStart}>
         <div className={`container mx-auto px-4 py-8 ${isDragging ? 'bg-gray-50' : ''}`}>
           {isDragging && (
@@ -2045,27 +2113,49 @@ export default function PlanPage() {
                   <p className="text-sm">
                     Use the "Add a Play" button on each section to build your game plan from the play pool.
                   </p>
-          </div>
+                </div>
 
-              <Button 
-                  onClick={handleGenerateGamePlan}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className="animate-spin mr-2">
-                        <Wand2 className="h-4 w-4" />
-                      </div>
-                      Generating Game Plan...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="h-4 w-4 mr-2" />
-                      Generate Game Plan with AI
-                    </>
-                  )}
-                </Button>
+                <div className="flex flex-col gap-4">
+                  <Button 
+                    onClick={handleGenerateGamePlan}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="animate-spin mr-2">
+                          <Wand2 className="h-4 w-4" />
+                        </div>
+                        Generating Game Plan...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-4 w-4 mr-2" />
+                        Generate Game Plan with AI
+                      </>
+                    )}
+                  </Button>
+
+                  <Button 
+                    onClick={handleDeleteGamePlan}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin mr-2">
+                          <Loader2 className="h-4 w-4" />
+                        </div>
+                        Deleting Game Plan...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Game Plan
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
