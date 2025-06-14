@@ -15,7 +15,7 @@ export function LoadingModal() {
             className="object-contain"
           />
         </div>
-        <p className="text-lg font-semibold text-gray-700">Generating Game Plan...</p>
+        <p className="text-lg font-semibold text-gray-700">Generating your Play Pool now!</p>
         <p className="text-sm text-gray-500">This may take a few moments</p>
       </div>
     </div>

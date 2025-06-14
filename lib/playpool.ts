@@ -896,4 +896,21 @@ export async function updatePlayPoolTerminology(): Promise<void> {
     console.error('Error updating play pool terminology:', error)
     throw error
   }
+}
+
+export async function deletePlay(id: string): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('playpool')
+      .delete()
+      .eq('id', id)
+    
+    if (error) {
+      console.error('Error deleting play:', error)
+      throw error
+    }
+  } catch (error) {
+    console.error('Failed to delete play:', error)
+    throw error
+  }
 } 

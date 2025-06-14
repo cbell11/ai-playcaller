@@ -25,7 +25,8 @@ import {
   HelpCircle,
   ArrowLeftRight,
   Shield,
-  Swords
+  Swords,
+  Trash2
 } from "lucide-react"
 import {
   Tooltip,
@@ -33,11 +34,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { getPlayPool, updatePlay, Play, testPlayPoolConnection, regeneratePlayPool, toggleFavoritePlay } from "@/lib/playpool"
+import { getPlayPool, updatePlay, Play, testPlayPoolConnection, regeneratePlayPool, toggleFavoritePlay, deletePlay } from "@/lib/playpool"
 import { getScoutingReport } from "@/lib/scouting"
 import { load, save } from "@/lib/local"
 import { checkTableAccess } from "@/lib/supabase"
 import { analyzeAndUpdatePlays } from "@/app/actions/analyze-plays"
+import { LoadingModal } from "../components/loading-modal"
 
 interface ExtendedPlay extends Play {
   combined_call?: string;
@@ -129,6 +131,7 @@ export default function PlayPoolPage() {
   const [coveragesPct, setCoveragesPct] = useState<Record<string, number>>({})
   const [blitzPct, setBlitzPct] = useState<Record<string, number>>({})
   const [overallBlitzPct, setOverallBlitzPct] = useState<number>(0)
+  const [isRebuilding, setIsRebuilding] = useState(false)
 
   // Create Supabase client
   const supabase = createBrowserClient(
@@ -404,6 +407,7 @@ export default function PlayPoolPage() {
 
   const handleRebuildPlaypool = async () => {
     try {
+      setIsRebuilding(true)
       setAnalyzing(true)
       setError(null)
       setAnalysis(null)
@@ -446,6 +450,7 @@ export default function PlayPoolPage() {
       setError(error instanceof Error ? error.message : 'Failed to rebuild playpool')
     } finally {
       setAnalyzing(false)
+      setIsRebuilding(false)
     }
   }
 
@@ -473,6 +478,16 @@ export default function PlayPoolPage() {
       setPlays(plays.map(p => p.id === updatedPlay.id ? updatedPlay : p))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update lock status')
+    }
+  }
+
+  const handleDeletePlay = async (play: ExtendedPlay) => {
+    try {
+      await deletePlay(play.id)
+      // Remove the play from the local state
+      setPlays(plays.filter(p => p.id !== play.id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete play')
     }
   }
 
@@ -650,6 +665,14 @@ export default function PlayPoolPage() {
           >
             <Pencil className="h-4 w-4" />
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-0 h-6 w-6 text-red-500 hover:text-red-600"
+            onClick={() => handleDeletePlay(play)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     )
@@ -736,6 +759,7 @@ export default function PlayPoolPage() {
 
   return (
     <div className="container mx-auto py-8">
+      {isRebuilding && <LoadingModal />}
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Play Pool</h1>
         <div className="flex gap-4">
