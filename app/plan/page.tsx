@@ -652,49 +652,132 @@ export default function PlanPage() {
     return `${formationLabel} ${play.fieldAlignment}${motionLabel ? ` ${motionLabel}` : ''} ${playLabel}${runDirectionText}`;
   }
 
-  // Add initialization effect that depends on selectedOpponent
+  // Add effect to load initial data
   useEffect(() => {
-    const loadInitialPlan = async () => {
-      const team = localStorage.getItem('selectedTeam');
-      const opponent = localStorage.getItem('selectedOpponent');
-      
-      if (!team || !opponent) {
-        console.log('Team or opponent not selected');
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
+    const loadInitialData = async () => {
       try {
-        const dbPlan = await fetchGamePlanFromDatabase();
-        if (dbPlan) {
-          console.log('Loaded plan from database');
-          setPlan(dbPlan);
-          save('plan', dbPlan);
+        setLoading(true);
+        console.log('Loading initial data...');
+
+        // Get team and opponent IDs from localStorage
+        const teamId = localStorage.getItem('selectedTeam');
+        const opponentId = localStorage.getItem('selectedOpponent');
+
+        if (!teamId || !opponentId) {
+          console.log('No team or opponent selected');
+          setLoading(false);
+          return;
         }
-        } catch (error) {
-        console.error('Error loading initial plan:', error);
-        } finally {
+
+        setSelectedTeam(teamId);
+        setSelectedOpponent(opponentId);
+
+        // Load game plan
+        const initialPlan = await fetchGamePlanFromDatabase();
+        if (initialPlan) {
+          console.log('Loaded initial game plan');
+          setPlan(initialPlan);
+          save('plan', initialPlan);
+        }
+
+        // Load play pool
+        console.log('Loading initial plays...');
+        const playData = await getPlayPool();
+        console.log('Initial plays loaded:', playData.length);
+        setPlayPool(playData);
+        
+        // Reset play pool related states
+        setShowPlayPool(false);
+        setPlayPoolSection(null);
+        setPlayPoolCategory('run_game');
+        setPlayPoolFilterType('category');
+
+        // Set up real-time subscription
+        console.log('Setting up real-time subscription for:', { teamId, opponentId });
+        
+        const subscription = supabase
+          .channel('game_plan_changes')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'game_plan',
+              filter: `team_id=eq.${teamId}&opponent_id=eq.${opponentId}`
+            },
+            async (payload) => {
+              console.log('Received database change:', payload);
+              try {
+                const updatedPlan = await fetchGamePlanFromDatabase();
+                if (updatedPlan) {
+                  console.log('Updating plan from real-time change');
+                  setPlan(updatedPlan);
+                  save('plan', updatedPlan);
+                }
+              } catch (error) {
+                console.error('Error handling real-time update:', error);
+              }
+            }
+          )
+          .subscribe((status) => {
+            console.log('Subscription status:', status);
+          });
+
+        return () => {
+          console.log('Cleaning up subscription');
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        setError('Failed to load game plan. Please try again.');
+      } finally {
         setLoading(false);
       }
     };
 
-    // Only load if we have an opponent selected
-    if (selectedOpponent) {
-      console.log('Selected opponent changed, loading game plan...');
-      loadInitialPlan();
-    } else {
-      console.log('No opponent selected, waiting...');
-      setLoading(false);
-    }
-  }, [selectedOpponent]); // Add selectedOpponent as dependency
+    loadInitialData();
+  }, [supabase]);
 
-  // Update the opponent change effect to just update the state
+  // Update the opponent change effect to load data
   useEffect(() => {
-    const handleOpponentChange = () => {
+    const handleOpponentChange = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ opponentId: string }>;
       console.log('Opponent changed from sidebar, updating state...');
-      const opponent = localStorage.getItem('selectedOpponent');
-      setSelectedOpponent(opponent);
+      const opponentId = customEvent.detail.opponentId;
+      setSelectedOpponent(opponentId);
+
+      // Load game plan data
+      try {
+        setLoading(true);
+        const teamId = localStorage.getItem('selectedTeam');
+        if (!teamId) {
+          throw new Error('No team selected');
+        }
+
+        // Load game plan
+        const updatedPlan = await fetchGamePlanFromDatabase();
+        if (updatedPlan) {
+          console.log('Updating plan from opponent change');
+          setPlan(updatedPlan);
+          save('plan', updatedPlan);
+        }
+
+        // Load play pool
+        console.log('Loading plays for new opponent...');
+        const playData = await getPlayPool();
+        console.log('Plays loaded:', playData.length);
+        setPlayPool(playData);
+        
+        // Reset play pool related states
+        setShowPlayPool(false);
+        setPlayPoolSection(null);
+        setPlayPoolCategory('run_game');
+        setPlayPoolFilterType('category');
+      } catch (error) {
+        console.error('Failed to load data for new opponent:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     window.addEventListener('opponentChanged', handleOpponentChange);
@@ -704,10 +787,43 @@ export default function PlanPage() {
   }, []);
 
   // Update the storage change handler
-  const handleStorageChange = (e: StorageEvent) => {
+  const handleStorageChange = async (e: StorageEvent) => {
     if (e.key === 'selectedOpponent' && e.newValue !== e.oldValue) {
       console.log('Opponent changed in storage, updating state...');
       setSelectedOpponent(e.newValue);
+
+      // Load game plan data
+      try {
+        setLoading(true);
+        const teamId = localStorage.getItem('selectedTeam');
+        if (!teamId) {
+          throw new Error('No team selected');
+        }
+
+        // Load game plan
+        const updatedPlan = await fetchGamePlanFromDatabase();
+        if (updatedPlan) {
+          console.log('Updating plan from storage change');
+          setPlan(updatedPlan);
+          save('plan', updatedPlan);
+        }
+
+        // Load play pool
+        console.log('Loading plays for new opponent...');
+        const playData = await getPlayPool();
+        console.log('Plays loaded:', playData.length);
+        setPlayPool(playData);
+        
+        // Reset play pool related states
+        setShowPlayPool(false);
+        setPlayPoolSection(null);
+        setPlayPoolCategory('run_game');
+        setPlayPoolFilterType('category');
+      } catch (error) {
+        console.error('Failed to load data for new opponent:', error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -1564,7 +1680,7 @@ export default function PlanPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <div className="text-red-500 text-center">{error}</div>
-        <Button onClick={loadInitialPlan}>
+        <Button onClick={loadInitialData}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Retry
         </Button>

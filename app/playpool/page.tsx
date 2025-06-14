@@ -312,6 +312,27 @@ export default function PlayPoolPage() {
                 setOverallBlitzPct(0)
                 console.log('DEBUG: Set empty defensive data due to failed scouting report load')
               }
+
+              // Load plays for the selected opponent
+              try {
+                setLoading(true)
+                const playData = await getPlayPool()
+                console.log('Loaded plays for initial opponent:', playData.length)
+                setPlays(playData)
+                setError(null)
+              } catch (error) {
+                console.error('[UI] Failed to load initial plays:', {
+                  error: error instanceof Error ? {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                  } : error,
+                  type: typeof error
+                })
+                setError('Failed to load plays. Please try again.')
+              } finally {
+                setLoading(false)
+              }
             } else {
               console.log('No opponent ID found in localStorage')
             }
@@ -376,6 +397,33 @@ export default function PlayPoolPage() {
           // Clear existing plays while loading
           setPlays([]);
           
+          // Get the current team ID
+          const teamId = localStorage.getItem('selectedTeam');
+          if (!teamId) {
+            throw new Error('No team selected');
+          }
+
+          // Load defensive info for the new opponent
+          const { data: scoutingData, error: scoutingError } = await supabase
+            .from('scouting_reports')
+            .select('*')
+            .eq('team_id', teamId)
+            .eq('opponent_id', newOpponentId)
+            .single();
+
+          if (scoutingError) {
+            console.error('Error loading scouting data:', scoutingError);
+          } else if (scoutingData) {
+            // Update defensive info
+            setFronts(scoutingData.fronts || []);
+            setCoverages(scoutingData.coverages || []);
+            setBlitzes(scoutingData.blitzes || []);
+            setFrontsPct(scoutingData.front_pct || {});
+            setCoveragesPct(scoutingData.coverage_pct || {});
+            setBlitzPct(scoutingData.blitz_pct || {});
+            setOverallBlitzPct(scoutingData.overall_blitz_pct || 0);
+          }
+          
           // Reload plays with new opponent
           const playData = await getPlayPool();
           console.log('Loaded plays for new opponent:', playData.length);
@@ -399,12 +447,18 @@ export default function PlayPoolPage() {
       })();
     };
 
+    // Also handle initial load
+    const storedOpponentId = localStorage.getItem('selectedOpponent');
+    if (storedOpponentId) {
+      handleOpponentChangedEvent({ detail: { opponentId: storedOpponentId } } as OpponentChangedEvent);
+    }
+
     window.addEventListener('opponentChanged', handleOpponentChangedEvent);
 
     return () => {
       window.removeEventListener('opponentChanged', handleOpponentChangedEvent);
     };
-  }, []); // Empty dependency array since we don't need any dependencies
+  }, []);
 
   const handleRebuildPlaypool = async () => {
     try {
