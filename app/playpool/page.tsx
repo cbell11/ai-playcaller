@@ -498,6 +498,11 @@ export default function PlayPoolPage() {
         setAnalysis(result.analysis || 'Playpool successfully rebuilt with AI')
         // Reload plays to show updates
         await loadPlays()
+        
+        // Clear the analysis after 3 seconds
+        setTimeout(() => {
+          setAnalysis(null)
+        }, 3000)
       } else {
         setError(result.error || 'Failed to rebuild playpool')
       }

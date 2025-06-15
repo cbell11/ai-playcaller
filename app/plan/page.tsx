@@ -555,14 +555,16 @@ export default function PlanPage() {
   const router = useRouter()
   const [plan, setPlan] = useState<GamePlan | null>(() => load('plan', null))
   const [loading, setLoading] = useState(false)
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
-  const [selectedOpponent, setSelectedOpponent] = useState<string | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
+  const [selectedOpponent, setSelectedOpponent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [selectedSection, setSelectedSection] = useState<keyof GamePlan | null>(null)
   const [draggingPlay, setDraggingPlay] = useState<ExtendedPlay | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const componentRef = useRef<HTMLDivElement>(null)
+  // Add new state for manual build mode
+  const [isManualBuildMode, setIsManualBuildMode] = useState(false)
 
   const [playPool, setPlayPool] = useState<ExtendedPlay[]>([]);
   const [showPlayPool, setShowPlayPool] = useState(false);
@@ -1732,6 +1734,36 @@ export default function PlanPage() {
     }
   };
 
+  // Add this new handler function near the other handlers
+  const handleBuildManually = () => {
+    const emptyPlan: GamePlan = {
+      openingScript: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      basePackage1: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      basePackage2: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      basePackage3: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      firstDowns: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      secondAndShort: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      secondAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      shortYardage: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      thirdAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      redZone: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      goalline: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      backedUp: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      screens: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      playAction: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
+      deepShots: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' })
+    };
+    
+    setPlan(emptyPlan);
+    save('plan', emptyPlan);
+    setIsManualBuildMode(true);
+    
+    setNotification({
+      message: 'Ready to build your game plan manually',
+      type: 'success'
+    });
+  };
+
   // Show loading state while fetching data
   if (loading) {
     return (
@@ -1788,7 +1820,7 @@ export default function PlanPage() {
   }
 
   // If playpool exists but gameplan is empty, show options to build
-  if (isGamePlanEmpty) {
+  if (isGamePlanEmpty && !isManualBuildMode) {
     console.log('Game plan is empty, showing build options');
     return (
       <>
@@ -1826,23 +1858,7 @@ export default function PlanPage() {
               <div className="text-gray-500">Or</div>
               
               <Button 
-                onClick={() => setPlan({ 
-                  openingScript: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  basePackage1: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  basePackage2: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  basePackage3: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  firstDowns: Array(10).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  secondAndShort: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  secondAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  shortYardage: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  thirdAndLong: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  redZone: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  goalline: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  backedUp: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  screens: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  playAction: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-                  deepShots: Array(5).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' })
-                })}
+                onClick={handleBuildManually}
                 variant="outline"
                 className="bg-yellow-100 hover:bg-yellow-200 border-yellow-300 text-yellow-900 min-w-[250px]"
               >
