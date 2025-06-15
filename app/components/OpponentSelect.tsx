@@ -66,6 +66,9 @@ export function OpponentSelect() {
           if (profileData?.team_id) {
             setTeamId(profileData.team_id)
             
+            // Try to get previously selected opponent from localStorage first
+            const savedOpponentId = localStorage.getItem('selectedOpponent')
+            
             // Fetch opponents for this team using server action
             const result = await getOpponentsByTeamId(profileData.team_id)
             
@@ -78,49 +81,40 @@ export function OpponentSelect() {
             const opponentsData = result.data
             setOpponents(opponentsData)
             
-            // If we have opponents and none selected, select the first one
-            if (opponentsData && opponentsData.length > 0 && !selectedOpponent) {
-              setSelectedOpponent(opponentsData[0].id)
+            // If we have a saved opponent ID, verify it exists and belongs to this team
+            if (savedOpponentId) {
+              // First check if it's in our fetched opponents list
+              const existingOpponent = opponentsData.find(o => o.id === savedOpponentId)
+              if (existingOpponent) {
+                setSelectedOpponent(savedOpponentId)
+                return
+              }
               
-              // Store the selected opponent in localStorage
-              localStorage.setItem('selectedOpponent', opponentsData[0].id)
-            } else {
-              // Try to get previously selected opponent from localStorage
-              const savedOpponentId = localStorage.getItem('selectedOpponent')
-              
-              if (savedOpponentId) {
-                if (opponentsData?.some(o => o.id === savedOpponentId)) {
-                  // If the saved opponent exists in our list, select it
+              // If not in the list, try to fetch it by ID
+              const opponentResult = await getOpponentById(savedOpponentId)
+              if (opponentResult.success && opponentResult.data) {
+                // If it exists and belongs to this team, add it to our list
+                if (opponentResult.data.team_id === profileData.team_id) {
+                  setOpponents(prev => [...prev, opponentResult.data!])
                   setSelectedOpponent(savedOpponentId)
-                } else if (savedOpponentId) {
-                  // If not in the list, try to fetch it by ID to verify it exists
-                  const opponentResult = await getOpponentById(savedOpponentId)
-                  
-                  if (opponentResult.success && opponentResult.data) {
-                    // If it exists and belongs to this team, add it to our list
-                    if (opponentResult.data.team_id === profileData.team_id) {
-                      setOpponents(prev => [...prev, opponentResult.data!])
-                      setSelectedOpponent(savedOpponentId)
-                    } else {
-                      // If not for this team, clear the localStorage
-                      localStorage.removeItem('selectedOpponent')
-                      
-                      if (opponentsData.length > 0) {
-                        setSelectedOpponent(opponentsData[0].id)
-                        localStorage.setItem('selectedOpponent', opponentsData[0].id)
-                      }
-                    }
-                  } else {
-                    // If it doesn't exist, clear the localStorage
-                    localStorage.removeItem('selectedOpponent')
-                    
-                    if (opponentsData.length > 0) {
-                      setSelectedOpponent(opponentsData[0].id)
-                      localStorage.setItem('selectedOpponent', opponentsData[0].id)
-                    }
-                  }
+                  return
                 }
               }
+              
+              // If we get here, the saved opponent is invalid
+              localStorage.removeItem('selectedOpponent')
+            }
+            
+            // If no valid saved opponent, select the first one from the list
+            if (opponentsData && opponentsData.length > 0) {
+              setSelectedOpponent(opponentsData[0].id)
+              localStorage.setItem('selectedOpponent', opponentsData[0].id)
+              
+              // Dispatch event to notify other components
+              const event = new CustomEvent('opponentChanged', { 
+                detail: { opponentId: opponentsData[0].id }
+              })
+              window.dispatchEvent(event)
             }
           }
         }
@@ -135,6 +129,18 @@ export function OpponentSelect() {
     fetchUserInfo()
   }, [supabase])
 
+  // Add effect to handle storage changes from other components
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'selectedOpponent' && e.newValue && e.newValue !== selectedOpponent) {
+        setSelectedOpponent(e.newValue)
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [selectedOpponent])
+
   const handleOpponentChange = (value: string) => {
     if (value === "add_new") {
       setShowAddDialog(true)
@@ -142,13 +148,13 @@ export function OpponentSelect() {
       setSelectedOpponent(value)
       localStorage.setItem('selectedOpponent', value)
       
-      // Instead of reloading the page, dispatch a custom event
+      // Dispatch a custom event to notify other components
       const event = new CustomEvent('opponentChanged', { 
         detail: { opponentId: value }
-      });
-      window.dispatchEvent(event);
+      })
+      window.dispatchEvent(event)
       
-      console.log('Dispatched opponentChanged event with ID:', value);
+      console.log('Dispatched opponentChanged event with ID:', value)
     }
   }
 
