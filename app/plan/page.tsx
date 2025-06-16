@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, MouseEventHandler } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
-import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2 } from "lucide-react"
+import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
 // import { makeGamePlan } from "@/app/actions"
@@ -571,7 +571,9 @@ export default function PlanPage() {
   const [playPoolCategory, setPlayPoolCategory] = useState<'run_game' | 'rpo_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'>('run_game');
   const [playPoolSection, setPlayPoolSection] = useState<keyof GamePlan | null>(null);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'favorites'>('category');
+  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'favorites' | 'search'>('category');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<ExtendedPlay[]>([]);
 
   // Add state for print orientation
   const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape');
@@ -1382,15 +1384,47 @@ export default function PlanPage() {
     });
   };
 
+  // Add the search handler function
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    // Filter plays based on the search query
+    const results = playPool.filter(play => {
+      const formattedPlay = formatPlayFromPool(play).toLowerCase();
+      const searchTerms = query.toLowerCase().split(' ');
+      
+      // Check if any part of the play matches all search terms
+      return searchTerms.every(term => 
+        formattedPlay.includes(term) ||
+        play.formation?.toLowerCase().includes(term) ||
+        play.tag?.toLowerCase().includes(term) ||
+        play.strength?.toLowerCase().includes(term) ||
+        play.motion_shift?.toLowerCase().includes(term) ||
+        play.concept?.toLowerCase().includes(term) ||
+        play.run_concept?.toLowerCase().includes(term) ||
+        play.pass_screen_concept?.toLowerCase().includes(term)
+      );
+    });
+
+    setSearchResults(results);
+  };
+
+  // Update the renderPlayPool function to include search
   const renderPlayPool = () => {
     if (!plan || !playPoolSection) return null;
     
-    const filteredPlays = playPool.filter(play => {
-      if (playPoolFilterType === 'favorites') {
-        // Filter by favorited plays
-        return play.is_favorite === true;
-      } else {
-        // Filter by category (existing logic)
+    let filteredPlays = playPool;
+    
+    if (playPoolFilterType === 'favorites') {
+      // Filter by favorited plays
+      filteredPlays = playPool.filter(play => play.is_favorite === true);
+    } else if (playPoolFilterType === 'category') {
+      // Filter by category (existing logic)
+      filteredPlays = playPool.filter(play => {
         if (playPoolCategory === 'run_game') {
           return play.category === 'run_game';
         } else if (playPoolCategory === 'rpo_game') {
@@ -1404,10 +1438,12 @@ export default function PlanPage() {
         } else if (playPoolCategory === 'screen_game') {
           return play.category === 'screen_game';
         }
-        // Default to showing all plays if no category is selected
         return play.category === Object.keys(CATEGORIES)[0];
-      }
-    });
+      });
+    } else if (playPoolFilterType === 'search') {
+      // Use search results
+      filteredPlays = searchResults;
+    }
 
     return (
       <Card className="bg-white rounded shadow-md w-full h-full">
@@ -1442,7 +1478,7 @@ export default function PlanPage() {
               </button>
               <button
                 type="button"
-                className={`px-4 py-1 text-xs font-medium rounded-r-lg cursor-pointer ${
+                className={`px-4 py-1 text-xs font-medium cursor-pointer ${
                   playPoolFilterType === 'favorites' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -1451,11 +1487,22 @@ export default function PlanPage() {
               >
                 Favorites
               </button>
+              <button
+                type="button"
+                className={`px-4 py-1 text-xs font-medium rounded-r-lg cursor-pointer ${
+                  playPoolFilterType === 'search' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setPlayPoolFilterType('search')}
+              >
+                Search
+              </button>
             </div>
           </div>
           
           <div className="flex flex-1 min-h-0 overflow-hidden">
-            {/* Category tabs - only show if not in favorites mode */}
+            {/* Category tabs - only show if in category mode */}
             {playPoolFilterType === 'category' && (
               <div className="w-1/3 border-r pr-1 overflow-y-auto">
                 {Object.entries(CATEGORIES).map(([key, label]) => (
@@ -1470,8 +1517,24 @@ export default function PlanPage() {
             </div>
             )}
             
+            {/* Search input - only show if in search mode */}
+            {playPoolFilterType === 'search' && (
+              <div className="w-full mb-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    placeholder="Search plays..."
+                    className="w-full pl-8 pr-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+            
             {/* Play list area */}
-            <div className={`${playPoolFilterType === 'favorites' ? 'w-full' : 'w-2/3'} pl-1 flex-1 min-h-0`}>
+            <div className={`${playPoolFilterType === 'category' ? 'w-2/3' : 'w-full'} pl-1 flex-1 min-h-0`}>
               {playPoolFilterType === 'favorites' && (
                 <div className="mb-2 text-sm font-medium text-center text-yellow-600">
                   <Star className="inline-block h-4 w-4 mr-1 fill-yellow-400" />
@@ -1514,6 +1577,10 @@ export default function PlanPage() {
                   <p className="text-gray-500 italic text-xs text-center p-4">
                     {playPoolFilterType === 'favorites'
                       ? "No favorite plays yet. Star plays in the Play Pool page."
+                      : playPoolFilterType === 'search'
+                      ? searchQuery
+                        ? "No plays found matching your search"
+                        : "Type to search for plays"
                       : "No plays available in this category"}
                   </p>
                 )}
@@ -2054,51 +2121,51 @@ export default function PlanPage() {
               <div className="print-grid">
                 {/* Opening Script - spans full width */}
                 <div className="col-span-full mb-1">
-                  {renderPrintableList("Opening Script", plan.openingScript, "bg-amber-100")}
+                  {plan && renderPrintableList("Opening Script", plan.openingScript, "bg-amber-100")}
                 </div>
                 
                 {/* Base Packages - all in same row */}
                 <div>
-                  {renderPrintableList("Base Package 1", plan.basePackage1, "bg-green-100")}
+                  {plan && renderPrintableList("Base Package 1", plan.basePackage1, "bg-green-100")}
                 </div>
                 <div>
-                  {renderPrintableList("Base Package 2", plan.basePackage2, "bg-green-100")}
+                  {plan && renderPrintableList("Base Package 2", plan.basePackage2, "bg-green-100")}
                 </div>
                 <div>
-                  {renderPrintableList("Base Package 3", plan.basePackage3, "bg-green-100")}
+                  {plan && renderPrintableList("Base Package 3", plan.basePackage3, "bg-green-100")}
                 </div>
                 
                 {/* Down and Distance */}
                 <div>
-                  {renderPrintableList("First Downs", plan.firstDowns, "bg-blue-100")}
+                  {plan && renderPrintableList("First Downs", plan.firstDowns, "bg-blue-100")}
                 </div>
                 <div>
-                  {renderPrintableList("Short Yardage", plan.shortYardage, "bg-blue-100")}
+                  {plan && renderPrintableList("Short Yardage", plan.shortYardage, "bg-blue-100")}
                 </div>
                 <div>
-                  {renderPrintableList("3rd and Long", plan.thirdAndLong, "bg-blue-100")}
+                  {plan && renderPrintableList("3rd and Long", plan.thirdAndLong, "bg-blue-100")}
                 </div>
                 
                 {/* Field Position */}
                 <div>
-                  {renderPrintableList("Red Zone", plan.redZone, "bg-red-100")}
+                  {plan && renderPrintableList("Red Zone", plan.redZone, "bg-red-100")}
                 </div>
                 <div>
-                  {renderPrintableList("Goalline", plan.goalline, "bg-red-100")}
+                  {plan && renderPrintableList("Goalline", plan.goalline, "bg-red-100")}
                 </div>
                 <div>
-                  {renderPrintableList("Backed Up", plan.backedUp, "bg-red-100")}
+                  {plan && renderPrintableList("Backed Up", plan.backedUp, "bg-red-100")}
                 </div>
                 
                 {/* Special Categories */}
                 <div>
-                  {renderPrintableList("Screens", plan.screens, "bg-purple-100")}
+                  {plan && renderPrintableList("Screens", plan.screens, "bg-purple-100")}
                 </div>
                 <div>
-                  {renderPrintableList("Play Action", plan.playAction, "bg-purple-100")}
+                  {plan && renderPrintableList("Play Action", plan.playAction, "bg-purple-100")}
                 </div>
                 <div>
-                  {renderPrintableList("Deep Shots", plan.deepShots, "bg-purple-100")}
+                  {plan && renderPrintableList("Deep Shots", plan.deepShots, "bg-purple-100")}
                 </div>
               </div>
             </div>
@@ -2179,7 +2246,7 @@ export default function PlanPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="col-span-3">
                 <div className="relative">
-                  {renderPlayListCard("Opening Script", plan.openingScript, 10, "bg-amber-100", "openingScript")}
+                  {plan && renderPlayListCard("Opening Script", plan.openingScript, 10, "bg-amber-100", "openingScript")}
                   {renderPlayPoolAbsolute('openingScript')}
                 </div>
               </div>
@@ -2189,21 +2256,21 @@ export default function PlanPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Base Package 1", plan.basePackage1, 10, "bg-green-100", "basePackage1")}
+                  {plan && renderPlayListCard("Base Package 1", plan.basePackage1, 10, "bg-green-100", "basePackage1")}
                   {renderPlayPoolAbsolute('basePackage1')}
                 </div>
               </div>
               
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Base Package 2", plan.basePackage2, 10, "bg-green-100", "basePackage2")}
+                  {plan && renderPlayListCard("Base Package 2", plan.basePackage2, 10, "bg-green-100", "basePackage2")}
                   {renderPlayPoolAbsolute('basePackage2')}
                 </div>
               </div>
               
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Base Package 3", plan.basePackage3, 10, "bg-green-100", "basePackage3")}
+                  {plan && renderPlayListCard("Base Package 3", plan.basePackage3, 10, "bg-green-100", "basePackage3")}
                   {renderPlayPoolAbsolute('basePackage3')}
                 </div>
               </div>
@@ -2213,21 +2280,21 @@ export default function PlanPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("First Downs", plan.firstDowns, 10, "bg-blue-100", "firstDowns")}
+                  {plan && renderPlayListCard("First Downs", plan.firstDowns, 10, "bg-blue-100", "firstDowns")}
                   {renderPlayPoolAbsolute('firstDowns')}
                 </div>
               </div>
               
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Short Yardage", plan.shortYardage, 5, "bg-blue-100", "shortYardage")}
+                  {plan && renderPlayListCard("Short Yardage", plan.shortYardage, 5, "bg-blue-100", "shortYardage")}
                   {renderPlayPoolAbsolute('shortYardage')}
                 </div>
               </div>
               
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("3rd and Long", plan.thirdAndLong, 5, "bg-blue-100", "thirdAndLong")}
+                  {plan && renderPlayListCard("3rd and Long", plan.thirdAndLong, 5, "bg-blue-100", "thirdAndLong")}
                   {renderPlayPoolAbsolute('thirdAndLong')}
                 </div>
               </div>
@@ -2237,21 +2304,21 @@ export default function PlanPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Red Zone", plan.redZone, 5, "bg-red-100", "redZone")}
+                  {plan && renderPlayListCard("Red Zone", plan.redZone, 5, "bg-red-100", "redZone")}
                   {renderPlayPoolAbsolute('redZone')}
                 </div>
               </div>
               
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Goalline", plan.goalline, 5, "bg-red-100", "goalline")}
+                  {plan && renderPlayListCard("Goalline", plan.goalline, 5, "bg-red-100", "goalline")}
                   {renderPlayPoolAbsolute('goalline')}
                 </div>
               </div>
               
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Backed Up", plan.backedUp, 5, "bg-red-100", "backedUp")}
+                  {plan && renderPlayListCard("Backed Up", plan.backedUp, 5, "bg-red-100", "backedUp")}
                   {renderPlayPoolAbsolute('backedUp')}
                 </div>
               </div>
@@ -2261,21 +2328,21 @@ export default function PlanPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Screens", plan.screens, 5, "bg-purple-100", "screens")}
+                  {plan && renderPlayListCard("Screens", plan.screens, 5, "bg-purple-100", "screens")}
                   {renderPlayPoolAbsolute('screens')}
                 </div>
               </div>
               
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Play Action", plan.playAction, 5, "bg-purple-100", "playAction")}
+                  {plan && renderPlayListCard("Play Action", plan.playAction, 5, "bg-purple-100", "playAction")}
                   {renderPlayPoolAbsolute('playAction')}
                 </div>
               </div>
               
               <div className="col-span-1">
                 <div className="relative">
-                  {renderPlayListCard("Deep Shots", plan.deepShots, 5, "bg-purple-100", "deepShots")}
+                  {plan && renderPlayListCard("Deep Shots", plan.deepShots, 5, "bg-purple-100", "deepShots")}
                   {renderPlayPoolAbsolute('deepShots')}
                 </div>
               </div>
