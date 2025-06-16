@@ -1501,7 +1501,7 @@ export default function PlanPage() {
             </div>
           </div>
           
-          <div className="flex flex-1 min-h-0 overflow-hidden">
+          <div className="flex flex-1 min-h-0 overflow-hidden" style={{ height: 'calc(100% - 40px)' }}>
             {/* Category tabs - only show if in category mode */}
             {playPoolFilterType === 'category' && (
               <div className="w-1/3 border-r pr-1 overflow-y-auto">
@@ -1514,78 +1514,117 @@ export default function PlanPage() {
                     {label}
                   </button>
                 ))}
-            </div>
+              </div>
             )}
             
-            {/* Search input - only show if in search mode */}
+            {/* Search view - updated layout */}
             {playPoolFilterType === 'search' && (
-              <div className="w-full mb-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    placeholder="Search plays..."
-                    className="w-full pl-8 pr-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+              <div className="w-full flex flex-col h-full">
+                <div className="flex-shrink-0 mb-3">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      placeholder="Search plays..."
+                      className="w-full pl-8 pr-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto">
+                  <div className="space-y-1">
+                    {filteredPlays.length > 0 ? (
+                      filteredPlays.map((play, index) => {
+                        const alreadyInSection = isPlayInSection(play, plan[playPoolSection]);
+                        return (
+                          <div 
+                            key={index}
+                            className={`p-1 border rounded flex justify-between items-center ${
+                              alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
+                            }`}
+                          >
+                            <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                              {play.is_favorite && (
+                                <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
+                              )}
+                              {formatPlayFromPool(play)}
+                            </div>
+                            {alreadyInSection ? (
+                              <div className="text-xs text-gray-500 ml-1 px-2 py-0.5 border border-gray-300 rounded flex-shrink-0">
+                                In Script
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleAddPlayToSection(play)}
+                                className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0 cursor-pointer"
+                              >
+                                + Add
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-gray-500 italic text-xs text-center p-4">
+                        {searchQuery
+                          ? "No plays found matching your search"
+                          : "Type to search for plays"}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
             
-            {/* Play list area */}
-            <div className={`${playPoolFilterType === 'category' ? 'w-2/3' : 'w-full'} pl-1 flex-1 min-h-0`}>
-              {playPoolFilterType === 'favorites' && (
+            {/* Play list area - only show for favorites mode */}
+            {playPoolFilterType === 'favorites' && (
+              <div className="w-full pl-1 flex-1 min-h-0">
                 <div className="mb-2 text-sm font-medium text-center text-yellow-600">
                   <Star className="inline-block h-4 w-4 mr-1 fill-yellow-400" />
                   Favorite Plays
                 </div>
-              )}
-              <div className="h-full overflow-y-auto space-y-1 pr-1">
-                {filteredPlays.length > 0 ? (
-                  filteredPlays.map((play, index) => {
-                    const alreadyInSection = isPlayInSection(play, plan[playPoolSection]);
-                    return (
-                      <div 
-                        key={index}
-                        className={`p-1 border rounded flex justify-between items-center ${
-                          alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
-                        }`}
-                      >
-                        <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
-                          {play.is_favorite && (
-                            <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
-                          )}
-                          {formatPlayFromPool(play)}
-                        </div>
-                        {alreadyInSection ? (
-                          <div className="text-xs text-gray-500 ml-1 px-2 py-0.5 border border-gray-300 rounded flex-shrink-0">
-                            In Script
+                <div className="h-full overflow-y-auto space-y-1 pr-1">
+                  {filteredPlays.length > 0 ? (
+                    filteredPlays.map((play, index) => {
+                      const alreadyInSection = isPlayInSection(play, plan[playPoolSection]);
+                      return (
+                        <div 
+                          key={index}
+                          className={`p-1 border rounded flex justify-between items-center ${
+                            alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
+                          }`}
+                        >
+                          <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                            {play.is_favorite && (
+                              <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
+                            )}
+                            {formatPlayFromPool(play)}
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => handleAddPlayToSection(play)}
-                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0 cursor-pointer"
-                          >
-                            + Add
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-gray-500 italic text-xs text-center p-4">
-                    {playPoolFilterType === 'favorites'
-                      ? "No favorite plays yet. Star plays in the Play Pool page."
-                      : playPoolFilterType === 'search'
-                      ? searchQuery
-                        ? "No plays found matching your search"
-                        : "Type to search for plays"
-                      : "No plays available in this category"}
-                  </p>
-                )}
+                          {alreadyInSection ? (
+                            <div className="text-xs text-gray-500 ml-1 px-2 py-0.5 border border-gray-300 rounded flex-shrink-0">
+                              In Script
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleAddPlayToSection(play)}
+                              className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0 cursor-pointer"
+                            >
+                              + Add
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-gray-500 italic text-xs text-center p-4">
+                      No favorite plays yet. Star plays in the Play Pool page.
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
