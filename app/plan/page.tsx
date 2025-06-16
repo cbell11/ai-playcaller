@@ -2108,7 +2108,7 @@ export default function PlanPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <h1 className="text-3xl font-bold">Game Plan</h1>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => router.push('/scouting')} className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => router.push('/playpool')} className="flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </Button>
