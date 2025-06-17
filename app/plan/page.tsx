@@ -2258,14 +2258,22 @@ export default function PlanPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <h1 className="text-3xl font-bold">Game Plan</h1>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => router.push('/playpool')} className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => router.push('/playpool')} 
+                className="flex items-center gap-2 bg-black text-white hover:bg-gray-800 border-black"
+              >
                 <ArrowLeft className="h-4 w-4" />
-                Back
+                Back to Play Pool
               </Button>
-            <Button variant="outline" onClick={handlePrint} className="flex items-center gap-2">
-              <Printer className="h-4 w-4" />
-              Print PDF
-            </Button>
+            <Button 
+  variant="outline" 
+  onClick={handlePrint} 
+  className="flex items-center gap-2 bg-yellow-400 text-yellow-900 hover:bg-yellow-500 border-yellow-400"
+>
+  <Printer className="h-4 w-4" />
+  Print PDF
+</Button>
           </div>
           </div>
 
