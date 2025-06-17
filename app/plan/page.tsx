@@ -1419,11 +1419,11 @@ export default function PlanPage() {
     
     let filteredPlays = playPool;
     
-    if (playPoolFilterType === 'favorites') {
-      // Filter by favorited plays
+      if (playPoolFilterType === 'favorites') {
+        // Filter by favorited plays
       filteredPlays = playPool.filter(play => play.is_favorite === true);
     } else if (playPoolFilterType === 'category') {
-      // Filter by category (existing logic)
+        // Filter by category (existing logic)
       filteredPlays = playPool.filter(play => {
         if (playPoolCategory === 'run_game') {
           return play.category === 'run_game';
@@ -1439,7 +1439,7 @@ export default function PlanPage() {
           return play.category === 'screen_game';
         }
         return play.category === Object.keys(CATEGORIES)[0];
-      });
+    });
     } else if (playPoolFilterType === 'search') {
       // Use search results
       filteredPlays = searchResults;
@@ -1623,51 +1623,51 @@ export default function PlanPage() {
             )}
             
             {/* Play list area - only show for favorites mode */}
-            {playPoolFilterType === 'favorites' && (
+              {playPoolFilterType === 'favorites' && (
               <div className="w-full pl-1 flex-1 min-h-0">
                 <div className="mb-2 text-sm font-medium text-center text-yellow-600">
                   <Star className="inline-block h-4 w-4 mr-1 fill-yellow-400" />
                   Favorite Plays
                 </div>
-                <div className="h-full overflow-y-auto space-y-1 pr-1">
-                  {filteredPlays.length > 0 ? (
-                    filteredPlays.map((play, index) => {
-                      const alreadyInSection = isPlayInSection(play, plan[playPoolSection]);
-                      return (
-                        <div 
-                          key={index}
-                          className={`p-1 border rounded flex justify-between items-center ${
-                            alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
-                          }`}
-                        >
-                          <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
-                            {play.is_favorite && (
-                              <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
-                            )}
-                            {formatPlayFromPool(play)}
-                          </div>
-                          {alreadyInSection ? (
-                            <div className="text-xs text-gray-500 ml-1 px-2 py-0.5 border border-gray-300 rounded flex-shrink-0">
-                              In Script
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleAddPlayToSection(play)}
-                              className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0 cursor-pointer"
-                            >
-                              + Add
-                            </button>
+              <div className="h-full overflow-y-auto space-y-1 pr-1">
+                {filteredPlays.length > 0 ? (
+                  filteredPlays.map((play, index) => {
+                    const alreadyInSection = isPlayInSection(play, plan[playPoolSection]);
+                    return (
+                      <div 
+                        key={index}
+                        className={`p-1 border rounded flex justify-between items-center ${
+                          alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                          {play.is_favorite && (
+                            <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
                           )}
+                          {formatPlayFromPool(play)}
                         </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-gray-500 italic text-xs text-center p-4">
+                        {alreadyInSection ? (
+                          <div className="text-xs text-gray-500 ml-1 px-2 py-0.5 border border-gray-300 rounded flex-shrink-0">
+                            In Script
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleAddPlayToSection(play)}
+                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0 cursor-pointer"
+                          >
+                            + Add
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-gray-500 italic text-xs text-center p-4">
                       No favorite plays yet. Star plays in the Play Pool page.
-                    </p>
-                  )}
-                </div>
+                  </p>
+                )}
               </div>
+            </div>
             )}
           </div>
         </CardContent>
@@ -2271,9 +2271,9 @@ export default function PlanPage() {
   onClick={handlePrint} 
   className="flex items-center gap-2 bg-yellow-400 text-yellow-900 hover:bg-yellow-500 border-yellow-400"
 >
-  <Printer className="h-4 w-4" />
-  Print PDF
-</Button>
+              <Printer className="h-4 w-4" />
+              Print PDF
+            </Button>
           </div>
           </div>
 

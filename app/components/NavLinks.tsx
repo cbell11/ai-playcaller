@@ -25,7 +25,7 @@ export function NavLinks() {
           return (
             <div key={item.name}>
               <div className="py-1 px-3 mt-4 mb-1">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <div className="text-xs font-medium text-white uppercase tracking-wider">
                   Opponent
                 </div>
                 <OpponentSelect />
@@ -35,8 +35,8 @@ export function NavLinks() {
                 className={cn(
                   "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
                   isActive
-                    ? "bg-gray-200 text-gray-900"
-                    : "text-gray-700 hover:bg-gray-200 hover:text-gray-900"
+                    ? "bg-white bg-opacity-10 text-white"
+                    : "text-white hover:bg-white hover:bg-opacity-10"
                 )}
               >
                 {item.name}
@@ -52,8 +52,8 @@ export function NavLinks() {
             className={cn(
               "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
               isActive
-                ? "bg-gray-200 text-gray-900"
-                : "text-gray-700 hover:bg-gray-200 hover:text-gray-900"
+                ? "bg-white bg-opacity-10 text-white"
+                : "text-white hover:bg-white hover:bg-opacity-10"
             )}
           >
             {item.name}

@@ -834,7 +834,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               size="sm"
               onClick={handleSaveAll}
               disabled={isSaving}
-              className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
+              className="bg-[#2ecc71] hover:bg-[#27ae60] text-white cursor-pointer"
             >
               {isSaving ? "Saving..." : "Save"}
             </Button>
@@ -1406,7 +1406,7 @@ export default function SetupPage() {
             variant="default"
             onClick={handleSaveAllTerminology}
             disabled={isSavingAll || !profileInfo.team_id}
-            className="bg-green-600 hover:bg-green-700 text-white cursor-pointer"
+            className="bg-[#2ecc71] hover:bg-[#27ae60] text-white cursor-pointer"
           >
             {isSavingAll ? "Saving..." : "Save All Terminology"}
           </Button>
@@ -1414,7 +1414,7 @@ export default function SetupPage() {
             variant="destructive"
             onClick={() => setShowRestoreConfirm(true)}
             disabled={isRestoring || !profileInfo.team_id || profileInfo.team_id === DEFAULT_TEAM_ID}
-            className="cursor-pointer"
+            className="bg-[#222222] hover:bg-[#333333] text-white cursor-pointer"
           >
             {isRestoring ? "Restoring..." : "Restore to Default Terminology"}
           </Button>
