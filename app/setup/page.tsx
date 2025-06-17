@@ -1445,58 +1445,20 @@ export default function SetupPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Main grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TerminologySet
-              title="Formations"
-              terms={formationsSet}
-              category="formations"
-              onUpdate={handleUpdateFormations}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
-            <TerminologySet
-              title="Formation Tags"
-              terms={formTagsSet}
-              category="form_tags"
-              onUpdate={handleUpdateFormTags}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="w-full">
+            {/* Left column - Formations */}
+            <div className="space-y-6">
               <TerminologySet
-                title="To Motions"
-                terms={toMotionsSet}
-                category="to_motions"
-                onUpdate={handleUpdateToMotions}
+                title="Formations"
+                terms={formationsSet}
+                category="formations"
+                onUpdate={handleUpdateFormations}
                 supabase={supabase}
                 setProfileInfo={setProfileInfo}
                 setTeamCode={setTeamCode}
                 setTeamName={setTeamName}
               />
-            </div>
-            <div className="w-full">
-              <TerminologySet
-                title="From Motions"
-                terms={fromMotionsSet}
-                category="from_motions"
-                onUpdate={handleUpdateFromMotions}
-                supabase={supabase}
-                setProfileInfo={setProfileInfo}
-                setTeamCode={setTeamCode}
-                setTeamName={setTeamName}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-            <div className="w-full">
               <TerminologySet
                 title="Shifts"
                 terms={shiftsSet}
@@ -1507,76 +1469,101 @@ export default function SetupPage() {
                 setTeamCode={setTeamCode}
                 setTeamName={setTeamName}
               />
+              <TerminologySet
+                title="Pass Protections"
+                terms={passProtectionsSet}
+                category="pass_protections"
+                onUpdate={handleUpdatePassProtections}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+              <TerminologySet
+                title="Quick Game"
+                terms={quickGameSet}
+                category="quick_game"
+                onUpdate={handleUpdateQuickGame}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+              <TerminologySet
+                title="Screen Game"
+                terms={screenGameSet}
+                category="screen_game"
+                onUpdate={handleUpdateScreenGame}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TerminologySet
-              title="Run Game"
-              terms={runGameSet}
-              category="run_game"
-              onUpdate={handleUpdateRunGame}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
-            <TerminologySet
-              title="Pass Protections"
-              terms={passProtectionsSet}
-              category="pass_protections"
-              onUpdate={handleUpdatePassProtections}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TerminologySet
-              title="Quick Game"
-              terms={quickGameSet}
-              category="quick_game"
-              onUpdate={handleUpdateQuickGame}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
-            <TerminologySet
-              title="Dropback Game"
-              terms={dropbackGameSet}
-              category="dropback_game"
-              onUpdate={handleUpdateDropbackGame}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <TerminologySet
-              title="Screen Game"
-              terms={screenGameSet}
-              category="screen_game"
-              onUpdate={handleUpdateScreenGame}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
-            <TerminologySet
-              title="Shot Plays"
-              terms={shotPlaysSet}
-              category="shot_plays"
-              onUpdate={handleUpdateShotPlays}
-              supabase={supabase}
-              setProfileInfo={setProfileInfo}
-              setTeamCode={setTeamCode}
-              setTeamName={setTeamName}
-            />
+            {/* Right column - Formation Tags, Motions, Run Game, Dropback, and Shot Plays */}
+            <div className="space-y-6">
+              <TerminologySet
+                title="Formation Tags"
+                terms={formTagsSet}
+                category="form_tags"
+                onUpdate={handleUpdateFormTags}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+              <TerminologySet
+                title="To Motions"
+                terms={toMotionsSet}
+                category="to_motions"
+                onUpdate={handleUpdateToMotions}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+              <TerminologySet
+                title="From Motions"
+                terms={fromMotionsSet}
+                category="from_motions"
+                onUpdate={handleUpdateFromMotions}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+              <TerminologySet
+                title="Run Game"
+                terms={runGameSet}
+                category="run_game"
+                onUpdate={handleUpdateRunGame}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+              <TerminologySet
+                title="Dropback Game"
+                terms={dropbackGameSet}
+                category="dropback_game"
+                onUpdate={handleUpdateDropbackGame}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+              <TerminologySet
+                title="Shot Plays"
+                terms={shotPlaysSet}
+                category="shot_plays"
+                onUpdate={handleUpdateShotPlays}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+            </div>
           </div>
         </div>
       )}
