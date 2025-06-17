@@ -896,7 +896,7 @@ export async function updatePlayPoolTerminology(): Promise<void> {
     console.error('Error updating play pool terminology:', error)
     throw error
   }
-}
+} 
 
 export async function deletePlay(id: string): Promise<void> {
   try {

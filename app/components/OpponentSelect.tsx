@@ -86,29 +86,29 @@ export function OpponentSelect() {
               // First check if it's in our fetched opponents list
               const existingOpponent = opponentsData.find(o => o.id === savedOpponentId)
               if (existingOpponent) {
-                setSelectedOpponent(savedOpponentId)
+                  setSelectedOpponent(savedOpponentId)
                 return
               }
               
               // If not in the list, try to fetch it by ID
-              const opponentResult = await getOpponentById(savedOpponentId)
-              if (opponentResult.success && opponentResult.data) {
-                // If it exists and belongs to this team, add it to our list
-                if (opponentResult.data.team_id === profileData.team_id) {
-                  setOpponents(prev => [...prev, opponentResult.data!])
-                  setSelectedOpponent(savedOpponentId)
+                  const opponentResult = await getOpponentById(savedOpponentId)
+                  if (opponentResult.success && opponentResult.data) {
+                    // If it exists and belongs to this team, add it to our list
+                    if (opponentResult.data.team_id === profileData.team_id) {
+                      setOpponents(prev => [...prev, opponentResult.data!])
+                      setSelectedOpponent(savedOpponentId)
                   return
                 }
               }
               
               // If we get here, the saved opponent is invalid
-              localStorage.removeItem('selectedOpponent')
+                      localStorage.removeItem('selectedOpponent')
             }
             
             // If no valid saved opponent, select the first one from the list
             if (opponentsData && opponentsData.length > 0) {
-              setSelectedOpponent(opponentsData[0].id)
-              localStorage.setItem('selectedOpponent', opponentsData[0].id)
+                        setSelectedOpponent(opponentsData[0].id)
+                        localStorage.setItem('selectedOpponent', opponentsData[0].id)
               
               // Dispatch event to notify other components
               const event = new CustomEvent('opponentChanged', { 

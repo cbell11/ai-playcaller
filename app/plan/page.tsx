@@ -669,9 +669,9 @@ export default function PlanPage() {
 
         if (!teamId || !opponentId) {
           console.log('No team or opponent selected');
-          setLoading(false);
-          return;
-        }
+        setLoading(false);
+        return;
+      }
 
         setSelectedTeam(teamId);
         setSelectedOpponent(opponentId);
@@ -717,8 +717,8 @@ export default function PlanPage() {
                   console.log('Updating plan from real-time change');
                   setPlan(updatedPlan);
                   save('plan', updatedPlan);
-                }
-              } catch (error) {
+        }
+        } catch (error) {
                 console.error('Error handling real-time update:', error);
               }
             }
@@ -734,7 +734,7 @@ export default function PlanPage() {
       } catch (error) {
         console.error('Error loading initial data:', error);
         setError('Failed to load game plan. Please try again.');
-      } finally {
+        } finally {
         setLoading(false);
       }
     };
@@ -1413,7 +1413,7 @@ export default function PlanPage() {
     setSearchResults(results);
   };
 
-  // Update the renderPlayPool function to include search
+  // Update the renderPlayPool function to include the category play list
   const renderPlayPool = () => {
     if (!plan || !playPoolSection) return null;
     
@@ -1514,6 +1514,50 @@ export default function PlanPage() {
                     {label}
                   </button>
                 ))}
+            </div>
+            )}
+            
+            {/* Category view - show plays for selected category */}
+            {playPoolFilterType === 'category' && (
+              <div className="w-2/3 pl-2 overflow-y-auto">
+                <div className="space-y-1">
+                  {filteredPlays.length > 0 ? (
+                    filteredPlays.map((play, index) => {
+                      const alreadyInSection = isPlayInSection(play, plan[playPoolSection]);
+                      return (
+                        <div 
+                          key={index}
+                          className={`p-1 border rounded flex justify-between items-center ${
+                            alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
+                          }`}
+                        >
+                          <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                            {play.is_favorite && (
+                              <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
+                            )}
+                            {formatPlayFromPool(play)}
+                          </div>
+                          {alreadyInSection ? (
+                            <div className="text-xs text-gray-500 ml-1 px-2 py-0.5 border border-gray-300 rounded flex-shrink-0">
+                              In Script
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleAddPlayToSection(play)}
+                              className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0 cursor-pointer"
+                            >
+                              + Add
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-gray-500 italic text-xs text-center p-4">
+                      No plays available in this category
+                    </p>
+                  )}
+                </div>
               </div>
             )}
             
@@ -1931,53 +1975,53 @@ export default function PlanPage() {
     return (
       <>
         {generating && <LoadingModal message="Generating your Game Plan now!" />}
-        <div className="container mx-auto py-8">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-2xl font-bold">Game Plan</h1>
-          </div>
-
-          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Let's build your gameplan!</h2>
-              <p className="text-gray-600">Choose how you'd like to create your game plan.</p>
-            </div>
-            
-            <div className="flex flex-col items-center gap-4">
-              <Button 
-                onClick={handleGenerateGamePlan}
-                disabled={generating}
-                className="bg-blue-900 hover:bg-blue-800 text-white min-w-[250px]"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Building...
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    Build your game plan with AI
-                  </>
-                )}
-              </Button>
-              
-              <div className="text-gray-500">Or</div>
-              
-              <Button 
-                onClick={handleBuildManually}
-                variant="outline"
-                className="bg-yellow-100 hover:bg-yellow-200 border-yellow-300 text-yellow-900 min-w-[250px]"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Build your gameplan manually
-              </Button>
-            </div>
-            
-            <p className="text-sm text-gray-500 mt-4">
-              You can still edit the gameplan after it's been generated
-            </p>
-          </div>
+      <div className="container mx-auto py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-bold">Game Plan</h1>
         </div>
+
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Let's build your gameplan!</h2>
+            <p className="text-gray-600">Choose how you'd like to create your game plan.</p>
+          </div>
+          
+          <div className="flex flex-col items-center gap-4">
+            <Button 
+              onClick={handleGenerateGamePlan}
+              disabled={generating}
+              className="bg-blue-900 hover:bg-blue-800 text-white min-w-[250px]"
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Building...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Build your game plan with AI
+                </>
+              )}
+            </Button>
+            
+            <div className="text-gray-500">Or</div>
+            
+            <Button 
+                onClick={handleBuildManually}
+              variant="outline"
+              className="bg-yellow-100 hover:bg-yellow-200 border-yellow-300 text-yellow-900 min-w-[250px]"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Build your gameplan manually
+            </Button>
+          </div>
+          
+          <p className="text-sm text-gray-500 mt-4">
+            You can still edit the gameplan after it's been generated
+          </p>
+        </div>
+      </div>
       </>
     );
   }
@@ -2235,28 +2279,28 @@ export default function PlanPage() {
                   <p className="text-sm">
                     Use the "Add a Play" button on each section to build your game plan from the play pool.
                   </p>
-                </div>
+          </div>
 
                 <div className="flex flex-col gap-4">
-                  <Button 
-                    onClick={handleGenerateGamePlan}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                    disabled={isGenerating}
-                  >
-                    {isGenerating ? (
-                      <>
-                        <div className="animate-spin mr-2">
-                          <Wand2 className="h-4 w-4" />
-                        </div>
-                        Generating Game Plan...
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 className="h-4 w-4 mr-2" />
-                        Generate Game Plan with AI
-                      </>
-                    )}
-                  </Button>
+              <Button 
+                  onClick={handleGenerateGamePlan}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="animate-spin mr-2">
+                        <Wand2 className="h-4 w-4" />
+                      </div>
+                      Generating Game Plan...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4 mr-2" />
+                      Generate Game Plan with AI
+                    </>
+                  )}
+                </Button>
 
                   <Button 
                     onClick={handleDeleteGamePlan}

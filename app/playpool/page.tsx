@@ -967,17 +967,17 @@ export default function PlayPoolPage() {
           </CardTitle>
         </CardHeader>
         {showDebugInfo && (
-          <CardContent>
-            <div className="text-xs space-y-1">
-              <div><strong>Team ID:</strong> {selectedTeamId || 'null'}</div>
-              <div><strong>Team Name:</strong> {selectedTeamName || 'null'}</div>
-              <div><strong>Opponent ID:</strong> {selectedOpponentId || 'null'}</div>
-              <div><strong>Opponent Name:</strong> {selectedOpponentName || 'null'}</div>
-              <div><strong>LocalStorage Team ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') || 'null' : 'unknown'}</div>
-              <div><strong>LocalStorage Opponent ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') || 'null' : 'unknown'}</div>
-              <div className="mt-2 pt-2 border-t border-gray-300"><strong>Loading Status:</strong> {loading ? 'Loading' : 'Ready'}</div>
-              <div><strong>Play Count:</strong> {plays.length}</div>
-              <div><strong>Motion Percentage:</strong> {motionPercentage}%</div>
+        <CardContent>
+          <div className="text-xs space-y-1">
+            <div><strong>Team ID:</strong> {selectedTeamId || 'null'}</div>
+            <div><strong>Team Name:</strong> {selectedTeamName || 'null'}</div>
+            <div><strong>Opponent ID:</strong> {selectedOpponentId || 'null'}</div>
+            <div><strong>Opponent Name:</strong> {selectedOpponentName || 'null'}</div>
+            <div><strong>LocalStorage Team ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') || 'null' : 'unknown'}</div>
+            <div><strong>LocalStorage Opponent ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') || 'null' : 'unknown'}</div>
+            <div className="mt-2 pt-2 border-t border-gray-300"><strong>Loading Status:</strong> {loading ? 'Loading' : 'Ready'}</div>
+            <div><strong>Play Count:</strong> {plays.length}</div>
+            <div><strong>Motion Percentage:</strong> {motionPercentage}%</div>
               
               {/* Analysis Results */}
               {analysis && (
@@ -986,70 +986,70 @@ export default function PlayPoolPage() {
                   <div className="mt-1 whitespace-pre-wrap text-gray-600">{analysis}</div>
                 </div>
               )}
+            
+            {/* Defensive Info */}
+            <div className="mt-2 pt-2 border-t border-gray-300">
+              <div><strong>Fronts Count:</strong> {fronts.length}</div>
+              <div><strong>Coverages Count:</strong> {coverages.length}</div>
+              <div><strong>Blitzes Count:</strong> {blitzes.length}</div>
+              <div><strong>Overall Blitz %:</strong> {overallBlitzPct}%</div>
               
-              {/* Defensive Info */}
-              <div className="mt-2 pt-2 border-t border-gray-300">
-                <div><strong>Fronts Count:</strong> {fronts.length}</div>
-                <div><strong>Coverages Count:</strong> {coverages.length}</div>
-                <div><strong>Blitzes Count:</strong> {blitzes.length}</div>
-                <div><strong>Overall Blitz %:</strong> {overallBlitzPct}%</div>
-                
-                <div className="mt-2">
-                  <details>
-                    <summary className="text-blue-500 cursor-pointer">Show Fronts Data</summary>
-                    <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
-                      {fronts.map((front, idx) => (
-                        <div key={idx} className="mb-2">
-                          <div><strong>{front.name}</strong> ({frontsPct[front.name] || 0}%)</div>
-                          {front.fieldArea && <div className="text-gray-600 pl-2">Field Area: {front.fieldArea}</div>}
-                          {front.dominateDown && <div className="text-gray-600 pl-2">Down: {front.dominateDown}</div>}
-                          {front.notes && <div className="text-gray-600 pl-2">Notes: {front.notes}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                </div>
-                
-                <div className="mt-2">
-                  <details>
-                    <summary className="text-blue-500 cursor-pointer">Show Coverages Data</summary>
-                    <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
-                      {coverages.map((coverage, idx) => (
-                        <div key={idx} className="mb-2">
-                          <div><strong>{coverage.name}</strong> ({coveragesPct[coverage.name] || 0}%)</div>
-                          {coverage.fieldArea && <div className="text-gray-600 pl-2">Field Area: {coverage.fieldArea}</div>}
-                          {coverage.dominateDown && <div className="text-gray-600 pl-2">Down: {coverage.dominateDown}</div>}
-                          {coverage.notes && <div className="text-gray-600 pl-2">Notes: {coverage.notes}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                </div>
-                
-                <div className="mt-2">
-                  <details>
-                    <summary className="text-blue-500 cursor-pointer">Show Blitzes Data</summary>
-                    <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
-                      {blitzes.map((blitz, idx) => (
-                        <div key={idx} className="mb-2">
-                          <div><strong>{blitz.name}</strong> ({blitzPct[blitz.name] || 0}%)</div>
-                          {blitz.fieldArea && <div className="text-gray-600 pl-2">Field Area: {blitz.fieldArea}</div>}
-                          {blitz.dominateDown && <div className="text-gray-600 pl-2">Down: {blitz.dominateDown}</div>}
-                          {blitz.notes && <div className="text-gray-600 pl-2">Notes: {blitz.notes}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                </div>
+              <div className="mt-2">
+                <details>
+                  <summary className="text-blue-500 cursor-pointer">Show Fronts Data</summary>
+                  <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
+                    {fronts.map((front, idx) => (
+                      <div key={idx} className="mb-2">
+                        <div><strong>{front.name}</strong> ({frontsPct[front.name] || 0}%)</div>
+                        {front.fieldArea && <div className="text-gray-600 pl-2">Field Area: {front.fieldArea}</div>}
+                        {front.dominateDown && <div className="text-gray-600 pl-2">Down: {front.dominateDown}</div>}
+                        {front.notes && <div className="text-gray-600 pl-2">Notes: {front.notes}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </details>
               </div>
               
-              {error && (
-                <div className="mt-2 pt-2 border-t border-gray-300 text-red-500">
-                  <strong>Error:</strong> {error}
-                </div>
-              )}
+              <div className="mt-2">
+                <details>
+                  <summary className="text-blue-500 cursor-pointer">Show Coverages Data</summary>
+                  <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
+                    {coverages.map((coverage, idx) => (
+                      <div key={idx} className="mb-2">
+                        <div><strong>{coverage.name}</strong> ({coveragesPct[coverage.name] || 0}%)</div>
+                        {coverage.fieldArea && <div className="text-gray-600 pl-2">Field Area: {coverage.fieldArea}</div>}
+                        {coverage.dominateDown && <div className="text-gray-600 pl-2">Down: {coverage.dominateDown}</div>}
+                        {coverage.notes && <div className="text-gray-600 pl-2">Notes: {coverage.notes}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+              
+              <div className="mt-2">
+                <details>
+                  <summary className="text-blue-500 cursor-pointer">Show Blitzes Data</summary>
+                  <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
+                    {blitzes.map((blitz, idx) => (
+                      <div key={idx} className="mb-2">
+                        <div><strong>{blitz.name}</strong> ({blitzPct[blitz.name] || 0}%)</div>
+                        {blitz.fieldArea && <div className="text-gray-600 pl-2">Field Area: {blitz.fieldArea}</div>}
+                        {blitz.dominateDown && <div className="text-gray-600 pl-2">Down: {blitz.dominateDown}</div>}
+                        {blitz.notes && <div className="text-gray-600 pl-2">Notes: {blitz.notes}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
             </div>
-          </CardContent>
+            
+            {error && (
+              <div className="mt-2 pt-2 border-t border-gray-300 text-red-500">
+                <strong>Error:</strong> {error}
+              </div>
+            )}
+          </div>
+        </CardContent>
         )}
       </Card>
     </div>
