@@ -1252,7 +1252,6 @@ export default function PlanPage() {
       }, 3000);
     }
   };
-
   // Modify the handleAddPlayToSection function
   const handleAddPlayToSection = async (play: ExtendedPlay) => {
     if (!plan || !playPoolSection) return;
@@ -1990,11 +1989,13 @@ export default function PlanPage() {
             <Button 
               onClick={handleGenerateGamePlan}
               disabled={generating}
-              className="bg-blue-900 hover:bg-blue-800 text-white min-w-[250px]"
+              className="bg-[#0b2545] hover:bg-[#1e3a8a] text-white min-w-[250px]"
             >
               {generating ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <div className="animate-spin mr-2">
+                    <Wand2 className="h-4 w-4" />
+                  </div>
                   Building...
                 </>
               ) : (
@@ -2269,7 +2270,7 @@ export default function PlanPage() {
             <Button 
   variant="outline" 
   onClick={handlePrint} 
-  className="flex items-center gap-2 bg-yellow-400 text-yellow-900 hover:bg-yellow-500 border-yellow-400"
+  className="flex items-center gap-2 bg-[#2ecc71] hover:bg-[#27ae60] text-white border-[#2ecc71]"
 >
               <Printer className="h-4 w-4" />
               Print PDF
@@ -2287,32 +2288,32 @@ export default function PlanPage() {
                   <p className="text-sm">
                     Use the "Add a Play" button on each section to build your game plan from the play pool.
                   </p>
-          </div>
+                </div>
 
-                <div className="flex flex-col gap-4">
-              <Button 
-                  onClick={handleGenerateGamePlan}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className="animate-spin mr-2">
-                        <Wand2 className="h-4 w-4" />
-                      </div>
-                      Generating Game Plan...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="h-4 w-4 mr-2" />
-                      Generate Game Plan with AI
-                    </>
-                  )}
-                </Button>
+                <div className="flex flex-row gap-4">
+                  <Button 
+                    onClick={handleGenerateGamePlan}
+                    className="flex-1 bg-[#0b2545] hover:bg-[#1e3a8a] text-white"
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="animate-spin mr-2">
+                          <Wand2 className="h-4 w-4" />
+                        </div>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-4 w-4 mr-2" />
+                        Generate with AI
+                      </>
+                    )}
+                  </Button>
 
                   <Button 
                     onClick={handleDeleteGamePlan}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                    className="flex-1 bg-[#ff3b3f] hover:bg-[#e63538] text-white"
                     disabled={loading}
                   >
                     {loading ? (
@@ -2320,7 +2321,7 @@ export default function PlanPage() {
                         <div className="animate-spin mr-2">
                           <Loader2 className="h-4 w-4" />
                         </div>
-                        Deleting Game Plan...
+                        Deleting...
                       </>
                     ) : (
                       <>
@@ -2445,3 +2446,4 @@ export default function PlanPage() {
     </>
   )
 }
+
