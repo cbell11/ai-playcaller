@@ -204,6 +204,9 @@ export function OpponentSelect() {
       // Close the dialog and reset form
       setShowAddDialog(false)
       setNewOpponentName("")
+
+      // Redirect to setup page
+      window.location.href = '/setup'
     } catch (error) {
       console.error('Error adding opponent:', error)
       if (!errorMessage) {
@@ -311,6 +314,7 @@ export function OpponentSelect() {
             <Button 
               onClick={handleAddOpponent}
               disabled={isAddingOpponent || !newOpponentName.trim()}
+              className="bg-[#0B2545] hover:bg-[#0B2545]/90 text-white"
             >
               {isAddingOpponent ? 'Adding...' : 'Add Opponent'}
             </Button>

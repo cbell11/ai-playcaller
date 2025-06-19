@@ -1303,116 +1303,69 @@ export default function ScoutingPage() {
     // Set loading state
     setIsLoadingOpponentData(true);
     
-    // Track if we actually loaded data
-    let dataLoaded = false;
-    let retryCount = 0;
-    const maxRetries = 2;
-    
-    while (!dataLoaded && retryCount <= maxRetries) {
-      try {
-        // First try to load from the database
-        console.log(`Attempt ${retryCount + 1}: Loading from database for team ${teamId} and opponent ${opponentId}...`);
-        const result = await getScoutingReport(teamId, opponentId);
-        
-        if (result.success && result.data) {
-          console.log(`SUCCESS: Found data in database for opponent ${opponentId}`);
-          console.log("Data summary:", {
-            fronts: result.data.fronts?.length || 0, 
-            coverages: result.data.coverages?.length || 0, 
-            blitzes: result.data.blitzes?.length || 0
-          });
-          
-          // Add detailed logging of blitz data
-          console.log('Blitz data loaded from database:', {
-            blitzes: result.data.blitzes,
-            blitz_pct: result.data.blitz_pct,
-            overall_blitz_pct: result.data.overall_blitz_pct
-          });
-          
-          // Make sure we're not setting undefined arrays
-          const safeData = {
-            fronts: Array.isArray(result.data.fronts) ? result.data.fronts : [],
-            coverages: Array.isArray(result.data.coverages) ? result.data.coverages : [],
-            blitzes: Array.isArray(result.data.blitzes) ? result.data.blitzes : [],
-            fronts_pct: result.data.fronts_pct || {},
-            coverages_pct: result.data.coverages_pct || {},
-            blitz_pct: result.data.blitz_pct || {},
-            overall_blitz_pct: result.data.overall_blitz_pct || 0,
-            notes: result.data.notes || '',
-            updated_at: result.data.updated_at || new Date().toISOString()
-          };
-          
-          // Log details about what we're loading
-          console.log("FRONTS:", safeData.fronts.map(f => f.name));
-          console.log("COVERAGES:", safeData.coverages.map(c => c.name));
-          console.log("BLITZES:", safeData.blitzes.map(b => b.name));
-          console.log("BLITZ PERCENTAGES:", safeData.blitz_pct);
-          console.log("OVERALL BLITZ PERCENTAGE:", safeData.overall_blitz_pct);
-          
-          // Set state with the safe data
-          setFronts(safeData.fronts);
-          setCoverages(safeData.coverages);
-          setBlitzes(safeData.blitzes);
-          setFrontPct(safeData.fronts_pct);
-          setCoverPct(safeData.coverages_pct);
-          setBlitzPct(safeData.blitz_pct);
-          setOverallBlitzPct(safeData.overall_blitz_pct);
-          setNotes(safeData.notes);
-          setLastSaved(new Date(safeData.updated_at));
-          console.log(`Successfully set state with data for opponent ${opponentId}`);
-          
-          // Mark that we loaded data successfully
-          dataLoaded = true;
-        } else {
-          // Fall back to localStorage if no database record exists
-          console.log(`No data found in database for opponent ${opponentId} (attempt ${retryCount + 1})`);
-          if (result.error) {
-            console.log("Database error:", result.error);
-          }
-          
-          // Only fall back to localStorage on final attempt
-          if (retryCount === maxRetries) {
-            console.log("Falling back to localStorage after maximum retries");
-            fallbackToLocalStorage(opponentId);
-            
-            // Check if any data was loaded from localStorage
-            dataLoaded = (fronts.length > 0 || coverages.length > 0 || blitzes.length > 0 || notes !== '');
-          }
-        }
-      } catch (error) {
-        console.error(`Error loading scouting report for opponent ${opponentId} (attempt ${retryCount + 1}):`, error);
-        
-        // Only fall back to localStorage on final attempt
-        if (retryCount === maxRetries) {
-          console.log("Falling back to localStorage due to error after maximum retries");
-          fallbackToLocalStorage(opponentId);
-          
-          // Check if any data was loaded from localStorage
-          dataLoaded = (fronts.length > 0 || coverages.length > 0 || blitzes.length > 0 || notes !== '');
-        }
-      }
+    try {
+      // First try to load from the database
+      console.log(`Loading from database for team ${teamId} and opponent ${opponentId}...`);
+      const result = await getScoutingReport(teamId, opponentId);
       
-      // If we haven't loaded data and still have retries left, wait a bit before retrying
-      if (!dataLoaded && retryCount < maxRetries) {
-        console.log(`Retrying in ${(retryCount + 1) * 500}ms...`);
-        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 500));
+      if (result.success && result.data) {
+        console.log(`SUCCESS: Found data in database for opponent ${opponentId}`);
+        console.log("Data summary:", {
+          fronts: result.data.fronts?.length || 0, 
+          coverages: result.data.coverages?.length || 0, 
+          blitzes: result.data.blitzes?.length || 0
+        });
+        
+        // Add detailed logging of blitz data
+        console.log('Blitz data loaded from database:', {
+          blitzes: result.data.blitzes,
+          blitz_pct: result.data.blitz_pct,
+          overall_blitz_pct: result.data.overall_blitz_pct
+        });
+        
+        // Make sure we're not setting undefined arrays
+        const safeData = {
+          fronts: Array.isArray(result.data.fronts) ? result.data.fronts : [],
+          coverages: Array.isArray(result.data.coverages) ? result.data.coverages : [],
+          blitzes: Array.isArray(result.data.blitzes) ? result.data.blitzes : [],
+          fronts_pct: result.data.fronts_pct || {},
+          coverages_pct: result.data.coverages_pct || {},
+          blitz_pct: result.data.blitz_pct || {},
+          overall_blitz_pct: result.data.overall_blitz_pct || 0,
+          notes: result.data.notes || '',
+          updated_at: result.data.updated_at || new Date().toISOString()
+        };
+        
+        // Set state with the safe data
+        setFronts(safeData.fronts);
+        setCoverages(safeData.coverages);
+        setBlitzes(safeData.blitzes);
+        setFrontPct(safeData.fronts_pct);
+        setCoverPct(safeData.coverages_pct);
+        setBlitzPct(safeData.blitz_pct);
+        setOverallBlitzPct(safeData.overall_blitz_pct);
+        setNotes(safeData.notes);
+        setLastSaved(new Date(safeData.updated_at));
+        console.log(`Successfully set state with data for opponent ${opponentId}`);
+      } else {
+        // No data found in database - keep everything empty for new opponent
+        console.log(`No data found in database for opponent ${opponentId} - initializing empty scouting report`);
+        // Data is already cleared above, so we don't need to do anything here
       }
-      
-      retryCount++;
+    } catch (error) {
+      console.error(`Error loading scouting report for opponent ${opponentId}:`, error);
+      // Keep everything empty in case of error
+    } finally {
+      setIsLoadingOpponentData(false);
+      setIsAppLoading(false);
+      if (isInitializing) {
+        console.log("Initial data load complete, enabling auto-saves");
+        setDataFullyLoaded(true);
+      }
     }
     
     console.log(`--------- FINISHED LOADING DATA FOR OPPONENT ${opponentId} ---------`);
-    console.log(`Data loaded successfully: ${dataLoaded}`);
-    setIsLoadingOpponentData(false);
-    setIsAppLoading(false);
-    
-    // If this was from initial app load, set the data as fully loaded
-    if (isInitializing) {
-      console.log("Initial data load complete, enabling auto-saves");
-      setDataFullyLoaded(true);
-    }
-    
-    return dataLoaded;
+    return true;
   };
 
   // Improve the fallbackToLocalStorage function
