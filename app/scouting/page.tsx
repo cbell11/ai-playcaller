@@ -1954,11 +1954,10 @@ export default function ScoutingPage() {
       {isAppLoading && (
         <div className="fixed inset-0 bg-white bg-opacity-80 z-50 flex items-center justify-center">
           <div className="text-center">
-            <Loader2 className="h-12 w-12 animate-spin mx-auto text-blue-600" />
-            <p className="mt-4 text-xl font-medium text-blue-600">Loading Scouting Data...</p>
-            <p className="mt-2 text-gray-500">Please wait while we retrieve your opponent information</p>
-                  </div>
-                </div>
+            <img src="/ball.gif" alt="Loading..." className="w-16 h-16 mx-auto" />
+            <p className="mt-4 text-xl font-bold text-[#0B2545]">Loading your scouting information</p>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
@@ -2033,8 +2032,7 @@ export default function ScoutingPage() {
       {/* Show loading overlay when changing opponents */}
       {isLoadingOpponentData ? (
         <div className="flex items-center justify-center bg-slate-100 p-8 rounded-lg mb-4">
-          <Loader2 className="h-8 w-8 animate-spin mr-3 text-blue-600" />
-          <p className="text-lg text-blue-600">Loading scouting data for {selectedOpponentName || 'opponent'}...</p>
+          <p className="text-lg font-bold text-[#0B2545]">Loading your data</p>
         </div>
       ) : (
         <>
