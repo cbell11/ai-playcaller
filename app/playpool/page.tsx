@@ -796,7 +796,7 @@ export default function PlayPoolPage() {
               <Button 
                 onClick={handleRebuildPlaypool}
                 disabled={analyzing || !selectedTeamId || !selectedOpponentId}
-                className="bg-blue-900 hover:bg-blue-800 text-white"
+                className="bg-[#0b2545] hover:bg-[#1e3a8a] text-white cursor-pointer"
               >
                 {analyzing ? (
                   <>
@@ -826,7 +826,7 @@ export default function PlayPoolPage() {
           <Button 
             onClick={handleRebuildPlaypool}
             disabled={analyzing || !selectedTeamId || !selectedOpponentId}
-            className="bg-blue-900 hover:bg-blue-800 text-white"
+            className="bg-[#0b2545] hover:bg-[#1e3a8a] text-white cursor-pointer"
           >
             {analyzing ? (
               <>
