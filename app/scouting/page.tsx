@@ -2025,7 +2025,7 @@ export default function ScoutingPage() {
                 </span>
               ) : lastSaved ? (
                 <span>
-                  Last Update: {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  Last Update: {lastSaved.toLocaleDateString([], { month: 'numeric', day: 'numeric', year: '2-digit' })} {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               ) : null}
             </div>
@@ -2038,7 +2038,7 @@ export default function ScoutingPage() {
             {/* Save button */}
           <Button 
               variant="outline"
-              className="gap-2 bg-green-600 hover:bg-green-700 text-white border-green-600"
+              className="gap-2 bg-[#2ecc71] hover:bg-[#27ae60] text-white border-[#2ecc71]"
               onClick={saveToDatabase}
               disabled={isSaving}
             >
@@ -2057,7 +2057,7 @@ export default function ScoutingPage() {
             {/* Generate AI Report button */}
           <Button
             variant="outline"
-              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+              className="gap-2 bg-[#0b2545] hover:bg-[#1e3a8a] text-white border-[#0b2545]"
               onClick={handleGenerateAIReport}
               disabled={isGeneratingAIReport}
             >
