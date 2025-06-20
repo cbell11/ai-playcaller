@@ -43,6 +43,7 @@ import { LoadingModal } from "../components/loading-modal"
 
 interface ExtendedPlay extends Play {
   combined_call?: string;
+  formations?: string;
 }
 
 const CATEGORIES = {
@@ -592,6 +593,19 @@ export default function PlayPoolPage() {
     return lockedPlays.slice(0, maxPlays);
   }
 
+  // Add helper function to group plays by formation
+  const groupPlaysByFormation = (plays: ExtendedPlay[]) => {
+    const groups: { [key: string]: ExtendedPlay[] } = {};
+    plays.forEach(play => {
+      const formation = play.formations || 'Other';
+      if (!groups[formation]) {
+        groups[formation] = [];
+      }
+      groups[formation].push(play);
+    });
+    return groups;
+  }
+
   const handleStartEdit = (play: ExtendedPlay) => {
     setEditingPlay(play.id)
     setEditForm({
@@ -962,174 +976,43 @@ export default function PlayPoolPage() {
         </div>
       )}
 
-      {Object.entries(CATEGORIES).map(([category, title]) => {
-        const categoryPlays = getPlaysByCategory(category)
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {Object.entries(CATEGORIES).map(([category, title]) => {
+          const categoryPlays = getPlaysByCategory(category);
+          const playsByFormation = groupPlaysByFormation(categoryPlays);
 
-        // Split plays into locked and unlocked
-        const lockedPlays = categoryPlays.filter(p => p.is_locked)
-        const unlockedPlays = categoryPlays.filter(p => !p.is_locked)
-        
-        // Create ordered array with locked plays first, then unlocked plays
-        const orderedPlays = [...lockedPlays, ...unlockedPlays]
-        
-        // Determine if we need a grid layout
-        const useGridLayout = category === 'run_game' || category === 'quick_game' || 
-                              category === 'dropback_game' || category === 'shot_plays' || 
-                              category === 'screen_game'
-        
-        // Calculate how many plays to put in each column
-        const totalPlays = orderedPlays.length
-        const firstColumnCount = Math.ceil(totalPlays / 2)
-        
-        // Split into left and right columns
-        const leftColumnPlays = orderedPlays.slice(0, firstColumnCount)
-        const rightColumnPlays = orderedPlays.slice(firstColumnCount)
-
-        return (
-          <Card key={category} className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex justify-between items-center">
-                <span>{title}</span>
-                <span className="text-sm font-normal text-gray-500">
-                  {categoryPlays.length} Plays
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {useGridLayout ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-4">
-                    {leftColumnPlays.map((play) => (
-                      <div key={play.id} className="flex justify-between items-center p-4 bg-white rounded-lg shadow-sm">
-                        {renderPlayContent(play)}
+          return (
+            <Card key={category} className="h-[600px] flex flex-col">
+              <CardHeader className="border-b flex-shrink-0">
+                <CardTitle className="flex justify-between items-center">
+                  <span>{title}</span>
+                  <span className="text-sm font-normal text-gray-500">
+                    {categoryPlays.length} Plays
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 flex-1 overflow-y-auto">
+                <div className="space-y-6">
+                  {Object.entries(playsByFormation).map(([formation, formationPlays]) => (
+                    <div key={formation}>
+                      <h3 className="text-sm font-semibold text-gray-700 border-b pb-2 mb-3">
+                        {formation}
+                      </h3>
+                      <div className="space-y-2">
+                        {formationPlays.map((play) => (
+                          <div key={play.id} className="bg-white rounded-lg shadow-sm p-2">
+                            {renderPlayContent(play)}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  {rightColumnPlays.length > 0 && (
-                    <div className="space-y-4">
-                      {rightColumnPlays.map((play) => (
-                        <div key={play.id} className="flex justify-between items-center p-4 bg-white rounded-lg shadow-sm">
-                          {renderPlayContent(play)}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {orderedPlays.map((play) => (
-                    <div key={play.id} className="flex justify-between items-center p-4 bg-white rounded-lg shadow-sm">
-                      {renderPlayContent(play)}
                     </div>
                   ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )
-      })}
-
-      {/* Debug Info Card */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="text-sm flex justify-between items-center">
-            <span>Debug Info</span>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setShowDebugInfo(!showDebugInfo)}
-              className="h-6 px-2"
-            >
-              {showDebugInfo ? 'Hide' : 'Show'} Debug Info
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        {showDebugInfo && (
-        <CardContent>
-          <div className="text-xs space-y-1">
-            <div><strong>Team ID:</strong> {selectedTeamId || 'null'}</div>
-            <div><strong>Team Name:</strong> {selectedTeamName || 'null'}</div>
-            <div><strong>Opponent ID:</strong> {selectedOpponentId || 'null'}</div>
-            <div><strong>Opponent Name:</strong> {selectedOpponentName || 'null'}</div>
-            <div><strong>LocalStorage Team ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') || 'null' : 'unknown'}</div>
-            <div><strong>LocalStorage Opponent ID:</strong> {typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') || 'null' : 'unknown'}</div>
-            <div className="mt-2 pt-2 border-t border-gray-300"><strong>Loading Status:</strong> {loading ? 'Loading' : 'Ready'}</div>
-            <div><strong>Play Count:</strong> {plays.length}</div>
-            <div><strong>Motion Percentage:</strong> {motionPercentage}%</div>
-              
-              {/* Analysis Results */}
-              {analysis && (
-                <div className="mt-2 pt-2 border-t border-gray-300">
-                  <div><strong>Analysis Results:</strong></div>
-                  <div className="mt-1 whitespace-pre-wrap text-gray-600">{analysis}</div>
-                </div>
-              )}
-            
-            {/* Defensive Info */}
-            <div className="mt-2 pt-2 border-t border-gray-300">
-              <div><strong>Fronts Count:</strong> {fronts.length}</div>
-              <div><strong>Coverages Count:</strong> {coverages.length}</div>
-              <div><strong>Blitzes Count:</strong> {blitzes.length}</div>
-              <div><strong>Overall Blitz %:</strong> {overallBlitzPct}%</div>
-              
-              <div className="mt-2">
-                <details>
-                  <summary className="text-blue-500 cursor-pointer">Show Fronts Data</summary>
-                  <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
-                    {fronts.map((front, idx) => (
-                      <div key={idx} className="mb-2">
-                        <div><strong>{front.name}</strong> ({frontsPct[front.name] || 0}%)</div>
-                        {front.fieldArea && <div className="text-gray-600 pl-2">Field Area: {front.fieldArea}</div>}
-                        {front.dominateDown && <div className="text-gray-600 pl-2">Down: {front.dominateDown}</div>}
-                        {front.notes && <div className="text-gray-600 pl-2">Notes: {front.notes}</div>}
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              </div>
-              
-              <div className="mt-2">
-                <details>
-                  <summary className="text-blue-500 cursor-pointer">Show Coverages Data</summary>
-                  <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
-                    {coverages.map((coverage, idx) => (
-                      <div key={idx} className="mb-2">
-                        <div><strong>{coverage.name}</strong> ({coveragesPct[coverage.name] || 0}%)</div>
-                        {coverage.fieldArea && <div className="text-gray-600 pl-2">Field Area: {coverage.fieldArea}</div>}
-                        {coverage.dominateDown && <div className="text-gray-600 pl-2">Down: {coverage.dominateDown}</div>}
-                        {coverage.notes && <div className="text-gray-600 pl-2">Notes: {coverage.notes}</div>}
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              </div>
-              
-              <div className="mt-2">
-                <details>
-                  <summary className="text-blue-500 cursor-pointer">Show Blitzes Data</summary>
-                  <div className="mt-1 bg-gray-100 p-2 rounded overflow-auto max-h-48">
-                    {blitzes.map((blitz, idx) => (
-                      <div key={idx} className="mb-2">
-                        <div><strong>{blitz.name}</strong> ({blitzPct[blitz.name] || 0}%)</div>
-                        {blitz.fieldArea && <div className="text-gray-600 pl-2">Field Area: {blitz.fieldArea}</div>}
-                        {blitz.dominateDown && <div className="text-gray-600 pl-2">Down: {blitz.dominateDown}</div>}
-                        {blitz.notes && <div className="text-gray-600 pl-2">Notes: {blitz.notes}</div>}
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              </div>
-            </div>
-            
-            {error && (
-              <div className="mt-2 pt-2 border-t border-gray-300 text-red-500">
-                <strong>Error:</strong> {error}
-              </div>
-            )}
-          </div>
-        </CardContent>
-        )}
-      </Card>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   )
 } 
