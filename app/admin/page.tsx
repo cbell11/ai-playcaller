@@ -148,8 +148,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <Card>
+    <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserCog className="h-6 w-6" />
@@ -240,6 +239,5 @@ export default function AdminPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
   )
 } 
