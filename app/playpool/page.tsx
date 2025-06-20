@@ -914,25 +914,25 @@ export default function PlayPoolPage() {
                     <Input
                       type="number"
                       min={category === 'rpo_game' ? 5 : 0}
-                      max={15}
-                      value={playCounts[category as keyof typeof playCounts] || ''}
+                                    max={20}
+              value={playCounts[category as keyof typeof playCounts] || ''}
                       onChange={(e) => {
-                        const inputValue = e.target.value === '' ? '' : parseInt(e.target.value);
-                        let value: number | '';
+                        const inputValue = e.target.value === '' ? null : parseInt(e.target.value);
+                        let value: number | null;
                         
-                        if (inputValue === '') {
-                          value = '';
+                        if (inputValue === null) {
+                          value = null;
                         } else {
                           // For RPO, enforce minimum of 5 if a number is entered
-                          if (category === 'rpo_game' && inputValue !== '') {
-                            value = Math.max(5, Math.min(15, inputValue as number));
+                          if (category === 'rpo_game' && inputValue !== null) {
+                            value = Math.max(5, Math.min(20, inputValue as number));
                           } else {
-                            value = Math.max(0, Math.min(15, inputValue as number));
+                            value = Math.max(0, Math.min(20, inputValue as number));
                           }
                         }
                         
                         // Show warning if user tries to exceed maximum
-                        if (typeof inputValue === 'number' && inputValue > 15) {
+                        if (typeof inputValue === 'number' && inputValue > 20) {
                           setShowMaxWarning(prev => ({
                             ...prev,
                             [category]: true
@@ -957,7 +957,7 @@ export default function PlayPoolPage() {
                       <p className="text-xs text-gray-500">Minimum of 5 plays required</p>
                     )}
                     {showMaxWarning[category] && (
-                      <p className="text-xs text-red-500">Maximum number of plays per category is 15</p>
+                      <p className="text-xs text-red-500">Maximum number of plays per category is 20</p>
                     )}
                   </div>
                 ))}
