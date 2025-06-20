@@ -10,6 +10,7 @@ export function UserMenu() {
   const [user, setUser] = useState<User | null>(null);
   const [teamId, setTeamId] = useState<string | null>(null);
   const [teamName, setTeamName] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -28,12 +29,16 @@ export function UserMenu() {
       if (user) {
         setUser(user);
         
-        // Fetch the user's profile data to get team_id
+        // Fetch the user's profile data to get team_id and role
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('team_id')
+          .select('team_id, role')
           .eq('id', user.id)
           .single();
+        
+        if (profileData?.role) {
+          setUserRole(profileData.role);
+        }
         
         if (profileData && !profileError && profileData.team_id) {
           setTeamId(profileData.team_id);
@@ -116,6 +121,11 @@ export function UserMenu() {
                 Team ID: {teamId}
               </div>
             ) : null}
+            {userRole && (
+              <div className="px-4 py-2 text-sm text-gray-700 border-b">
+                Role: {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+              </div>
+            )}
             <button
               onClick={handleSignOut}
               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
