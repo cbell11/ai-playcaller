@@ -112,7 +112,7 @@ export default function PlayPoolPage() {
   const [error, setError] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [clearingLocks, setClearingLocks] = useState(false)
-  const [motionPercentage, setMotionPercentage] = useState(() => load('motion_percentage', 25))
+  const [motionPercentage, setMotionPercentage] = useState<number>(() => load('motion_percentage', 25))
   const [editingPlay, setEditingPlay] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<ExtendedPlay>>({})
   const [analysis, setAnalysis] = useState<string | null>(null)
@@ -133,6 +133,20 @@ export default function PlayPoolPage() {
   const [overallBlitzPct, setOverallBlitzPct] = useState<number>(0)
   const [isRebuilding, setIsRebuilding] = useState(false)
   const [showDebugInfo, setShowDebugInfo] = useState(false)
+  // Add state for showing max limit warnings
+  const [showMaxWarning, setShowMaxWarning] = useState<Record<string, boolean>>({})
+  // Add state for notification
+  const [notification, setNotification] = useState<{message: string, type: 'info' | 'warning'} | null>(null)
+
+  // Add state for play counts
+  const [playCounts, setPlayCounts] = useState(() => ({
+    run_game: load('play_counts_run_game', 15),
+    quick_game: load('play_counts_quick_game', 15),
+    rpo_game: load('play_counts_rpo_game', 5),
+    dropback_game: load('play_counts_dropback_game', 15),
+    shot_plays: load('play_counts_shot_plays', 15),
+    screen_game: load('play_counts_screen_game', 15)
+  }))
 
   // Create Supabase client
   const supabase = createBrowserClient(
@@ -460,6 +474,13 @@ export default function PlayPoolPage() {
     };
   }, []);
 
+  // Add effect to save play counts when they change
+  useEffect(() => {
+    Object.entries(playCounts).forEach(([category, count]) => {
+      save(`play_counts_${category}`, count)
+    })
+  }, [playCounts])
+
   const handleRebuildPlaypool = async () => {
     try {
       setIsRebuilding(true)
@@ -488,7 +509,8 @@ export default function PlayPoolPage() {
         overall_blitz_pct: overallBlitzPct,
         motion_percentage: motionPercentage,
         notes: '',
-        keep_locked_plays: true
+        keep_locked_plays: true,
+        play_counts: playCounts // Add play counts to scouting report
       }
 
       // Call analyze and update function
@@ -553,38 +575,21 @@ export default function PlayPoolPage() {
 
   const getPlaysByCategory = (category: string) => {
     const categoryPlays = plays.filter(play => play.category === category);
+    const maxPlays = playCounts[category as keyof typeof playCounts];
     
-    // For run plays, return up to 15 plays
-    if (category === 'run_game') {
-      // First include all locked plays
-      const lockedPlays = categoryPlays.filter(play => play.is_locked);
-      
-      // If we have room for more, add unlocked plays until we hit 15
-      if (lockedPlays.length < 15) {
-        const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
-        // Only take enough unlocked plays to reach a total of 15
-        const unlockedPlaysToInclude = unlockedPlays.slice(0, 15 - lockedPlays.length);
-        return [...lockedPlays, ...unlockedPlaysToInclude];
-      }
-      
-      // If we have more than 15 locked plays, just return the first 15
-      return lockedPlays.slice(0, 15);
+    // First include all locked plays
+    const lockedPlays = categoryPlays.filter(play => play.is_locked);
+    
+    // If we have room for more, add unlocked plays until we hit the target
+    if (lockedPlays.length < maxPlays) {
+      const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
+      // Only take enough unlocked plays to reach the target
+      const unlockedPlaysToInclude = unlockedPlays.slice(0, maxPlays - lockedPlays.length);
+      return [...lockedPlays, ...unlockedPlaysToInclude];
     }
     
-    // For other categories, keep the original logic of 20 plays max
-    if (categoryPlays.length > 20) {
-      const lockedPlays = categoryPlays.filter(play => play.is_locked);
-      
-      if (lockedPlays.length < 20) {
-        const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
-        const unlockedPlaysToInclude = unlockedPlays.slice(0, 20 - lockedPlays.length);
-        return [...lockedPlays, ...unlockedPlaysToInclude];
-      }
-      
-      return lockedPlays.slice(0, 20);
-    }
-    
-    return categoryPlays;
+    // If we have more locked plays than the target, just return up to the target number
+    return lockedPlays.slice(0, maxPlays);
   }
 
   const handleStartEdit = (play: ExtendedPlay) => {
@@ -859,21 +864,94 @@ export default function PlayPoolPage() {
           <CardTitle>Play Pool Settings</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label>Motion Percentage</Label>
-            <div className="flex items-center gap-4">
-              <Slider
-                value={[motionPercentage]}
-                onValueChange={(value: number[]) => setMotionPercentage(value[0])}
-                max={100}
-                step={5}
-                className="flex-1"
-              />
-              <span className="w-12 text-right">{motionPercentage}%</span>
+          <div className="space-y-6">
+            {/* Notification */}
+            {notification && (
+              <div className={`p-4 rounded-md ${notification.type === 'warning' ? 'bg-yellow-50 text-yellow-800' : 'bg-blue-50 text-blue-800'}`}>
+                <p className="text-sm">{notification.message}</p>
+              </div>
+            )}
+
+            {/* Motion Percentage Slider */}
+            <div className="space-y-2">
+              <Label>Motion Percentage</Label>
+              <div className="flex items-center gap-4">
+                <Slider
+                  value={[motionPercentage]}
+                  onValueChange={(value: number[]) => setMotionPercentage(value[0])}
+                  max={100}
+                  step={5}
+                  className="flex-1"
+                />
+                <span className="w-12 text-right">{motionPercentage}%</span>
+              </div>
+              <p className="text-sm text-gray-500">
+                Percentage of plays that will include motion
+              </p>
             </div>
-            <p className="text-sm text-gray-500">
-              Percentage of plays that will include motion
-            </p>
+
+            {/* Play Count Settings */}
+            <div className="space-y-4">
+              <Label>Number of Plays per Category</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(CATEGORIES).map(([category, title]) => (
+                  <div key={category} className="space-y-2">
+                    <Label className="text-sm">{title}</Label>
+                    <Input
+                      type="number"
+                      min={category === 'rpo_game' ? 5 : 0}
+                      max={15}
+                      value={playCounts[category as keyof typeof playCounts] || ''}
+                      onChange={(e) => {
+                        const inputValue = e.target.value === '' ? '' : parseInt(e.target.value);
+                        let value: number | '';
+                        
+                        if (inputValue === '') {
+                          value = '';
+                        } else {
+                          // For RPO, enforce minimum of 5 if a number is entered
+                          if (category === 'rpo_game' && inputValue !== '') {
+                            value = Math.max(5, Math.min(15, inputValue as number));
+                          } else {
+                            value = Math.max(0, Math.min(15, inputValue as number));
+                          }
+                        }
+                        
+                        // Show warning if user tries to exceed maximum
+                        if (typeof inputValue === 'number' && inputValue > 15) {
+                          setShowMaxWarning(prev => ({
+                            ...prev,
+                            [category]: true
+                          }));
+                          // Clear warning after 3 seconds
+                          setTimeout(() => {
+                            setShowMaxWarning(prev => ({
+                              ...prev,
+                              [category]: false
+                            }));
+                          }, 3000);
+                        }
+
+                        setPlayCounts(prev => ({
+                          ...prev,
+                          [category]: value
+                        }));
+                      }}
+                      className="w-full"
+                    />
+                    {category === 'rpo_game' && (
+                      <p className="text-xs text-gray-500">Minimum of 5 plays required</p>
+                    )}
+                    {showMaxWarning[category] && (
+                      <p className="text-xs text-red-500">Maximum number of plays per category is 15</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-gray-500">
+                Specify how many plays you want for each category (maximum 15). The AI will try to generate exactly this many plays, keeping any locked plays.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

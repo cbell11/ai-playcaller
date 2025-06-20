@@ -20,8 +20,17 @@ interface ScoutingReport {
   coverages_pct: Record<string, number>;
   blitz_pct: Record<string, number>;
   overall_blitz_pct: number;
-  notes: string;
   motion_percentage: number;
+  notes: string;
+  keep_locked_plays: boolean;
+  play_counts?: {
+    run_game: number;
+    rpo_game: number;
+    quick_game: number;
+    dropback_game: number;
+    shot_plays: number;
+    screen_game: number;
+  };
 }
 
 interface AnalyzePlayResponse {
@@ -134,8 +143,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       coveragesPct: Object.keys(scoutingReport.coverages_pct)
     });
 
-    // Constants
-    const TARGET_PLAYS = {
+    // Constants - use custom play counts if provided, otherwise use defaults
+    const TARGET_PLAYS = scoutingReport.play_counts || {
       run_game: 15,
       rpo_game: 5,
       quick_game: 15,
