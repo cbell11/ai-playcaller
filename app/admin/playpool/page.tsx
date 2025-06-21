@@ -608,15 +608,17 @@ export default function MasterPlayPoolPage() {
                   <tr className="border-b bg-muted/50">
                     <th className="h-10 px-4 text-left font-medium">ID</th>
                     <th className="h-10 px-4 text-left font-medium">Category</th>
-                    <th className="h-10 px-4 text-left font-medium">Formation</th>
-                    <th className="h-10 px-4 text-left font-medium">Concept</th>
-                    <th className="h-10 px-4 text-left font-medium">Tags</th>
-                    <th className="h-10 px-4 text-left font-medium">Concept Tag</th>
-                    <th className="h-10 px-4 text-left font-medium">Pass Protection</th>
-                    <th className="h-10 px-4 text-left font-medium">Motions</th>
                     <th className="h-10 px-4 text-left font-medium">Shifts</th>
-                    <th className="h-10 px-4 text-left font-medium">RPO Tag</th>
+                    <th className="h-10 px-4 text-left font-medium">To Motions</th>
+                    <th className="h-10 px-4 text-left font-medium">Formation</th>
+                    <th className="h-10 px-4 text-left font-medium">Formation Tag</th>
+                    <th className="h-10 px-4 text-left font-medium">From Motions</th>
+                    <th className="h-10 px-4 text-left font-medium">Concept</th>
+                    <th className="h-10 px-4 text-left font-medium">Concept Tag</th>
                     <th className="h-10 px-4 text-left font-medium">Direction</th>
+                    <th className="h-10 px-4 text-left font-medium">RPO Tag</th>
+                    <th className="h-10 px-4 text-left font-medium">Front Beaters</th>
+                    <th className="h-10 px-4 text-left font-medium">Coverage Beaters</th>
                     <th className="h-10 px-4 text-center font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -625,22 +627,17 @@ export default function MasterPlayPoolPage() {
                     <tr key={play.id || index} className="border-b">
                       <td className="p-4">{play.play_id}</td>
                       <td className="p-4">{play.category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
-                      <td className="p-4">{play.formations}</td>
-                      <td className="p-4">
-                        {play.concept}
-                        {play.concept_direction && 
-                          <span className="ml-1">{play.concept_direction}</span>
-                        }
-                      </td>
-                      <td className="p-4">{play.tags}</td>
-                      <td className="p-4">{play.concept_tag}</td>
-                      <td className="p-4">{play.pass_protections}</td>
-                      <td className="p-4">
-                        {[play.from_motions, play.to_motions].filter(Boolean).join(' → ')}
-                      </td>
                       <td className="p-4">{play.shifts}</td>
-                      <td className="p-4">{play.rpo_tag}</td>
+                      <td className="p-4">{play.to_motions}</td>
+                      <td className="p-4">{play.formations}</td>
+                      <td className="p-4">{play.tags}</td>
+                      <td className="p-4">{play.from_motions}</td>
+                      <td className="p-4">{play.concept}</td>
+                      <td className="p-4">{play.concept_tag}</td>
                       <td className="p-4">{play.concept_direction}</td>
+                      <td className="p-4">{play.rpo_tag}</td>
+                      <td className="p-4 max-w-[200px] break-words">{play.front_beaters}</td>
+                      <td className="p-4 max-w-[200px] break-words">{play.coverage_beaters}</td>
                       <td className="p-4">
                         <div className="flex items-center justify-center space-x-2">
                           <Button
