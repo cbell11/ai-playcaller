@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Check, Trash2, Save, Eye, X, RefreshCw, AlertTriangle } from "lucide-react"
+import { Plus, Pencil, Check, Trash2, Save, Eye, X, RefreshCw, AlertTriangle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -45,75 +45,6 @@ interface TerminologySetProps {
   setTeamName?: (name: string | null) => void
 }
 
-// Function to get available items that haven't been selected yet
-const getAvailableItemsHelper = (
-  category: string, 
-  localTerms: TerminologyWithUI[], 
-  defaultFormations: Terminology[], 
-  defaultFormTags: Terminology[], 
-  defaultShifts: Terminology[],
-  defaultToMotions: Terminology[],
-  defaultFromMotions: Terminology[],
-  defaultRunGame: Terminology[],
-  defaultPassProtections: Terminology[],
-  defaultQuickGame: Terminology[],
-  defaultDropbackGame: Terminology[],
-  defaultScreenGame: Terminology[],
-  defaultShotPlays: Terminology[]
-) => {
-  try {
-    if (category === "formations") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultFormations.filter(formation => !selectedConcepts.includes(formation.concept));
-      return available;
-    } else if (category === "form_tags") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultFormTags.filter((tag: Terminology) => !selectedConcepts.includes(tag.concept));
-      return available;
-    } else if (category === "shifts") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultShifts.filter((shift: Terminology) => !selectedConcepts.includes(shift.concept));
-      return available;
-    } else if (category === "to_motions") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultToMotions.filter((motion: Terminology) => !selectedConcepts.includes(motion.concept));
-      return available;
-    } else if (category === "from_motions") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultFromMotions.filter((motion: Terminology) => !selectedConcepts.includes(motion.concept));
-      return available;
-    } else if (category === "run_game") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultRunGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-      return available;
-    } else if (category === "pass_protections") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultPassProtections.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-      return available;
-    } else if (category === "quick_game") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultQuickGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-      return available;
-    } else if (category === "dropback_game") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultDropbackGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-      return available;
-    } else if (category === "screen_game") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultScreenGame.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-      return available;
-    } else if (category === "shot_plays") {
-      const selectedConcepts = localTerms.map(term => term.concept);
-      const available = defaultShotPlays.filter((item: Terminology) => !selectedConcepts.includes(item.concept));
-      return available;
-    }
-    return [];
-  } catch (error) {
-    console.error("Error in getAvailableItems:", error);
-    return [];
-  }
-}
-
 const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate, supabase, setProfileInfo, setTeamCode, setTeamName }) => {
   const [isSaving, setIsSaving] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
@@ -130,13 +61,18 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [defaultDropbackGame, setDefaultDropbackGame] = useState<Terminology[]>([])
   const [defaultScreenGame, setDefaultScreenGame] = useState<Terminology[]>([])
   const [defaultShotPlays, setDefaultShotPlays] = useState<Terminology[]>([])
+  const [defaultConceptTags, setDefaultConceptTags] = useState<Terminology[]>([])
   const [localTerms, setLocalTerms] = useState<TerminologyWithUI[]>(terms || [])
   const [userInfo, setUserInfo] = useState<{id: string | null, email: string | null, team_id: string | null}>({id: null, email: null, team_id: null})
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [hasDeleted, setHasDeleted] = useState(false) // Track if any items have been deleted
-  const [saveSuccess, setSaveSuccess] = useState<string | null>(null) // Track success message
-  const [saveTimeout, setSaveTimeout] = useState<NodeJS.Timeout | null>(null) // Track timeout for message
+  const [hasDeleted, setHasDeleted] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
+  const [saveTimeout, setSaveTimeout] = useState<NodeJS.Timeout | null>(null)
   const [showNoMoreItemsMessage, setShowNoMoreItemsMessage] = useState(false)
+  const [isCheckingAvailable, setIsCheckingAvailable] = useState(false)
+  const [availableCount, setAvailableCount] = useState<number | null>(null)
+  const [showAddDropdown, setShowAddDropdown] = useState(false)
+  const [availableItems, setAvailableItems] = useState<Terminology[]>([])
 
   // Get user info when component mounts
   useEffect(() => {
@@ -246,23 +182,92 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     }
   }, [category, supabase]);
 
-  // Get available items that haven't been selected yet
-  const getAvailableItems = () => {
-    return getAvailableItemsHelper(
-      category, 
-      localTerms, 
-      defaultFormations, 
-      defaultFormTags, 
-      defaultShifts,
-      defaultToMotions,
-      defaultFromMotions,
-      defaultRunGame,
-      defaultPassProtections,
-      defaultQuickGame,
-      defaultDropbackGame,
-      defaultScreenGame,
-      defaultShotPlays
-    );
+  // Function to get available items that haven't been selected yet
+  const getAvailableItems = async () => {
+    try {
+      // Get the complete data from the default team for this category
+      const { data: defaultItems, error: defaultItemsError } = await supabase
+        .from('terminology')
+        .select('*')
+        .eq('category', category)
+        .eq('team_id', DEFAULT_TEAM_ID);
+        
+      if (defaultItemsError) {
+        console.error(`Error fetching default ${category}:`, defaultItemsError);
+        return [];
+      }
+      
+      if (!defaultItems || defaultItems.length === 0) {
+        console.log(`No default ${category} found`);
+        return [];
+      }
+
+      // Get currently selected concepts
+      const selectedConcepts = localTerms.map(term => term.concept).filter((concept): concept is string => concept !== undefined);
+      
+      // Filter out already selected items and items without concepts
+      const availableItems = defaultItems.filter((item) => 
+        item.concept && !selectedConcepts.includes(item.concept)
+      ) as Terminology[];
+      
+      return availableItems;
+    } catch (error) {
+      console.error(`Error in getAvailableItems for ${category}:`, error);
+      return [];
+    }
+  }
+
+  // Effect to check available items when component mounts and when localTerms changes
+  useEffect(() => {
+    const checkAvailable = async () => {
+      setIsCheckingAvailable(true);
+      try {
+        const items = await getAvailableItems();
+        setAvailableItems(items);
+        setAvailableCount(items.length);
+      } catch (error) {
+        console.error('Error checking available items:', error);
+      } finally {
+        setIsCheckingAvailable(false);
+      }
+    };
+
+    checkAvailable();
+  }, [localTerms, category]);
+
+  // Modify addRow to handle specific concept selection
+  const addRow = async (selectedConcept: string) => {
+    try {
+      const itemToUse = availableItems.find(item => item.concept === selectedConcept);
+      
+      if (!itemToUse) {
+        console.error('Selected concept not found in available items');
+        return;
+      }
+
+      // Create base term with required fields
+      const baseTerm = {
+        id: crypto.randomUUID(),
+        category: category,
+        is_enabled: true,
+        isDirty: true,
+        isEditing: false,
+        isSelected: true,
+      };
+
+      // Add optional fields if they exist
+      const newTerm: TerminologyWithUI = {
+        ...baseTerm,
+        ...itemToUse,  // This will copy all fields from the found item
+        concept: selectedConcept,  // Override with the selected concept
+      };
+      
+      setLocalTerms([...localTerms, newTerm])
+      onUpdate([...localTerms, newTerm])
+      setShowAddDropdown(false) // Close dropdown after selection
+    } catch (error) {
+      console.error('Error adding new row:', error);
+    }
   }
 
   // Update local terms when props change
@@ -282,69 +287,6 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       setLocalTerms(terms);
     }
   }, [terms, category, userInfo.team_id]);
-
-  const addRow = () => {
-    if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
-        category === "run_game" || category === "pass_protections" || category === "quick_game" || category === "dropback_game" || 
-        category === "screen_game" || category === "shot_plays") {
-      const defaultItems = category === "formations" ? defaultFormations : 
-                          category === "form_tags" ? defaultFormTags : 
-                          category === "shifts" ? defaultShifts :
-                          category === "to_motions" ? defaultToMotions :
-                          category === "from_motions" ? defaultFromMotions :
-                          category === "run_game" ? defaultRunGame :
-                          category === "pass_protections" ? defaultPassProtections :
-                          category === "quick_game" ? defaultQuickGame :
-                          category === "dropback_game" ? defaultDropbackGame :
-                          category === "screen_game" ? defaultScreenGame :
-                          defaultShotPlays;
-      
-      if (defaultItems.length === 0) {
-        console.log(`No default ${category} available`);
-        return; // Don't add if no default items exist at all
-      }
-
-      // Find the first unselected item if possible
-      const availableItems = getAvailableItems();
-      if (availableItems.length === 0) {
-        console.log(`No more ${category} available to add`);
-        setShowNoMoreItemsMessage(true);
-        // Hide the message after 3 seconds
-        setTimeout(() => {
-          setShowNoMoreItemsMessage(false);
-        }, 3000);
-        return; // Don't add if no available items
-      }
-
-      const itemToUse = availableItems[0];
-      
-      const newTerm: TerminologyWithUI = {
-        id: crypto.randomUUID(),
-        concept: itemToUse.concept || '',
-        label: itemToUse.label || '',
-        category: category,
-        is_enabled: true,
-        isDirty: true,
-        isEditing: true,
-        isSelected: true,
-        ...(category === "formations" && itemToUse.image_url ? { image_url: itemToUse.image_url } : {})
-      }
-      setLocalTerms([...localTerms, newTerm])
-      onUpdate([...localTerms, newTerm])
-    } else {
-      const newTerm: TerminologyWithUI = {
-        id: crypto.randomUUID(),
-        concept: '',
-        label: '',
-        category: category,
-        is_enabled: true,
-        isDirty: true,
-        isEditing: true
-      }
-      setLocalTerms([...localTerms, newTerm])
-      onUpdate([...localTerms, newTerm])
-    }
-  }
 
   const updateConcept = (term: TerminologyWithUI, newConcept: string, isSelected: boolean) => {
     if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
@@ -736,6 +678,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         setDefaultScreenGame(items || []);
       } else if (category === "shot_plays") {
         setDefaultShotPlays(items || []);
+      } else if (category === "concept_tags") {
+        setDefaultConceptTags(items || []);
       }
     } catch (error) {
       console.error(`Error force reloading ${category}:`, error);
@@ -746,9 +690,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const handleResetToDefault = async () => {
     if ((category !== "formations" && category !== "form_tags" && category !== "shifts" && category !== "to_motions" && category !== "from_motions" && 
          category !== "run_game" && category !== "pass_protections" && category !== "quick_game" && category !== "dropback_game" && 
-         category !== "screen_game" && category !== "shot_plays") || 
+         category !== "screen_game" && category !== "shot_plays" && category !== "concept_tags") || 
         !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
-      console.log(`Cannot reset ${category}: not on formations/form_tags/shifts/to_motions/from_motions/run_game/pass_protections/quick_game/dropback_game/screen_game/shot_plays tab, no team id, or already using default team`);
+      console.log(`Cannot reset ${category}: not on formations/form_tags/shifts/to_motions/from_motions/run_game/pass_protections/quick_game/dropback_game/screen_game/shot_plays/concept_tags tab, no team id, or already using default team`);
       return;
     }
 
@@ -839,25 +783,57 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               {isSaving ? "Saving..." : "Save"}
             </Button>
           )}
+          {isCheckingAvailable ? (
             <Button
-            variant="outline" 
-              onClick={addRow}
-            disabled={getAvailableItems().length === 0}
-            className="cursor-pointer"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add {category === "formations" ? "Formation" : 
-                 category === "form_tags" ? "Formation Tag" : 
-                 category === "shifts" ? "Shift" : 
-                 category === "to_motions" ? "To Motion" : 
-                 category === "from_motions" ? "From Motion" :
-                 category === "run_game" ? "Run Game" :
-                 category === "pass_protections" ? "Pass Protection" :
-                 category === "quick_game" ? "Quick Game" :
-                 category === "dropback_game" ? "Dropback Game" :
-                 category === "screen_game" ? "Screen Game" :
-                 category === "shot_plays" ? "Shot Play" : ""}
+              variant="outline"
+              disabled
+              className="cursor-wait"
+            >
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Checking...
             </Button>
+          ) : availableCount === 0 ? (
+            <Button
+              variant="outline"
+              disabled
+              className="cursor-not-allowed"
+            >
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              No Items Available
+            </Button>
+          ) : (
+            <Select
+              open={showAddDropdown}
+              onOpenChange={setShowAddDropdown}
+              onValueChange={(value) => addRow(value)}
+            >
+              <SelectTrigger className="cursor-pointer">
+                <Plus className="h-4 w-4 mr-2" />
+                Add {category === "formations" ? "Formation" : 
+                     category === "form_tags" ? "Formation Tag" : 
+                     category === "shifts" ? "Shift" : 
+                     category === "to_motions" ? "To Motion" : 
+                     category === "from_motions" ? "From Motion" :
+                     category === "run_game" ? "Run Game" :
+                     category === "pass_protections" ? "Pass Protection" :
+                     category === "quick_game" ? "Quick Game" :
+                     category === "dropback_game" ? "Dropback Game" :
+                     category === "screen_game" ? "Screen Game" :
+                     category === "shot_plays" ? "Shot Play" :
+                     category === "concept_tags" ? "Concept Tag" : ""}
+              </SelectTrigger>
+              <SelectContent>
+                {availableItems.map((item) => (
+                  <SelectItem 
+                    key={item.concept} 
+                    value={item.concept}
+                  >
+                    {item.concept}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -1052,6 +1028,7 @@ export default function SetupPage() {
   const [dropbackGameSet, setDropbackGameSet] = useState<TerminologyWithUI[]>([])
   const [screenGameSet, setScreenGameSet] = useState<TerminologyWithUI[]>([])
   const [shotPlaysSet, setShotPlaysSet] = useState<TerminologyWithUI[]>([])
+  const [conceptTagsSet, setConceptTagsSet] = useState<TerminologyWithUI[]>([])
   const [profileInfo, setProfileInfo] = useState<{team_id: string | null}>({team_id: null})
   const [teamCode, setTeamCode] = useState<string | null>(null)
   const [teamName, setTeamName] = useState<string | null>(null)
@@ -1069,21 +1046,21 @@ export default function SetupPage() {
 
   // Load terminology when component mounts
   useEffect(() => {
-  const loadTerminology = async () => {
-    try {
+    const loadTerminology = async () => {
+      try {
         setIsLoading(true)
         
         // Get session to check if user is authenticated
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session?.user?.id) {
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (session?.user?.id) {
           // Get the user's team_id from profiles table
           const { data: profileData } = await supabase
-          .from('profiles')
-          .select('team_id')
-          .eq('id', session.user.id)
-          .single()
-        
+            .from('profiles')
+            .select('team_id')
+            .eq('id', session.user.id)
+            .single()
+          
           const teamId = profileData?.team_id || undefined
           
           // Update profile info state
@@ -1119,6 +1096,7 @@ export default function SetupPage() {
           const dropbackGame = data.filter(term => term.category === 'dropback_game')
           const screenGame = data.filter(term => term.category === 'screen_game')
           const shotPlays = data.filter(term => term.category === 'shot_plays')
+          const conceptTags = data.filter(term => term.category === 'concept_tags')
           
           setFormationsSet(formations as TerminologyWithUI[])
           setFormTagsSet(formTags as TerminologyWithUI[])
@@ -1131,13 +1109,14 @@ export default function SetupPage() {
           setDropbackGameSet(dropbackGame as TerminologyWithUI[])
           setScreenGameSet(screenGame as TerminologyWithUI[])
           setShotPlaysSet(shotPlays as TerminologyWithUI[])
-      }
-    } catch (error) {
+          setConceptTagsSet(conceptTags as TerminologyWithUI[])
+        }
+      } catch (error) {
         console.error('Error loading terminology:', error)
       } finally {
-      setIsLoading(false)
+        setIsLoading(false)
+      }
     }
-  }
 
     loadTerminology()
   }, [supabase])
@@ -1185,6 +1164,11 @@ export default function SetupPage() {
   
   const handleUpdateShotPlays = (updatedTerms: TerminologyWithUI[]) => {
     setShotPlaysSet(updatedTerms)
+  }
+  
+  // Add handler for concept tags updates
+  const handleUpdateConceptTags = (updatedTerms: TerminologyWithUI[]) => {
+    setConceptTagsSet(updatedTerms)
   }
   
   // Handle restoring all terminology to default
@@ -1265,7 +1249,8 @@ export default function SetupPage() {
         { name: "quick_game", set: quickGameSet, setFunction: setQuickGameSet },
         { name: "dropback_game", set: dropbackGameSet, setFunction: setDropbackGameSet },
         { name: "screen_game", set: screenGameSet, setFunction: setScreenGameSet },
-        { name: "shot_plays", set: shotPlaysSet, setFunction: setShotPlaysSet }
+        { name: "shot_plays", set: shotPlaysSet, setFunction: setShotPlaysSet },
+        { name: "concept_tags", set: conceptTagsSet, setFunction: setConceptTagsSet }
       ];
 
       let totalSaved = 0;
@@ -1558,6 +1543,16 @@ export default function SetupPage() {
                 terms={shotPlaysSet}
                 category="shot_plays"
                 onUpdate={handleUpdateShotPlays}
+                supabase={supabase}
+                setProfileInfo={setProfileInfo}
+                setTeamCode={setTeamCode}
+                setTeamName={setTeamName}
+              />
+              <TerminologySet
+                title="Concept Tags"
+                terms={conceptTagsSet}
+                category="concept_tags"
+                onUpdate={handleUpdateConceptTags}
                 supabase={supabase}
                 setProfileInfo={setProfileInfo}
                 setTeamCode={setTeamCode}
