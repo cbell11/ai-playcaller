@@ -647,16 +647,6 @@ export default function MasterPlayPoolPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => {
-                              setEditingPlay(play)
-                              setIsEditPlayOpen(true)
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
                               setPlayToDelete(play)
                               setIsDeleteConfirmOpen(true)
                             }}
