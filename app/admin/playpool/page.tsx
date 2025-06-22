@@ -238,9 +238,34 @@ export default function MasterPlayPoolPage() {
         return
       }
 
+      // Check for duplicate play
+      const { data: existingPlays, error: checkError } = await supabase
+        .from('master_play_pool')
+        .select('*')
+        .eq('category', newPlay.category)
+        .eq('shifts', newPlay.shifts || '')
+        .eq('to_motions', newPlay.to_motions || '')
+        .eq('formations', newPlay.formations)
+        .eq('tags', newPlay.tags || '')
+        .eq('from_motions', newPlay.from_motions || '')
+        .eq('concept', newPlay.concept)
+        .eq('concept_tag', newPlay.concept_tag || '')
+        .eq('concept_direction', newPlay.concept_direction === 'none' ? '' : newPlay.concept_direction === 'plus' ? '+' : '-')
+        .eq('rpo_tag', newPlay.rpo_tag || '')
+
+      if (checkError) throw checkError
+
+      if (existingPlays && existingPlays.length > 0) {
+        setNotification({
+          type: 'error',
+          message: "A play with these exact specifications already exists in the master play pool"
+        })
+        return
+      }
+
       // Convert concept_direction back to database format
       const dbConceptDirection = newPlay.concept_direction === 'none' ? '' : 
-                               newPlay.concept_direction === 'plus' ? '+' : '-';
+                               newPlay.concept_direction === 'plus' ? '+' : '-'
 
       // Get the next available play_id
       const { data: maxPlayId, error: maxPlayIdError } = await supabase
@@ -248,58 +273,39 @@ export default function MasterPlayPoolPage() {
         .select('play_id')
         .order('play_id', { ascending: false })
         .limit(1)
+        .single()
 
-      if (maxPlayIdError) throw maxPlayIdError
+      if (maxPlayIdError && maxPlayIdError.code !== 'PGRST116') throw maxPlayIdError
 
-      const nextPlayId = maxPlayId && maxPlayId[0] ? Number(maxPlayId[0].play_id) + 1 : 1
+      const nextPlayId = maxPlayId ? maxPlayId.play_id + 1 : 1
 
-      // Find the formation object to get its label
-      const formationObj = formations.find(f => f.concept === newPlay.formations)
-      const formationLabel = formationObj ? formationObj.label : newPlay.formations
-
-      // Convert 'none' values to null for optional fields
-      const cleanedPlay = {
-        ...newPlay,
-        formations: formationLabel, // Use the formation label instead of concept
-        tags: newPlay.tags === "none" ? null : newPlay.tags || null,
-        concept_tag: newPlay.concept_tag === "none" ? null : newPlay.concept_tag || null,
-        rpo_tag: newPlay.rpo_tag === "none" ? null : newPlay.rpo_tag || null,
-        from_motions: newPlay.from_motions === "none" ? null : newPlay.from_motions || null,
-        to_motions: newPlay.to_motions === "none" ? null : newPlay.to_motions || null,
-        shifts: newPlay.shifts === "none" ? null : newPlay.shifts || null,
-        pass_protections: newPlay.pass_protections === "none" ? null : newPlay.pass_protections || null
-      }
-
-      // Prepare play data
-      const playData = {
-        ...cleanedPlay,
-        play_id: nextPlayId,
-        concept_direction: dbConceptDirection,
-        front_beaters: cleanedPlay.front_beaters.join(','),
-        coverage_beaters: cleanedPlay.coverage_beaters.join(','),
-        blitz_beaters: cleanedPlay.blitz_beaters.join(',')
-      }
-
-      const { error: insertError } = await supabase
+      // Create the play
+      const { error: createError } = await supabase
         .from('master_play_pool')
-        .insert([playData])
+        .insert({
+          ...newPlay,
+          play_id: nextPlayId,
+          concept_direction: dbConceptDirection,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
 
-      if (insertError) throw insertError
-
-      setNewPlay(defaultNewPlay)
-      setIsAddPlayOpen(false)
-      setNotification({
-        type: 'success',
-        message: "Play added successfully!"
-      })
+      if (createError) throw createError
 
       // Refresh plays list
-      fetchPlays()
+      await fetchPlays()
+      
+      setNotification({
+        type: 'success',
+        message: 'Play added successfully!'
+      })
+      setIsAddPlayOpen(false)
+      setNewPlay(defaultNewPlay)
     } catch (err) {
       console.error('Error adding play:', err)
       setNotification({
         type: 'error',
-        message: "Failed to add play. Please try again."
+        message: 'Failed to add play. Please try again.'
       })
     } finally {
       setIsSubmitting(false)
@@ -469,29 +475,67 @@ export default function MasterPlayPoolPage() {
   const handleDeletePlay = async () => {
     try {
       if (!playToDelete) return;
+      
+      console.log('Attempting to delete play:', {
+        playId: playToDelete.play_id,
+        playDetails: playToDelete
+      });
 
-      const { error: deleteError } = await supabase
+      // First verify if the play exists
+      const { data: existingPlay, error: checkError } = await supabase
+        .from('master_play_pool')
+        .select('play_id')
+        .eq('play_id', playToDelete.play_id)
+        .single();
+
+      if (checkError) {
+        console.error('Error checking play existence:', checkError);
+        throw checkError;
+      }
+
+      if (!existingPlay) {
+        throw new Error(`Play with ID ${playToDelete.play_id} not found in master_play_pool`);
+      }
+
+      // Attempt the delete operation
+      const { error: deleteError, data: deleteData } = await supabase
         .from('master_play_pool')
         .delete()
-        .eq('id', playToDelete.id)
+        .eq('play_id', playToDelete.play_id)
+        .select()
 
-      if (deleteError) throw deleteError
+      if (deleteError) {
+        console.error('Delete error details:', {
+          code: deleteError.code,
+          message: deleteError.message,
+          details: deleteError.details,
+          hint: deleteError.hint
+        });
+        throw deleteError;
+      }
 
-      setPlayToDelete(null)
-      setIsDeleteConfirmOpen(false)
+      console.log('Play deleted successfully', deleteData);
+      setPlayToDelete(null);
+      setIsDeleteConfirmOpen(false);
       setNotification({
         type: 'success',
         message: "Play deleted successfully!"
-      })
+      });
 
       // Refresh plays list
-      fetchPlays()
-    } catch (err) {
-      console.error('Error deleting play:', err)
+      await fetchPlays();
+    } catch (error: any) {
+      console.error('Error deleting play:', {
+        name: error.name,
+        message: error.message,
+        details: error.details,
+        code: error.code,
+        stack: error.stack
+      });
       setNotification({
         type: 'error',
-        message: "Failed to delete play. Please try again."
-      })
+        message: `Failed to delete play: ${error.message || 'Unknown error'}`
+      });
     }
   }
 
@@ -509,10 +553,10 @@ export default function MasterPlayPoolPage() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <PlayCircle className="h-6 w-6" />
-          Master Play Pool
-        </CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <PlayCircle className="h-6 w-6" />
+            Master Play Pool
+          </CardTitle>
           <Button 
             className="bg-[#2ecc71] hover:bg-[#27ae60] text-white"
             onClick={() => setIsAddPlayOpen(true)}
@@ -523,6 +567,16 @@ export default function MasterPlayPoolPage() {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Total Plays Counter Card */}
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center">
+              <div className="text-2xl font-bold">{plays.length}</div>
+              <div className="text-sm text-muted-foreground">Total Plays in Master Pool</div>
+            </div>
+          </CardContent>
+        </Card>
+
         {notification && (
           <div 
             className={`mb-4 p-4 rounded-md ${
