@@ -471,22 +471,22 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
 
     // Group plays by section
     gamePlanData?.forEach((entry) => {
-      const dbSection = entry.section.toLowerCase();
-      const section = sectionMapping[dbSection];
+        const dbSection = entry.section.toLowerCase();
+        const section = sectionMapping[dbSection];
       
-      if (!section) {
-        console.warn(`No mapping found for database section "${dbSection}"`);
-        return;
-      }
+        if (!section) {
+          console.warn(`No mapping found for database section "${dbSection}"`);
+          return;
+        }
 
-      // Create PlayCall object from the entry data
-      const playCall: PlayCall = {
-        formation: '',
-        fieldAlignment: '+',
-        motion: '',
-        play: entry.customized_edit || entry.combined_call || '',
-        runDirection: '+'
-      };
+        // Create PlayCall object from the entry data
+        const playCall: PlayCall = {
+          formation: '',
+          fieldAlignment: '+',
+          motion: '',
+          play: entry.customized_edit || entry.combined_call || '',
+          runDirection: '+'
+        };
 
       // Add the play to its section array
       sectionPlays[section].push(playCall);
@@ -707,22 +707,22 @@ export default function PlanPage() {
 
   // Add effect to load initial data
   const loadInitialData = useCallback(async () => {
-    try {
-      setLoading(true);
-      console.log('Loading initial data...');
+      try {
+        setLoading(true);
+        console.log('Loading initial data...');
 
-      // Get team and opponent IDs from localStorage
-      const teamId = localStorage.getItem('selectedTeam');
-      const opponentId = localStorage.getItem('selectedOpponent');
+        // Get team and opponent IDs from localStorage
+        const teamId = localStorage.getItem('selectedTeam');
+        const opponentId = localStorage.getItem('selectedOpponent');
 
-      if (!teamId || !opponentId) {
-        console.log('No team or opponent selected');
+        if (!teamId || !opponentId) {
+          console.log('No team or opponent selected');
         setLoading(false);
         return;
       }
 
-      setSelectedTeam(teamId);
-      setSelectedOpponent(opponentId);
+        setSelectedTeam(teamId);
+        setSelectedOpponent(opponentId);
 
       // Get saved section sizes
       const savedSizes = localStorage.getItem('sectionSizes');
@@ -730,67 +730,67 @@ export default function PlanPage() {
 
       // Load game plan with current sizes
       const initialPlan = await fetchGamePlanFromDatabase(currentSizes);
-      if (initialPlan) {
-        console.log('Loaded initial game plan');
-        setPlan(initialPlan);
-        save('plan', initialPlan);
-      }
+        if (initialPlan) {
+          console.log('Loaded initial game plan');
+          setPlan(initialPlan);
+          save('plan', initialPlan);
+        }
 
-      // Load play pool
-      console.log('Loading initial plays...');
-      const playData = await getPlayPool();
-      console.log('Initial plays loaded:', playData.length);
-      setPlayPool(playData);
-      
-      // Reset play pool related states
-      setShowPlayPool(false);
-      setPlayPoolSection(null);
-      setPlayPoolCategory('run_game');
-      setPlayPoolFilterType('category');
+        // Load play pool
+        console.log('Loading initial plays...');
+        const playData = await getPlayPool();
+        console.log('Initial plays loaded:', playData.length);
+        setPlayPool(playData);
+        
+        // Reset play pool related states
+        setShowPlayPool(false);
+        setPlayPoolSection(null);
+        setPlayPoolCategory('run_game');
+        setPlayPoolFilterType('category');
 
-      // Set up real-time subscription
-      console.log('Setting up real-time subscription for:', { teamId, opponentId });
-      
-      const subscription = supabase
-        .channel('game_plan_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'game_plan',
-            filter: `team_id=eq.${teamId}&opponent_id=eq.${opponentId}`
-          },
-          async (payload) => {
-            console.log('Received database change:', payload);
-            try {
+        // Set up real-time subscription
+        console.log('Setting up real-time subscription for:', { teamId, opponentId });
+        
+        const subscription = supabase
+          .channel('game_plan_changes')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'game_plan',
+              filter: `team_id=eq.${teamId}&opponent_id=eq.${opponentId}`
+            },
+            async (payload) => {
+              console.log('Received database change:', payload);
+              try {
               // Get current section sizes for the update
               const currentSizes = JSON.parse(localStorage.getItem('sectionSizes') || JSON.stringify(initialSectionSizes));
               const updatedPlan = await fetchGamePlanFromDatabase(currentSizes);
-              if (updatedPlan) {
-                console.log('Updating plan from real-time change');
-                setPlan(updatedPlan);
-                save('plan', updatedPlan);
+                if (updatedPlan) {
+                  console.log('Updating plan from real-time change');
+                  setPlan(updatedPlan);
+                  save('plan', updatedPlan);
+        }
+        } catch (error) {
+                console.error('Error handling real-time update:', error);
               }
-            } catch (error) {
-              console.error('Error handling real-time update:', error);
             }
-          }
-        )
-        .subscribe((status) => {
-          console.log('Subscription status:', status);
-        });
+          )
+          .subscribe((status) => {
+            console.log('Subscription status:', status);
+          });
 
-      return () => {
-        console.log('Cleaning up subscription');
-        subscription.unsubscribe();
-      };
-    } catch (error) {
-      console.error('Error loading initial data:', error);
-      setError('Failed to load game plan. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+        return () => {
+          console.log('Cleaning up subscription');
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        setError('Failed to load game plan. Please try again.');
+        } finally {
+        setLoading(false);
+      }
   }, [setLoading, setSelectedTeam, setSelectedOpponent, setPlan, setPlayPool, setShowPlayPool, setPlayPoolSection, setPlayPoolCategory, setPlayPoolFilterType, setError]);
 
   useEffect(() => {
@@ -799,43 +799,43 @@ export default function PlanPage() {
 
   // Update the opponent change effect to load data
   const handleOpponentChange = useCallback(async (event: Event) => {
-    const customEvent = event as CustomEvent<{ opponentId: string }>;
-    console.log('Opponent changed from sidebar, updating state...');
-    const opponentId = customEvent.detail.opponentId;
-    setSelectedOpponent(opponentId);
+      const customEvent = event as CustomEvent<{ opponentId: string }>;
+      console.log('Opponent changed from sidebar, updating state...');
+      const opponentId = customEvent.detail.opponentId;
+      setSelectedOpponent(opponentId);
 
-    // Load game plan data
-    try {
-      setLoading(true);
-      const teamId = localStorage.getItem('selectedTeam');
-      if (!teamId) {
-        throw new Error('No team selected');
-      }
+      // Load game plan data
+      try {
+        setLoading(true);
+        const teamId = localStorage.getItem('selectedTeam');
+        if (!teamId) {
+          throw new Error('No team selected');
+        }
 
-      // Load game plan
+        // Load game plan
       const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
-      if (updatedPlan) {
-        console.log('Updating plan from opponent change');
-        setPlan(updatedPlan);
-        save('plan', updatedPlan);
-      }
+        if (updatedPlan) {
+          console.log('Updating plan from opponent change');
+          setPlan(updatedPlan);
+          save('plan', updatedPlan);
+        }
 
-      // Load play pool
-      console.log('Loading plays for new opponent...');
-      const playData = await getPlayPool();
-      console.log('Plays loaded:', playData.length);
-      setPlayPool(playData);
-      
-      // Reset play pool related states
-      setShowPlayPool(false);
-      setPlayPoolSection(null);
-      setPlayPoolCategory('run_game');
-      setPlayPoolFilterType('category');
-    } catch (error) {
-      console.error('Failed to load data for new opponent:', error);
-    } finally {
-      setLoading(false);
-    }
+        // Load play pool
+        console.log('Loading plays for new opponent...');
+        const playData = await getPlayPool();
+        console.log('Plays loaded:', playData.length);
+        setPlayPool(playData);
+        
+        // Reset play pool related states
+        setShowPlayPool(false);
+        setPlayPoolSection(null);
+        setPlayPoolCategory('run_game');
+        setPlayPoolFilterType('category');
+      } catch (error) {
+        console.error('Failed to load data for new opponent:', error);
+      } finally {
+        setLoading(false);
+      }
   }, [setSelectedOpponent, setLoading, setPlan, setPlayPool, setShowPlayPool, setPlayPoolSection, setPlayPoolCategory, setPlayPoolFilterType]); // Remove sectionSizes from dependencies
 
   useEffect(() => {
@@ -918,7 +918,7 @@ export default function PlanPage() {
                 setPlan(updatedPlan);
                 save('plan', updatedPlan);
               }
-            } catch (error) {
+      } catch (error) {
               console.error('Error handling real-time update:', error);
             }
           }
@@ -1079,11 +1079,11 @@ export default function PlanPage() {
               }
             }
           }
-
+          
           // Add the moved play's position update
           const movedPlayData = sectionPlays[sourceIdx];
           if (movedPlayData) {
-            updates.push({
+          updates.push({
               id: movedPlayData.id,
               position: destIdx
             });
@@ -1102,7 +1102,7 @@ export default function PlanPage() {
           }
 
           // Update local state
-          updatedPlays.splice(result.destination.index, 0, movedPlay);
+      updatedPlays.splice(result.destination.index, 0, movedPlay);
           updatedPlan[sectionId] = updatedPlays;
           setPlan(updatedPlan);
           save('plan', updatedPlan);
@@ -1114,9 +1114,9 @@ export default function PlanPage() {
         } else {
           // If it's an empty play, just update the local state
           updatedPlays.splice(result.destination.index, 0, movedPlay);
-          updatedPlan[sectionId] = updatedPlays;
-          setPlan(updatedPlan);
-          save('plan', updatedPlan);
+      updatedPlan[sectionId] = updatedPlays;
+      setPlan(updatedPlan);
+      save('plan', updatedPlan);
         }
       }
     } catch (error) {
@@ -1236,10 +1236,12 @@ export default function PlanPage() {
     console.log(`Filled plays for ${title}:`, filledPlays);
     
     return (
-      <Card className="bg-white rounded shadow h-full">
-        <CardHeader className={`${bgColor} border-b flex flex-row justify-between items-center`}>
-          <div className="flex items-center gap-4">
-            <CardTitle className="font-bold">{title}</CardTitle>
+    <Card className="bg-white rounded shadow h-full">
+        <CardHeader className={`${bgColor} border-b p-4`}>
+          <div className="mb-2">
+        <CardTitle className="font-bold">{title}</CardTitle>
+          </div>
+          <div className="flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -1265,7 +1267,6 @@ export default function PlanPage() {
                 +
               </Button>
             </div>
-          </div>
           <Button 
             variant="outline" 
             size="sm" 
@@ -1282,8 +1283,9 @@ export default function PlanPage() {
           >
             {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
           </Button>
-        </CardHeader>
-        <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
+          </div>
+      </CardHeader>
+      <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
           <Droppable 
             droppableId={`section-${section}`} 
             type="PLAY" 
@@ -1491,18 +1493,18 @@ export default function PlanPage() {
         // Only update UI if database save was successful
         sectionPlays[nextPosition] = newPlay;
         updatedPlan[playPoolSection] = sectionPlays;
-        setPlan(updatedPlan);
-        save('plan', updatedPlan);
-        
+      setPlan(updatedPlan);
+      save('plan', updatedPlan);
+      
         // Show success notification with the correct 1-based position
-        setNotification({
-          message: `Added to ${playPoolSection === 'openingScript' ? 'Opening Script' : 
-                   playPoolSection === 'basePackage1' ? 'Base Package 1' : 
-                   playPoolSection === 'basePackage2' ? 'Base Package 2' : 
-                   playPoolSection === 'basePackage3' ? 'Base Package 3' : 
-                     playPoolSection} (Position ${nextPosition + 1})`,
-          type: 'success'
-        });
+      setNotification({
+        message: `Added to ${playPoolSection === 'openingScript' ? 'Opening Script' : 
+                 playPoolSection === 'basePackage1' ? 'Base Package 1' : 
+                 playPoolSection === 'basePackage2' ? 'Base Package 2' : 
+                 playPoolSection === 'basePackage3' ? 'Base Package 3' : 
+                   playPoolSection} (Position ${nextPosition + 1})`,
+        type: 'success'
+      });
       } catch (saveError) {
         console.error("Failed to save to game plan table:", saveError);
         throw saveError;
@@ -2466,18 +2468,15 @@ export default function PlanPage() {
               </CardContent>
             </Card>
 
-            {/* Opening Script - Special row */}
+            {/* Base Package row with Opening Script */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="col-span-3">
+              <div className="col-span-1">
                 <div className="relative">
                   {plan && renderPlayListCard("Opening Script", plan.openingScript, sectionSizes.openingScript, "bg-amber-100", "openingScript")}
                   {renderPlayPoolAbsolute('openingScript')}
-                </div>
               </div>
             </div>
             
-            {/* Base Package row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
                   {plan && renderPlayListCard("Base Package 1", plan.basePackage1, sectionSizes.basePackage1, "bg-green-100", "basePackage1")}
@@ -2490,18 +2489,18 @@ export default function PlanPage() {
                   {plan && renderPlayListCard("Base Package 2", plan.basePackage2, sectionSizes.basePackage2, "bg-green-100", "basePackage2")}
                   {renderPlayPoolAbsolute('basePackage2')}
                 </div>
+                </div>
               </div>
               
+            {/* Base Package 3 and Down and Distance row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
                   {plan && renderPlayListCard("Base Package 3", plan.basePackage3, sectionSizes.basePackage3, "bg-green-100", "basePackage3")}
                   {renderPlayPoolAbsolute('basePackage3')}
-                </div>
               </div>
             </div>
 
-            {/* Down and Distance row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
                   {plan && renderPlayListCard("First Downs", plan.firstDowns, sectionSizes.firstDowns, "bg-blue-100", "firstDowns")}
@@ -2514,18 +2513,18 @@ export default function PlanPage() {
                   {plan && renderPlayListCard("Short Yardage", plan.shortYardage, sectionSizes.shortYardage, "bg-blue-100", "shortYardage")}
                   {renderPlayPoolAbsolute('shortYardage')}
                 </div>
+                </div>
               </div>
               
+            {/* Third and Long and Field Position row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
                   {plan && renderPlayListCard("3rd and Long", plan.thirdAndLong, sectionSizes.thirdAndLong, "bg-blue-100", "thirdAndLong")}
                   {renderPlayPoolAbsolute('thirdAndLong')}
-                </div>
               </div>
             </div>
 
-            {/* Field Position row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
                   {plan && renderPlayListCard("Red Zone", plan.redZone, sectionSizes.redZone, "bg-red-100", "redZone")}
@@ -2538,18 +2537,18 @@ export default function PlanPage() {
                   {plan && renderPlayListCard("Goalline", plan.goalline, sectionSizes.goalline, "bg-red-100", "goalline")}
                   {renderPlayPoolAbsolute('goalline')}
                 </div>
+                </div>
               </div>
               
+            {/* Backed Up and Special Categories row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
                   {plan && renderPlayListCard("Backed Up", plan.backedUp, sectionSizes.backedUp, "bg-red-100", "backedUp")}
                   {renderPlayPoolAbsolute('backedUp')}
-                </div>
               </div>
             </div>
 
-            {/* Special Categories row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
                   {plan && renderPlayListCard("Screens", plan.screens, sectionSizes.screens, "bg-purple-100", "screens")}
@@ -2562,8 +2561,11 @@ export default function PlanPage() {
                   {plan && renderPlayListCard("Play Action", plan.playAction, sectionSizes.playAction, "bg-purple-100", "playAction")}
                   {renderPlayPoolAbsolute('playAction')}
                 </div>
+                </div>
               </div>
               
+            {/* Deep Shots row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="col-span-1">
                 <div className="relative">
                   {plan && renderPlayListCard("Deep Shots", plan.deepShots, sectionSizes.deepShots, "bg-purple-100", "deepShots")}

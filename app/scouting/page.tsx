@@ -1303,64 +1303,64 @@ export default function ScoutingPage() {
     // Set loading state
     setIsLoadingOpponentData(true);
     
-    try {
-      // First try to load from the database
+      try {
+        // First try to load from the database
       console.log(`Loading from database for team ${teamId} and opponent ${opponentId}...`);
-      const result = await getScoutingReport(teamId, opponentId);
-      
-      if (result.success && result.data) {
-        console.log(`SUCCESS: Found data in database for opponent ${opponentId}`);
-        console.log("Data summary:", {
-          fronts: result.data.fronts?.length || 0, 
-          coverages: result.data.coverages?.length || 0, 
-          blitzes: result.data.blitzes?.length || 0
-        });
+        const result = await getScoutingReport(teamId, opponentId);
         
-        // Add detailed logging of blitz data
-        console.log('Blitz data loaded from database:', {
-          blitzes: result.data.blitzes,
-          blitz_pct: result.data.blitz_pct,
-          overall_blitz_pct: result.data.overall_blitz_pct
-        });
-        
-        // Make sure we're not setting undefined arrays
-        const safeData = {
-          fronts: Array.isArray(result.data.fronts) ? result.data.fronts : [],
-          coverages: Array.isArray(result.data.coverages) ? result.data.coverages : [],
-          blitzes: Array.isArray(result.data.blitzes) ? result.data.blitzes : [],
-          fronts_pct: result.data.fronts_pct || {},
-          coverages_pct: result.data.coverages_pct || {},
-          blitz_pct: result.data.blitz_pct || {},
-          overall_blitz_pct: result.data.overall_blitz_pct || 0,
-          notes: result.data.notes || '',
-          updated_at: result.data.updated_at || new Date().toISOString()
-        };
-        
-        // Set state with the safe data
-        setFronts(safeData.fronts);
-        setCoverages(safeData.coverages);
-        setBlitzes(safeData.blitzes);
-        setFrontPct(safeData.fronts_pct);
-        setCoverPct(safeData.coverages_pct);
-        setBlitzPct(safeData.blitz_pct);
-        setOverallBlitzPct(safeData.overall_blitz_pct);
-        setNotes(safeData.notes);
-        setLastSaved(new Date(safeData.updated_at));
-        console.log(`Successfully set state with data for opponent ${opponentId}`);
-      } else {
+        if (result.success && result.data) {
+          console.log(`SUCCESS: Found data in database for opponent ${opponentId}`);
+          console.log("Data summary:", {
+            fronts: result.data.fronts?.length || 0, 
+            coverages: result.data.coverages?.length || 0, 
+            blitzes: result.data.blitzes?.length || 0
+          });
+          
+          // Add detailed logging of blitz data
+          console.log('Blitz data loaded from database:', {
+            blitzes: result.data.blitzes,
+            blitz_pct: result.data.blitz_pct,
+            overall_blitz_pct: result.data.overall_blitz_pct
+          });
+          
+          // Make sure we're not setting undefined arrays
+          const safeData = {
+            fronts: Array.isArray(result.data.fronts) ? result.data.fronts : [],
+            coverages: Array.isArray(result.data.coverages) ? result.data.coverages : [],
+            blitzes: Array.isArray(result.data.blitzes) ? result.data.blitzes : [],
+            fronts_pct: result.data.fronts_pct || {},
+            coverages_pct: result.data.coverages_pct || {},
+            blitz_pct: result.data.blitz_pct || {},
+            overall_blitz_pct: result.data.overall_blitz_pct || 0,
+            notes: result.data.notes || '',
+            updated_at: result.data.updated_at || new Date().toISOString()
+          };
+          
+          // Set state with the safe data
+          setFronts(safeData.fronts);
+          setCoverages(safeData.coverages);
+          setBlitzes(safeData.blitzes);
+          setFrontPct(safeData.fronts_pct);
+          setCoverPct(safeData.coverages_pct);
+          setBlitzPct(safeData.blitz_pct);
+          setOverallBlitzPct(safeData.overall_blitz_pct);
+          setNotes(safeData.notes);
+          setLastSaved(new Date(safeData.updated_at));
+          console.log(`Successfully set state with data for opponent ${opponentId}`);
+        } else {
         // No data found in database - keep everything empty for new opponent
         console.log(`No data found in database for opponent ${opponentId} - initializing empty scouting report`);
         // Data is already cleared above, so we don't need to do anything here
-      }
-    } catch (error) {
+        }
+      } catch (error) {
       console.error(`Error loading scouting report for opponent ${opponentId}:`, error);
       // Keep everything empty in case of error
     } finally {
-      setIsLoadingOpponentData(false);
-      setIsAppLoading(false);
-      if (isInitializing) {
-        console.log("Initial data load complete, enabling auto-saves");
-        setDataFullyLoaded(true);
+    setIsLoadingOpponentData(false);
+    setIsAppLoading(false);
+    if (isInitializing) {
+      console.log("Initial data load complete, enabling auto-saves");
+      setDataFullyLoaded(true);
       }
     }
     
@@ -1956,8 +1956,8 @@ export default function ScoutingPage() {
           <div className="text-center">
             <img src="/ball.gif" alt="Loading..." className="w-16 h-16 mx-auto" />
             <p className="mt-4 text-xl font-bold text-[#0B2545]">Loading your scouting information</p>
-          </div>
-        </div>
+                  </div>
+                </div>
       )}
 
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">

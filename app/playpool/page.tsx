@@ -578,21 +578,21 @@ export default function PlayPoolPage() {
     const categoryPlays = plays.filter(play => play.category === category);
     const maxPlays = playCounts[category as keyof typeof playCounts];
     
-    // First include all locked plays
-    const lockedPlays = categoryPlays.filter(play => play.is_locked);
-    
+      // First include all locked plays
+      const lockedPlays = categoryPlays.filter(play => play.is_locked);
+      
     // If we have room for more, add unlocked plays until we hit the target
     if (lockedPlays.length < maxPlays) {
-      const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
+        const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
       // Only take enough unlocked plays to reach the target
       const unlockedPlaysToInclude = unlockedPlays.slice(0, maxPlays - lockedPlays.length);
-      return [...lockedPlays, ...unlockedPlaysToInclude];
-    }
-    
+        return [...lockedPlays, ...unlockedPlaysToInclude];
+      }
+      
     // If we have more locked plays than the target, just return up to the target number
     return lockedPlays.slice(0, maxPlays);
-  }
-
+    }
+    
   // Add helper function to group plays by formation
   const groupPlaysByFormation = (plays: ExtendedPlay[]) => {
     const groups: { [key: string]: ExtendedPlay[] } = {};
@@ -887,21 +887,21 @@ export default function PlayPoolPage() {
             )}
 
             {/* Motion Percentage Slider */}
-            <div className="space-y-2">
-              <Label>Motion Percentage</Label>
-              <div className="flex items-center gap-4">
-                <Slider
-                  value={[motionPercentage]}
-                  onValueChange={(value: number[]) => setMotionPercentage(value[0])}
-                  max={100}
-                  step={5}
-                  className="flex-1"
-                />
-                <span className="w-12 text-right">{motionPercentage}%</span>
-              </div>
-              <p className="text-sm text-gray-500">
-                Percentage of plays that will include motion
-              </p>
+          <div className="space-y-2">
+            <Label>Motion Percentage</Label>
+            <div className="flex items-center gap-4">
+              <Slider
+                value={[motionPercentage]}
+                onValueChange={(value: number[]) => setMotionPercentage(value[0])}
+                max={100}
+                step={5}
+                className="flex-1"
+              />
+              <span className="w-12 text-right">{motionPercentage}%</span>
+            </div>
+            <p className="text-sm text-gray-500">
+              Percentage of plays that will include motion
+            </p>
             </div>
 
             {/* Play Count Settings */}
@@ -977,20 +977,20 @@ export default function PlayPoolPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {Object.entries(CATEGORIES).map(([category, title]) => {
+      {Object.entries(CATEGORIES).map(([category, title]) => {
           const categoryPlays = getPlaysByCategory(category);
           const playsByFormation = groupPlaysByFormation(categoryPlays);
 
-          return (
+        return (
             <Card key={category} className="h-[600px] flex flex-col">
               <CardHeader className="border-b flex-shrink-0">
-                <CardTitle className="flex justify-between items-center">
-                  <span>{title}</span>
-                  <span className="text-sm font-normal text-gray-500">
-                    {categoryPlays.length} Plays
-                  </span>
-                </CardTitle>
-              </CardHeader>
+              <CardTitle className="flex justify-between items-center">
+                <span>{title}</span>
+                <span className="text-sm font-normal text-gray-500">
+                  {categoryPlays.length} Plays
+                </span>
+              </CardTitle>
+            </CardHeader>
               <CardContent className="p-4 flex-1 overflow-y-auto">
                 <div className="space-y-6">
                   {Object.entries(playsByFormation).map(([formation, formationPlays]) => (
@@ -1001,18 +1001,18 @@ export default function PlayPoolPage() {
                       <div className="space-y-2">
                         {formationPlays.map((play) => (
                           <div key={play.id} className="bg-white rounded-lg shadow-sm p-2">
-                            {renderPlayContent(play)}
-                          </div>
-                        ))}
+                        {renderPlayContent(play)}
                       </div>
+                    ))}
+                  </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
           );
-        })}
-      </div>
+      })}
+                </div>
     </div>
   )
 } 
