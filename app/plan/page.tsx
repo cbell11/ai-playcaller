@@ -1883,13 +1883,7 @@ export default function PlanPage() {
   const renderPlayPoolAbsolute = (section: keyof GamePlan) => {
     if (showPlayPool && playPoolSection === section) {
       return (
-        <div className={`
-          absolute z-10
-          ${section === 'openingScript' 
-            ? 'md:right-[-35%] md:w-[33%] md:top-0 md:h-full'
-            : 'md:right-[-105%] md:w-[100%] md:top-0 md:h-full'}
-          left-0 top-full w-full mt-2 md:mt-0
-        `}>
+        <div className="absolute z-10 md:right-[-105%] md:w-[100%] md:top-0 md:h-full left-0 top-full w-full mt-2 md:mt-0">
           {renderPlayPool()}
         </div>
       );
