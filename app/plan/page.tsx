@@ -2,19 +2,17 @@
 
 import { useState, useEffect, useRef, MouseEventHandler, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "../components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
-import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search, Eye, Settings } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
 // import { makeGamePlan } from "@/app/actions"
 import { getPlayPool, Play } from "@/lib/playpool"
 import { supabase } from '@/lib/supabase'
-// import { Input } from "../components/ui/input"
-// import { Label } from "../components/ui/label"
-// import { Slider } from "../components/ui/slider"
-// import { Textarea } from "../components/ui/textarea"
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 import { LoadingModal } from "../components/loading-modal"
 
@@ -499,7 +497,7 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
       
       // Take only as many plays as will fit in the section
       const filledPlays = plays.slice(0, size);
-      
+
       // Create empty slots for the remaining positions
       const emptySlots = Array(size - filledPlays.length).fill({
         formation: '',
@@ -581,29 +579,29 @@ export default function PlanPage() {
   const [selectedSection, setSelectedSection] = useState<keyof GamePlan | null>(null)
   const [draggingPlay, setDraggingPlay] = useState<ExtendedPlay | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const componentRef = useRef<HTMLDivElement>(null)
-  // Add new state for manual build mode
   const [isManualBuildMode, setIsManualBuildMode] = useState(false)
-
-  const [playPool, setPlayPool] = useState<ExtendedPlay[]>([]);
-  const [showPlayPool, setShowPlayPool] = useState(false);
-  const [playPoolCategory, setPlayPoolCategory] = useState<'run_game' | 'rpo_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'>('run_game');
-  const [playPoolSection, setPlayPoolSection] = useState<keyof GamePlan | null>(null);
-  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'favorites' | 'search'>('category');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<ExtendedPlay[]>([]);
-
-  // Add state for print orientation
-  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape');
-  const [showPrintDialog, setShowPrintDialog] = useState(false);
-
-  // Add new state for AI generation
+  const [playPool, setPlayPool] = useState<ExtendedPlay[]>([])
+  const [showPlayPool, setShowPlayPool] = useState(false)
+  const [playPoolCategory, setPlayPoolCategory] = useState<'run_game' | 'rpo_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'>('run_game')
+  const [playPoolSection, setPlayPoolSection] = useState<keyof GamePlan | null>(null)
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null)
+  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'favorites' | 'search'>('category')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<ExtendedPlay[]>([])
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape')
+  const [showPrintDialog, setShowPrintDialog] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [sectionSizes, setSectionSizes] = useState<Record<keyof GamePlan, number>>(initialSectionSizes)
+  const [sectionVisibility, setSectionVisibility] = useState<Record<keyof GamePlan, boolean>>(() => {
+    const initialVisibility: Record<keyof GamePlan, boolean> = {} as Record<keyof GamePlan, boolean>
+    Object.keys(initialSectionSizes).forEach((key) => {
+      initialVisibility[key as keyof GamePlan] = true
+    })
+    return initialVisibility
+  })
+  const [showVisibilitySettings, setShowVisibilitySettings] = useState(false)
 
-  // Add state for section sizes
-  const [sectionSizes, setSectionSizes] = useState<Record<keyof GamePlan, number>>(initialSectionSizes);
-
+  const componentRef = useRef<HTMLDivElement>(null)
   const printRef = useRef<HTMLDivElement>(null)
 
   const printHandler = useReactToPrint({
@@ -1086,7 +1084,7 @@ export default function PlanPage() {
           updates.push({
               id: movedPlayData.id,
               position: destIdx
-            });
+          });
           }
 
           // Update all positions in a single transaction
@@ -1211,6 +1209,8 @@ export default function PlanPage() {
     bgColor: string = "bg-blue-100",
     section: keyof GamePlan
   ) => {
+    if (!sectionVisibility[section]) return null;
+    
     // Add safety check for undefined
     const safetyPlays = plays || [];
     
@@ -2002,7 +2002,6 @@ export default function PlanPage() {
       type: 'success'
     });
   };
-
   // Modify handleDeleteGamePlan function
   const handleDeleteGamePlan = async () => {
     if (!selectedTeam || !selectedOpponent) {
@@ -2401,15 +2400,165 @@ export default function PlanPage() {
                 <ArrowLeft className="h-4 w-4" />
                 Back to Play Pool
               </Button>
-            <Button 
-  variant="outline" 
-  onClick={handlePrint} 
-  className="flex items-center gap-2 bg-[#2ecc71] hover:bg-[#27ae60] text-white border-[#2ecc71]"
->
-              <Printer className="h-4 w-4" />
-              Print PDF
-            </Button>
-          </div>
+              <Dialog open={showVisibilitySettings} onOpenChange={setShowVisibilitySettings}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Customize
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Section Visibility</DialogTitle>
+                    <DialogDescription>
+                      Toggle which sections are visible in your game plan.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="opening-script">Opening Script</Label>
+                      <Switch
+                        id="opening-script"
+                        checked={sectionVisibility.openingScript}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, openingScript: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="base-package-1">Base Package 1</Label>
+                      <Switch
+                        id="base-package-1"
+                        checked={sectionVisibility.basePackage1}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, basePackage1: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="base-package-2">Base Package 2</Label>
+                      <Switch
+                        id="base-package-2"
+                        checked={sectionVisibility.basePackage2}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, basePackage2: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="base-package-3">Base Package 3</Label>
+                      <Switch
+                        id="base-package-3"
+                        checked={sectionVisibility.basePackage3}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, basePackage3: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="first-downs">First Downs</Label>
+                      <Switch
+                        id="first-downs"
+                        checked={sectionVisibility.firstDowns}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, firstDowns: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="short-yardage">Short Yardage</Label>
+                      <Switch
+                        id="short-yardage"
+                        checked={sectionVisibility.shortYardage}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, shortYardage: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="third-and-long">Third and Long</Label>
+                      <Switch
+                        id="third-and-long"
+                        checked={sectionVisibility.thirdAndLong}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, thirdAndLong: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="red-zone">Red Zone</Label>
+                      <Switch
+                        id="red-zone"
+                        checked={sectionVisibility.redZone}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, redZone: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="goalline">Goalline</Label>
+                      <Switch
+                        id="goalline"
+                        checked={sectionVisibility.goalline}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, goalline: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="backed-up">Backed Up</Label>
+                      <Switch
+                        id="backed-up"
+                        checked={sectionVisibility.backedUp}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, backedUp: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="screens">Screens</Label>
+                      <Switch
+                        id="screens"
+                        checked={sectionVisibility.screens}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, screens: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="play-action">Play Action</Label>
+                      <Switch
+                        id="play-action"
+                        checked={sectionVisibility.playAction}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, playAction: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="deep-shots">Deep Shots</Label>
+                      <Switch
+                        id="deep-shots"
+                        checked={sectionVisibility.deepShots}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, deepShots: checked }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Button 
+                onClick={handlePrint} 
+                className="flex items-center gap-2 bg-[#2ecc71] hover:bg-[#27ae60] text-white border-[#2ecc71]"
+              >
+                <Printer className="h-4 w-4" />
+                Print PDF
+              </Button>
+            </div>
           </div>
 
           {/* User Preferences Form */}
@@ -2468,110 +2617,36 @@ export default function PlanPage() {
               </CardContent>
             </Card>
 
-            {/* Base Package row with Opening Script */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Opening Script", plan.openingScript, sectionSizes.openingScript, "bg-amber-100", "openingScript")}
-                  {renderPlayPoolAbsolute('openingScript')}
-              </div>
-            </div>
-            
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Base Package 1", plan.basePackage1, sectionSizes.basePackage1, "bg-green-100", "basePackage1")}
-                  {renderPlayPoolAbsolute('basePackage1')}
+            {/* Opening Script and other sections in a single grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 auto-rows-auto gap-6 mt-6">
+              {[
+                { key: 'openingScript', title: 'Opening Script', bgColor: 'bg-amber-100' },
+                { key: 'basePackage1', title: 'Base Package 1', bgColor: 'bg-green-100' },
+                { key: 'basePackage2', title: 'Base Package 2', bgColor: 'bg-green-100' },
+                { key: 'basePackage3', title: 'Base Package 3', bgColor: 'bg-green-100' },
+                { key: 'firstDowns', title: 'First Downs', bgColor: 'bg-blue-100' },
+                { key: 'shortYardage', title: 'Short Yardage', bgColor: 'bg-blue-100' },
+                { key: 'thirdAndLong', title: 'Third and Long', bgColor: 'bg-blue-100' },
+                { key: 'redZone', title: 'Red Zone', bgColor: 'bg-red-100' },
+                { key: 'goalline', title: 'Goalline', bgColor: 'bg-red-100' },
+                { key: 'backedUp', title: 'Backed Up', bgColor: 'bg-red-100' },
+                { key: 'screens', title: 'Screens', bgColor: 'bg-purple-100' },
+                { key: 'playAction', title: 'Play Action', bgColor: 'bg-purple-100' },
+                { key: 'deepShots', title: 'Deep Shots', bgColor: 'bg-purple-100' }
+              ].filter(item => sectionVisibility[item.key as keyof GamePlan]).map(item => (
+                <div key={item.key} className="col-span-1">
+                  <div className="relative">
+                    {plan && renderPlayListCard(
+                      item.title,
+                      plan[item.key as keyof GamePlan],
+                      sectionSizes[item.key as keyof GamePlan],
+                      item.bgColor,
+                      item.key as keyof GamePlan
+                    )}
+                    {renderPlayPoolAbsolute(item.key as keyof GamePlan)}
+                  </div>
                 </div>
-              </div>
-              
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Base Package 2", plan.basePackage2, sectionSizes.basePackage2, "bg-green-100", "basePackage2")}
-                  {renderPlayPoolAbsolute('basePackage2')}
-                </div>
-                </div>
-              </div>
-              
-            {/* Base Package 3 and Down and Distance row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Base Package 3", plan.basePackage3, sectionSizes.basePackage3, "bg-green-100", "basePackage3")}
-                  {renderPlayPoolAbsolute('basePackage3')}
-              </div>
-            </div>
-
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("First Downs", plan.firstDowns, sectionSizes.firstDowns, "bg-blue-100", "firstDowns")}
-                  {renderPlayPoolAbsolute('firstDowns')}
-                </div>
-              </div>
-              
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Short Yardage", plan.shortYardage, sectionSizes.shortYardage, "bg-blue-100", "shortYardage")}
-                  {renderPlayPoolAbsolute('shortYardage')}
-                </div>
-                </div>
-              </div>
-              
-            {/* Third and Long and Field Position row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("3rd and Long", plan.thirdAndLong, sectionSizes.thirdAndLong, "bg-blue-100", "thirdAndLong")}
-                  {renderPlayPoolAbsolute('thirdAndLong')}
-              </div>
-            </div>
-
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Red Zone", plan.redZone, sectionSizes.redZone, "bg-red-100", "redZone")}
-                  {renderPlayPoolAbsolute('redZone')}
-                </div>
-              </div>
-              
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Goalline", plan.goalline, sectionSizes.goalline, "bg-red-100", "goalline")}
-                  {renderPlayPoolAbsolute('goalline')}
-                </div>
-                </div>
-              </div>
-              
-            {/* Backed Up and Special Categories row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Backed Up", plan.backedUp, sectionSizes.backedUp, "bg-red-100", "backedUp")}
-                  {renderPlayPoolAbsolute('backedUp')}
-              </div>
-            </div>
-
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Screens", plan.screens, sectionSizes.screens, "bg-purple-100", "screens")}
-                  {renderPlayPoolAbsolute('screens')}
-                </div>
-              </div>
-              
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Play Action", plan.playAction, sectionSizes.playAction, "bg-purple-100", "playAction")}
-                  {renderPlayPoolAbsolute('playAction')}
-                </div>
-                </div>
-              </div>
-              
-            {/* Deep Shots row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="col-span-1">
-                <div className="relative">
-                  {plan && renderPlayListCard("Deep Shots", plan.deepShots, sectionSizes.deepShots, "bg-purple-100", "deepShots")}
-                  {renderPlayPoolAbsolute('deepShots')}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -2580,4 +2655,5 @@ export default function PlanPage() {
     </>
   )
 }
+
 
