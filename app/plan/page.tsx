@@ -68,6 +68,7 @@ interface PlayCall {
   motion?: string  // optional motion
   play: string
   runDirection?: "+" | "-"  // + for field, - for boundary (only for run plays)
+  category?: string  // Add this line
 }
 
 // Add new types for the cascading dropdowns - currently unused but may be used in future versions
@@ -195,22 +196,31 @@ const initialSectionSizes: Record<keyof GamePlan, number> = {
 
 // Add helper function to create empty plans
 const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
+  const emptySlot = {
+    formation: '',
+    fieldAlignment: '+',
+    motion: '',
+    play: '',
+    runDirection: '+',
+    category: ''  // Add this line
+  };
+
   return {
-    openingScript: Array(sizes.openingScript).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    basePackage1: Array(sizes.basePackage1).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    basePackage2: Array(sizes.basePackage2).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    basePackage3: Array(sizes.basePackage3).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    firstDowns: Array(sizes.firstDowns).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    secondAndShort: Array(sizes.secondAndShort).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    secondAndLong: Array(sizes.secondAndLong).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    shortYardage: Array(sizes.shortYardage).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    thirdAndLong: Array(sizes.thirdAndLong).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    redZone: Array(sizes.redZone).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    goalline: Array(sizes.goalline).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    backedUp: Array(sizes.backedUp).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    screens: Array(sizes.screens).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    playAction: Array(sizes.playAction).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' }),
-    deepShots: Array(sizes.deepShots).fill({ formation: '', fieldAlignment: '+', motion: '', play: '', runDirection: '+' })
+    openingScript: Array(sizes.openingScript).fill(emptySlot),
+    basePackage1: Array(sizes.basePackage1).fill(emptySlot),
+    basePackage2: Array(sizes.basePackage2).fill(emptySlot),
+    basePackage3: Array(sizes.basePackage3).fill(emptySlot),
+    firstDowns: Array(sizes.firstDowns).fill(emptySlot),
+    secondAndShort: Array(sizes.secondAndShort).fill(emptySlot),
+    secondAndLong: Array(sizes.secondAndLong).fill(emptySlot),
+    shortYardage: Array(sizes.shortYardage).fill(emptySlot),
+    thirdAndLong: Array(sizes.thirdAndLong).fill(emptySlot),
+    redZone: Array(sizes.redZone).fill(emptySlot),
+    goalline: Array(sizes.goalline).fill(emptySlot),
+    backedUp: Array(sizes.backedUp).fill(emptySlot),
+    screens: Array(sizes.screens).fill(emptySlot),
+    playAction: Array(sizes.playAction).fill(emptySlot),
+    deepShots: Array(sizes.deepShots).fill(emptySlot)
   };
 };
 
@@ -255,7 +265,8 @@ async function savePlayToGamePlan(
       section: section.toLowerCase(),
       position: nextPosition,
       combined_call: formatPlayFromPool(play),
-      customized_edit: play.customized_edit
+      customized_edit: play.customized_edit,
+      category: play.category  // Add this line to save the category
     });
 
     // Create the game plan entry with team and opponent IDs
@@ -268,7 +279,8 @@ async function savePlayToGamePlan(
         section: section.toLowerCase(),
         position: nextPosition,
         combined_call: formatPlayFromPool(play),
-        customized_edit: play.customized_edit
+        customized_edit: play.customized_edit,
+        category: play.category  // Add this line to save the category
       })
       .select()
       .single();
@@ -446,7 +458,12 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
     // Fetch all plays for this team and opponent
     const { data: gamePlanData, error } = await supabase
       .from('game_plan')
-      .select('*')
+      .select(`
+        *,
+        play:play_id (
+          category
+        )
+      `)
       .eq('team_id', team_id)
       .eq('opponent_id', opponent_id)
       .order('position', { ascending: true });
@@ -483,7 +500,8 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
           fieldAlignment: '+',
           motion: '',
           play: entry.customized_edit || entry.combined_call || '',
-          runDirection: '+'
+          runDirection: '+',
+          category: entry.play?.category || entry.category // Add this line to include category
         };
 
       // Add the play to its section array
@@ -504,7 +522,8 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
         fieldAlignment: '+',
         motion: '',
         play: '',
-        runDirection: '+'
+        runDirection: '+',
+        category: ''  // Add this line
       });
 
       // Update the plan with filled plays followed by empty slots
@@ -568,6 +587,16 @@ async function updatePlayPositionsInDatabase(
   }
 }
 
+// Add this near the top with other interfaces
+interface CategoryColors {
+  run_game: string;
+  rpo_game: string;
+  quick_game: string;
+  dropback_game: string;
+  screen_game: string;
+  shot_plays: string;
+}
+
 export default function PlanPage() {
   const router = useRouter()
   const [plan, setPlan] = useState<GamePlan | null>(() => load('plan', null))
@@ -601,6 +630,18 @@ export default function PlanPage() {
     return initialVisibility
   })
   const [showVisibilitySettings, setShowVisibilitySettings] = useState(false)
+  const [showColorSettings, setShowColorSettings] = useState(false)
+  const [categoryColors, setCategoryColors] = useState<CategoryColors>(() => {
+    const savedColors = localStorage.getItem('categoryColors');
+    return savedColors ? JSON.parse(savedColors) : {
+      run_game: 'bg-green-100',
+      rpo_game: 'bg-red-100',
+      quick_game: 'bg-blue-100',
+      dropback_game: 'bg-orange-100',
+      screen_game: 'bg-purple-100',
+      shot_plays: 'bg-yellow-200'
+    };
+  })
 
   const componentRef = useRef<HTMLDivElement>(null)
   const printRef = useRef<HTMLDivElement>(null)
@@ -1261,36 +1302,36 @@ export default function PlanPage() {
     
     return (
     <Card className="bg-white rounded shadow h-full">
-        <CardHeader className={`${bgColor} border-b p-4`}>
-          <div className="mb-2">
-        <CardTitle className="font-bold">{title}</CardTitle>
+      <CardHeader className="bg-white border-b p-4">
+        <div className="mb-2">
+          <CardTitle className="font-bold text-black">{title}</CardTitle>
+        </div>
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-6 w-6 rounded-full"
+              onClick={() => handleSectionSizeChange(section, sectionSizes[section] - 1)}
+              disabled={sectionSizes[section] <= 1}
+            >
+              <span className="sr-only">Decrease size</span>
+              -
+            </Button>
+            <span className="text-sm font-medium w-6 text-center">
+              {sectionSizes[section]}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-6 w-6 rounded-full"
+              onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
+              disabled={sectionSizes[section] >= 20}
+            >
+              <span className="sr-only">Increase size</span>
+              +
+            </Button>
           </div>
-          <div className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6 rounded-full"
-                onClick={() => handleSectionSizeChange(section, sectionSizes[section] - 1)}
-                disabled={sectionSizes[section] <= 1}
-              >
-                <span className="sr-only">Decrease size</span>
-                -
-              </Button>
-              <span className="text-sm font-medium w-6 text-center">
-                {sectionSizes[section]}
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6 rounded-full"
-                onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
-                disabled={sectionSizes[section] >= 20} // Set a reasonable maximum
-              >
-                <span className="sr-only">Increase size</span>
-                +
-              </Button>
-            </div>
           <Button 
             variant="outline" 
             size="sm" 
@@ -1307,7 +1348,7 @@ export default function PlanPage() {
           >
             {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
           </Button>
-          </div>
+        </div>
       </CardHeader>
       <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
           <Droppable 
@@ -1326,12 +1367,7 @@ export default function PlanPage() {
                 }`}
               >
                 {filledPlays.map((play, index) => {
-                  const hasContent = !!play.play; // Check if play has content based on the play field
-                  
-                  console.log(`Rendering play ${index} in ${title}:`, {
-                    play,
-                    hasContent
-                  });
+                  const hasContent = !!play.play;
                   
                   if (!hasContent) {
                     // Render empty slot without draggable
@@ -1345,6 +1381,9 @@ export default function PlanPage() {
                     );
                   }
                   
+                  // Add background color based on category
+                  let playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
+                  
                   return (
                     <Draggable 
                       key={`play-${section}-${index}`} 
@@ -1356,8 +1395,12 @@ export default function PlanPage() {
                           ref={providedDrag.innerRef}
                           {...providedDrag.draggableProps}
                           className={`px-4 py-2 flex items-center justify-between text-sm font-mono ${
-                            snapshotDrag.isDragging ? 'opacity-50 bg-blue-50' : ''
-                          }`}
+                            snapshotDrag.isDragging ? 'opacity-50' : ''
+                          } ${playBgColor}`}
+                          style={{
+                            ...providedDrag.draggableProps.style,
+                            backgroundColor: playBgColor ? undefined : 'inherit'
+                          }}
                         >
                           <div className="flex items-center flex-1">
                             <div 
@@ -2082,6 +2125,13 @@ export default function PlanPage() {
     }
   };
 
+  // Add this function to save colors to localStorage
+  const handleColorChange = (category: keyof CategoryColors, color: string) => {
+    const newColors = { ...categoryColors, [category]: color };
+    setCategoryColors(newColors);
+    localStorage.setItem('categoryColors', JSON.stringify(newColors));
+  };
+
   // Show loading state while fetching data
   if (loading) {
     return (
@@ -2441,6 +2491,62 @@ export default function PlanPage() {
                 <ArrowLeft className="h-4 w-4" />
                 Back to Play Pool
               </Button>
+
+              {/* Add Color Settings Dialog */}
+              <Dialog open={showColorSettings} onOpenChange={setShowColorSettings}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Colors
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Category Colors</DialogTitle>
+                    <DialogDescription>
+                      Customize the background colors for each play category.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    {Object.entries(CATEGORIES).map(([key, label]) => (
+                      <div key={key} className="flex items-center justify-between">
+                        <Label htmlFor={`color-${key}`}>{label}</Label>
+                        <select
+                          id={`color-${key}`}
+                          value={categoryColors[key as keyof CategoryColors]}
+                          onChange={(e) => handleColorChange(key as keyof CategoryColors, e.target.value)}
+                          className="w-40 p-1 border rounded"
+                        >
+                          <option value="bg-green-50">Light Green</option>
+                          <option value="bg-green-100">Medium Green</option>
+                          <option value="bg-red-50">Light Red</option>
+                          <option value="bg-red-100">Medium Red</option>
+                          <option value="bg-blue-50">Light Blue</option>
+                          <option value="bg-blue-100">Medium Blue</option>
+                          <option value="bg-orange-50">Light Orange</option>
+                          <option value="bg-orange-100">Medium Orange</option>
+                          <option value="bg-purple-50">Light Purple</option>
+                          <option value="bg-purple-100">Medium Purple</option>
+                          <option value="bg-yellow-100">Light Yellow</option>
+                          <option value="bg-yellow-200">Medium Yellow</option>
+                          <option value="bg-pink-50">Light Pink</option>
+                          <option value="bg-pink-100">Medium Pink</option>
+                          <option value="bg-indigo-50">Light Indigo</option>
+                          <option value="bg-indigo-100">Medium Indigo</option>
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={() => setShowColorSettings(false)}>Done</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Existing Customize button */}
               <Dialog open={showVisibilitySettings} onOpenChange={setShowVisibilitySettings}>
                 <DialogTrigger asChild>
                   <Button 
