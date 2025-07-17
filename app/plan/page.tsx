@@ -1915,7 +1915,7 @@ export default function PlanPage() {
     plays: PlayCall[] | undefined,
     bgColor: string = "bg-blue-100",
     maxLength: number = 0
-    ) => {
+  ) => {
     // Check if plays is undefined and provide an empty array as fallback
     const safetyPlays = plays || [];
     
@@ -1931,21 +1931,24 @@ export default function PlanPage() {
     
     return (
       <div className="break-inside-avoid h-full border border-black">
-        <div className={`${bgColor} p-0.5 font-bold border-b text-xxs flex items-center`}>
-          <span>{title}</span>
+        <div className="bg-white p-0.5 font-bold border-b text-xxs flex items-center">
+          <span className="text-black">{title}</span>
         </div>
         <table className="w-full border-collapse text-xxs">
           <tbody>
-            {filledPlays.map((play, idx) => (
-              <tr key={idx} className="border-b">
-                <td className="py-0 px-0.5 border-r w-4">□</td>
-                <td className="py-0 px-0.5 border-r w-4">□</td>
-                <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
-                <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
-                  {play.play}
-                </td>
-              </tr>
-            ))}
+            {filledPlays.map((play, idx) => {
+              const playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
+              return (
+                <tr key={idx} className={`border-b ${playBgColor}`}>
+                  <td className="py-0 px-0.5 border-r w-4">□</td>
+                  <td className="py-0 px-0.5 border-r w-4">□</td>
+                  <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
+                  <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
+                    {play.play}
+                  </td>
+                </tr>
+              );
+            })}
             {Array.from({ length: emptyRowsCount }).map((_, idx) => (
               <tr key={`empty-${idx}`} className="border-b">
                 <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
@@ -2315,7 +2318,33 @@ export default function PlanPage() {
                     body {
                       -webkit-print-color-adjust: exact !important;
                       print-color-adjust: exact !important;
+                      color-adjust: exact !important;
                     }
+
+                    /* Force background colors to print */
+                    * {
+                      -webkit-print-color-adjust: exact !important;
+                      print-color-adjust: exact !important;
+                      color-adjust: exact !important;
+                    }
+
+                    /* Ensure Tailwind background colors print */
+                    .bg-green-50 { background-color: #f0fdf4 !important; }
+                    .bg-green-100 { background-color: #dcfce7 !important; }
+                    .bg-red-50 { background-color: #fef2f2 !important; }
+                    .bg-red-100 { background-color: #fee2e2 !important; }
+                    .bg-blue-50 { background-color: #eff6ff !important; }
+                    .bg-blue-100 { background-color: #dbeafe !important; }
+                    .bg-orange-50 { background-color: #fff7ed !important; }
+                    .bg-orange-100 { background-color: #ffedd5 !important; }
+                    .bg-purple-50 { background-color: #faf5ff !important; }
+                    .bg-purple-100 { background-color: #f3e8ff !important; }
+                    .bg-yellow-100 { background-color: #fef9c3 !important; }
+                    .bg-yellow-200 { background-color: #fef08a !important; }
+                    .bg-pink-50 { background-color: #fdf2f8 !important; }
+                    .bg-pink-100 { background-color: #fce7f3 !important; }
+                    .bg-indigo-50 { background-color: #eef2ff !important; }
+                    .bg-indigo-100 { background-color: #e0e7ff !important; }
                   }
                   
                   body {
@@ -2383,18 +2412,6 @@ export default function PlanPage() {
                     font-size: 6pt;
                   }
 
-                  /* Ensure background colors print */
-                  .bg-amber-100 { background-color: #fef3c7 !important; }
-                  .bg-green-100 { background-color: #dcfce7 !important; }
-                  .bg-blue-100 { background-color: #dbeafe !important; }
-                  .bg-red-100 { background-color: #fee2e2 !important; }
-                  .bg-purple-100 { background-color: #f3e8ff !important; }
-
-                  /* Adjust header spacing */
-                  .text-center.mb-1 {
-                    margin-bottom: 1mm !important;
-                  }
-                  
                   /* Make text smaller in landscape mode */
                   @media print and (orientation: landscape) {
                     body {
@@ -2432,19 +2449,19 @@ export default function PlanPage() {
                   ];
 
                   const sectionDetails = {
-                    openingScript: { title: 'Opening Script', bgColor: 'bg-amber-100' },
-                    basePackage1: { title: 'Base Package 1', bgColor: 'bg-green-100' },
-                    basePackage2: { title: 'Base Package 2', bgColor: 'bg-green-100' },
-                    basePackage3: { title: 'Base Package 3', bgColor: 'bg-green-100' },
-                    firstDowns: { title: 'First Downs', bgColor: 'bg-blue-100' },
-                    shortYardage: { title: 'Short Yardage', bgColor: 'bg-blue-100' },
-                    thirdAndLong: { title: '3rd and Long', bgColor: 'bg-blue-100' },
-                    redZone: { title: 'Red Zone', bgColor: 'bg-red-100' },
-                    goalline: { title: 'Goalline', bgColor: 'bg-red-100' },
-                    backedUp: { title: 'Backed Up', bgColor: 'bg-red-100' },
-                    screens: { title: 'Screens', bgColor: 'bg-purple-100' },
-                    playAction: { title: 'Play Action', bgColor: 'bg-purple-100' },
-                    deepShots: { title: 'Deep Shots', bgColor: 'bg-purple-100' }
+                    openingScript: { title: 'Opening Script', bgColor: 'bg-white' },
+                    basePackage1: { title: 'Base Package 1', bgColor: 'bg-white' },
+                    basePackage2: { title: 'Base Package 2', bgColor: 'bg-white' },
+                    basePackage3: { title: 'Base Package 3', bgColor: 'bg-white' },
+                    firstDowns: { title: 'First Downs', bgColor: 'bg-white' },
+                    shortYardage: { title: 'Short Yardage', bgColor: 'bg-white' },
+                    thirdAndLong: { title: '3rd and Long', bgColor: 'bg-white' },
+                    redZone: { title: 'Red Zone', bgColor: 'bg-white' },
+                    goalline: { title: 'Goalline', bgColor: 'bg-white' },
+                    backedUp: { title: 'Backed Up', bgColor: 'bg-white' },
+                    screens: { title: 'Screens', bgColor: 'bg-white' },
+                    playAction: { title: 'Play Action', bgColor: 'bg-white' },
+                    deepShots: { title: 'Deep Shots', bgColor: 'bg-white' }
                   };
 
                   return sectionGroups.map(group => {
