@@ -16,6 +16,9 @@ import { Label } from "@/components/ui/label"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 import { LoadingModal } from "../components/loading-modal"
 
+// Add this helper function near the top of the file
+const isBrowser = typeof window !== 'undefined';
+
 // Helper component for displaying a dragging item - currently unused but may be needed in future
 function DragItem({ play }: { play: Play, snapshot: any }) {
   return (
@@ -305,8 +308,8 @@ async function savePlayToGamePlan(
 
 // Simplify validateTeamIds to just return the IDs without validation
 async function validateTeamIds(): Promise<{ team_id: string | null; opponent_id: string | null }> {
-  const team_id = typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') : null;
-  const opponent_id = typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') : null;
+  const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
+  const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
   return { team_id, opponent_id };
 }
 
@@ -632,6 +635,15 @@ export default function PlanPage() {
   const [showVisibilitySettings, setShowVisibilitySettings] = useState(false)
   const [showColorSettings, setShowColorSettings] = useState(false)
   const [categoryColors, setCategoryColors] = useState<CategoryColors>(() => {
+    if (!isBrowser) return {
+      run_game: 'bg-green-100',
+      rpo_game: 'bg-red-100',
+      quick_game: 'bg-blue-100',
+      dropback_game: 'bg-orange-100',
+      screen_game: 'bg-purple-100',
+      shot_plays: 'bg-yellow-200'
+    };
+    
     const savedColors = localStorage.getItem('categoryColors');
     return savedColors ? JSON.parse(savedColors) : {
       run_game: 'bg-green-100',
@@ -775,14 +787,14 @@ export default function PlanPage() {
         console.log('Loading initial data...');
 
         // Get team and opponent IDs from localStorage
-        const teamId = localStorage.getItem('selectedTeam');
-        const opponentId = localStorage.getItem('selectedOpponent');
+        const teamId = isBrowser ? localStorage.getItem('selectedTeam') : null;
+        const opponentId = isBrowser ? localStorage.getItem('selectedOpponent') : null;
 
         if (!teamId || !opponentId) {
           console.log('No team or opponent selected');
-        setLoading(false);
-        return;
-      }
+          setLoading(false);
+          return;
+        }
 
         setSelectedTeam(teamId);
         setSelectedOpponent(opponentId);
@@ -910,6 +922,8 @@ export default function PlanPage() {
 
   // Update the storage change handler
   const handleStorageChange = useCallback(async (e: StorageEvent) => {
+    if (!isBrowser) return;
+    
     if (e.key === 'selectedOpponent' && e.newValue !== e.oldValue) {
       console.log('Opponent changed in storage, updating state...');
       setSelectedOpponent(e.newValue);
@@ -1988,8 +2002,8 @@ export default function PlanPage() {
     setGenerating(true);
     try {
       // First, clear the existing game plan from the database
-      const team_id = localStorage.getItem('selectedTeam');
-      const opponent_id = localStorage.getItem('selectedOpponent');
+      const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
+      const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
 
       if (!team_id || !opponent_id) {
         throw new Error('Team or opponent not selected');
@@ -2111,7 +2125,9 @@ export default function PlanPage() {
       // Reset the plan state to empty using current section sizes
       const emptyPlan = createEmptyPlan(sectionSizes);
       setPlan(emptyPlan);
-      save('plan', emptyPlan);
+      if (isBrowser) {
+        save('plan', emptyPlan);
+      }
 
       setNotification({
         message: 'Game plan deleted successfully',
@@ -2130,6 +2146,8 @@ export default function PlanPage() {
 
   // Add this function to save colors to localStorage
   const handleColorChange = (category: keyof CategoryColors, color: string) => {
+    if (!isBrowser) return;
+    
     const newColors = { ...categoryColors, [category]: color };
     setCategoryColors(newColors);
     localStorage.setItem('categoryColors', JSON.stringify(newColors));
