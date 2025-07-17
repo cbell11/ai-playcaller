@@ -592,6 +592,7 @@ export default function PlanPage() {
   const [showPrintDialog, setShowPrintDialog] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [sectionSizes, setSectionSizes] = useState<Record<keyof GamePlan, number>>(initialSectionSizes)
+  const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null)
   const [sectionVisibility, setSectionVisibility] = useState<Record<keyof GamePlan, boolean>>(() => {
     const initialVisibility: Record<keyof GamePlan, boolean> = {} as Record<keyof GamePlan, boolean>
     Object.keys(initialSectionSizes).forEach((key) => {
@@ -603,6 +604,29 @@ export default function PlanPage() {
 
   const componentRef = useRef<HTMLDivElement>(null)
   const printRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const fetchOpponentName = async () => {
+      if (selectedOpponent) {
+        const { data, error } = await supabase
+          .from('opponents')
+          .select('name')
+          .eq('id', selectedOpponent)
+          .single()
+
+        if (error) {
+          console.error('Error fetching opponent name:', error)
+          setSelectedOpponentName(null)
+        } else if (data) {
+          setSelectedOpponentName(data.name)
+        }
+      } else {
+        setSelectedOpponentName(null)
+      }
+    }
+
+    fetchOpponentName()
+  }, [selectedOpponent])
 
   const printHandler = useReactToPrint({
     contentRef: printRef,
@@ -1843,23 +1867,29 @@ export default function PlanPage() {
   };
 
   // Update the renderPrintableList function
-  const renderPrintableList = (title: string, plays: PlayCall[] | undefined, bgColor: string = "bg-blue-100") => {
+  const renderPrintableList = (
+    title: string,
+    plays: PlayCall[] | undefined,
+    bgColor: string = "bg-blue-100",
+    maxLength: number = 0
+    ) => {
     // Check if plays is undefined and provide an empty array as fallback
     const safetyPlays = plays || [];
     
     // Filter only non-empty plays
     const filledPlays = safetyPlays.filter(p => p.play);
     
-    // If no plays, don't render anything
-    if (filledPlays.length === 0) {
+    // If no plays and no padding needed, don't render
+    if (filledPlays.length === 0 && maxLength === 0) {
       return null;
     }
+
+    const emptyRowsCount = maxLength > filledPlays.length ? maxLength - filledPlays.length : 0;
     
     return (
-      <div className="break-inside-avoid">
-        <div className={`${bgColor} p-0.5 font-bold border-b text-xxs flex justify-between items-center`}>
+      <div className="break-inside-avoid h-full border border-black">
+        <div className={`${bgColor} p-0.5 font-bold border-b text-xxs flex items-center`}>
           <span>{title}</span>
-          <span className="text-xs">({filledPlays.length})</span>
         </div>
         <table className="w-full border-collapse text-xxs">
           <tbody>
@@ -1871,6 +1901,14 @@ export default function PlanPage() {
                 <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
                   {play.play}
                 </td>
+              </tr>
+            ))}
+            {Array.from({ length: emptyRowsCount }).map((_, idx) => (
+              <tr key={`empty-${idx}`} className="border-b">
+                <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
+                <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
+                <td className="py-0 px-0.5 border-r w-4">&nbsp;</td>
+                <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">&nbsp;</td>
               </tr>
             ))}
           </tbody>
@@ -2254,6 +2292,7 @@ export default function PlanPage() {
                   
                   .break-inside-avoid {
                     page-break-inside: avoid;
+                    border: 1px solid #000;
                   }
 
                   .print-grid {
@@ -2323,65 +2362,69 @@ export default function PlanPage() {
               
               {/* Update the print header to be more compact */}
               <div className="text-center mb-1">
-                <h1 className="text-sm font-bold mb-0">Game Plan</h1>
+                <h1 className="text-sm font-bold mb-0">
+                  Game Plan {selectedOpponentName && `vs. ${selectedOpponentName}`}
+                </h1>
                 <div className="text-xs flex justify-center items-center gap-4">
                   <span>✓ = Called</span>
                   <span>★ = Key Play</span>
-                  {selectedOpponent && (
-                    <span className="font-semibold">vs. {selectedOpponent}</span>
-                  )}
                 </div>
               </div>
               
               <div className="print-grid">
-                {/* Opening Script - spans full width */}
-                <div className="col-span-full mb-1">
-                  {plan && renderPrintableList("Opening Script", plan.openingScript, "bg-amber-100")}
+                {plan && (() => {
+                  const sectionGroups = [
+                    ['openingScript', 'basePackage1', 'basePackage2'],
+                    ['basePackage3', 'firstDowns', 'shortYardage'],
+                    ['thirdAndLong', 'redZone', 'goalline'],
+                    ['backedUp', 'screens', 'playAction'],
+                    ['deepShots']
+                  ];
+
+                  const sectionDetails = {
+                    openingScript: { title: 'Opening Script', bgColor: 'bg-amber-100' },
+                    basePackage1: { title: 'Base Package 1', bgColor: 'bg-green-100' },
+                    basePackage2: { title: 'Base Package 2', bgColor: 'bg-green-100' },
+                    basePackage3: { title: 'Base Package 3', bgColor: 'bg-green-100' },
+                    firstDowns: { title: 'First Downs', bgColor: 'bg-blue-100' },
+                    shortYardage: { title: 'Short Yardage', bgColor: 'bg-blue-100' },
+                    thirdAndLong: { title: '3rd and Long', bgColor: 'bg-blue-100' },
+                    redZone: { title: 'Red Zone', bgColor: 'bg-red-100' },
+                    goalline: { title: 'Goalline', bgColor: 'bg-red-100' },
+                    backedUp: { title: 'Backed Up', bgColor: 'bg-red-100' },
+                    screens: { title: 'Screens', bgColor: 'bg-purple-100' },
+                    playAction: { title: 'Play Action', bgColor: 'bg-purple-100' },
+                    deepShots: { title: 'Deep Shots', bgColor: 'bg-purple-100' }
+                  };
+
+                  return sectionGroups.map(group => {
+                    const visibleKeysInGroup = group.filter(key => sectionVisibility[key as keyof GamePlan]);
+                    if (visibleKeysInGroup.length === 0) return null;
+
+                    const maxLength = Math.max(0, ...visibleKeysInGroup.map(key => 
+                      plan[key as keyof GamePlan]?.filter(p => p.play).length || 0
+                    ));
+
+                    return group.map(key => {
+                      const sectionKey = key as keyof GamePlan;
+                      if (!sectionVisibility[sectionKey]) return <div key={key} />;
+                      
+                      const details = sectionDetails[sectionKey as keyof typeof sectionDetails];
+                      if (!details) return null;
+
+                      return (
+                        <div key={key}>
+                          {renderPrintableList(
+                            details.title,
+                            plan[sectionKey],
+                            details.bgColor,
+                            maxLength
+                          )}
                 </div>
-                
-                {/* Base Packages - all in same row */}
-                <div>
-                  {plan && renderPrintableList("Base Package 1", plan.basePackage1, "bg-green-100")}
-                </div>
-                <div>
-                  {plan && renderPrintableList("Base Package 2", plan.basePackage2, "bg-green-100")}
-                </div>
-                <div>
-                  {plan && renderPrintableList("Base Package 3", plan.basePackage3, "bg-green-100")}
-                </div>
-                
-                {/* Down and Distance */}
-                <div>
-                  {plan && renderPrintableList("First Downs", plan.firstDowns, "bg-blue-100")}
-                </div>
-                <div>
-                  {plan && renderPrintableList("Short Yardage", plan.shortYardage, "bg-blue-100")}
-                </div>
-                <div>
-                  {plan && renderPrintableList("3rd and Long", plan.thirdAndLong, "bg-blue-100")}
-                </div>
-                
-                {/* Field Position */}
-                <div>
-                  {plan && renderPrintableList("Red Zone", plan.redZone, "bg-red-100")}
-                </div>
-                <div>
-                  {plan && renderPrintableList("Goalline", plan.goalline, "bg-red-100")}
-                </div>
-                <div>
-                  {plan && renderPrintableList("Backed Up", plan.backedUp, "bg-red-100")}
-                </div>
-                
-                {/* Special Categories */}
-                <div>
-                  {plan && renderPrintableList("Screens", plan.screens, "bg-purple-100")}
-                </div>
-                <div>
-                  {plan && renderPrintableList("Play Action", plan.playAction, "bg-purple-100")}
-                </div>
-                <div>
-                  {plan && renderPrintableList("Deep Shots", plan.deepShots, "bg-purple-100")}
-                </div>
+                      );
+                    });
+                  });
+                })()}
               </div>
             </div>
           </div>
