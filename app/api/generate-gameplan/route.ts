@@ -1,88 +1,79 @@
-import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { NextResponse } from 'next/server'
+import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI()
 
 export async function POST(req: Request) {
   try {
-    const { playPool } = await req.json();
+    const { playPool, sectionSizes } = await req.json()
 
-    const prompt = `Generate a football game plan using only plays from the following play pool:
-${playPool.map((p: any) => p).join('\n')}
+    if (!playPool || !Array.isArray(playPool)) {
+      return NextResponse.json({ error: 'Invalid play pool data' }, { status: 400 })
+    }
 
-Requirements for each section:
+    if (!sectionSizes || typeof sectionSizes !== 'object') {
+      return NextResponse.json({ error: 'Invalid section sizes' }, { status: 400 })
+    }
 
-openingScript (7-10 plays):
-- First plays to start the game
-- Feature motion and variety of formations
-- Include one shot play
-- Mix of run and pass concepts
+    // Format the plays into a string for the prompt
+    const playsText = playPool.join('\n')
 
-basePackage1 (4-8 plays):
-- Group of related concepts or formations
-basePackage2 (4-8 plays):
-- Different group of related concepts or formations
-basePackage3 (4-8 plays):
-- Different group of related concepts or formations
+    // Create a prompt that includes the section sizes
+    const prompt = `You are an expert football offensive coordinator. Given the following play pool, create a game plan by organizing these plays into different sections. Each section should have exactly the number of plays specified in the requirements below. Only use plays from the provided play pool.
 
-firstDowns (5 plays):
-- Similar to opening script but no shot plays
-- 50/50 run to pass ratio
+Play Pool:
+${playsText}
 
-shortYardage (5 plays):
-- Designed for 2-4 yards
-- 3 run plays
-- 2 quick passes or screens
+Section Requirements:
+- Opening Script: ${sectionSizes.openingScript} plays
+- Base Package 1: ${sectionSizes.basePackage1} plays
+- Base Package 2: ${sectionSizes.basePackage2} plays
+- Base Package 3: ${sectionSizes.basePackage3} plays
+- First Downs: ${sectionSizes.firstDowns} plays
+- Short Yardage: ${sectionSizes.shortYardage} plays
+- Third and Long: ${sectionSizes.thirdAndLong} plays
+- Red Zone: ${sectionSizes.redZone} plays
+- Goalline: ${sectionSizes.goalline} plays
+- Backed Up: ${sectionSizes.backedUp} plays
+- Screens: ${sectionSizes.screens} plays
+- Play Action: ${sectionSizes.playAction} plays
+- Deep Shots: ${sectionSizes.deepShots} plays
 
-thirdAndLong (5 plays):
-- Designed for 8+ yards
-- 3 dropback plays
-- 1 screen play
-- 1 shot play
+Guidelines:
+1. Opening Script: Mix of runs and passes to establish tempo
+2. Base Packages: Core plays grouped by formation families
+3. First Downs: Reliable plays that typically gain 4+ yards
+4. Short Yardage: High percentage plays for 3rd/4th and short
+5. Third and Long: Pass plays designed for 7+ yards
+6. Red Zone: High percentage scoring plays inside the 20
+7. Goalline: Plays from inside the 5-yard line
+8. Backed Up: Safe plays when starting inside own 10-yard line
+9. Screens: Various screen plays
+10. Play Action: Play action passes
+11. Deep Shots: Vertical passing plays
 
-redZone (5 plays):
-- Effective within 20 yard line
-- No shot plays
-
-goalline (5 plays):
-- Designed for 5 yards or less
-- 2-3 run plays
-- 2-3 quick game plays
-- No shot plays or dropback passes
-
-backedUp (5 plays):
-- For avoiding safety situations
-- 3 run plays
-- 2 quick game plays
-
-screens (5 plays):
-- All screen plays
-
-playAction (5 plays):
-- Mix of RPO and dropback
-- Include 1 shot play
-
-deepShots (5 plays):
-- All shot plays
-
-IMPORTANT: You must return a JSON object with ALL of these exact section names as keys (openingScript, basePackage1, basePackage2, basePackage3, firstDowns, shortYardage, thirdAndLong, redZone, goalline, backedUp, screens, playAction, deepShots). Each section must contain an array of play names from the provided play pool. Do not skip any sections.`;
+Return the game plan as a JSON object with each section as a key and an array of plays as the value. Each section should contain exactly the number of plays specified in the requirements. Example format:
+{
+  "openingScript": ["play1", "play2"],
+  "basePackage1": ["play3", "play4"],
+  ...
+}`
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
       messages: [
         {
           role: "system",
-          content: "You are a football offensive coordinator AI. Your task is to select appropriate plays from a given play pool to create a game plan that matches specific requirements. Only use plays exactly as they appear in the provided play pool."
+          content: "You are an expert football offensive coordinator helping to organize plays into a game plan. You will return only valid JSON."
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      response_format: { type: "json_object" }
-    });
+      model: "gpt-4-turbo-preview",
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    })
 
     if (!completion.choices[0].message.content) {
       return NextResponse.json(
@@ -91,14 +82,11 @@ IMPORTANT: You must return a JSON object with ALL of these exact section names a
       );
     }
 
-    const gamePlan = JSON.parse(completion.choices[0].message.content);
-    return NextResponse.json(gamePlan);
+    const gamePlan = JSON.parse(completion.choices[0].message.content)
+    return NextResponse.json(gamePlan)
 
   } catch (error) {
-    console.error('Error in generate-gameplan:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to generate game plan' },
-      { status: 500 }
-    );
+    console.error('Error generating game plan:', error)
+    return NextResponse.json({ error: 'Failed to generate game plan' }, { status: 500 })
   }
 } 

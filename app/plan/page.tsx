@@ -1922,17 +1922,18 @@ export default function PlanPage() {
         throw new Error('Failed to clear existing game plan');
       }
 
-      // Format plays for the API
+      // Format plays for the API and include section sizes
       const formattedPlays = playPool.map(p => formatPlayFromPool(p));
 
-      // Call our API route
+      // Call our API route with section sizes
       const response = await fetch('/api/generate-gameplan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          playPool: formattedPlays
+          playPool: formattedPlays,
+          sectionSizes: sectionSizes // Pass the section sizes to the API
         })
       });
 
@@ -1948,10 +1949,13 @@ export default function PlanPage() {
         return playPool.find(p => formatPlayFromPool(p) === name);
       };
 
-      // Update each section
+      // Update each section, respecting the section sizes
       for (const [section, plays] of Object.entries(gamePlan)) {
         const sectionKey = section as keyof GamePlan;
-        for (let i = 0; i < (plays as string[]).length; i++) {
+        const maxPlays = sectionSizes[sectionKey];
+        
+        // Only save up to the maximum number of plays for this section
+        for (let i = 0; i < Math.min((plays as string[]).length, maxPlays); i++) {
           const playName = (plays as string[])[i];
           const play = findPlayByName(playName);
           if (play) {
