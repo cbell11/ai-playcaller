@@ -235,8 +235,8 @@ async function savePlayToGamePlan(
 ): Promise<void> {
   try {
     // Get team_id and opponent_id from localStorage
-    const team_id = localStorage.getItem('selectedTeam');
-    const opponent_id = localStorage.getItem('selectedOpponent');
+    const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
+    const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
 
     if (!team_id || !opponent_id) {
       throw new Error('Please select both a team and opponent in the sidebar first');
@@ -268,8 +268,7 @@ async function savePlayToGamePlan(
       section: section.toLowerCase(),
       position: nextPosition,
       combined_call: formatPlayFromPool(play),
-      customized_edit: play.customized_edit,
-      category: play.category  // Add this line to save the category
+      customized_edit: play.customized_edit
     });
 
     // Create the game plan entry with team and opponent IDs
@@ -282,8 +281,7 @@ async function savePlayToGamePlan(
         section: section.toLowerCase(),
         position: nextPosition,
         combined_call: formatPlayFromPool(play),
-        customized_edit: play.customized_edit,
-        category: play.category  // Add this line to save the category
+        customized_edit: play.customized_edit
       })
       .select()
       .single();
@@ -448,8 +446,8 @@ async function updatePlayPosition(
 // Add this function after the other async functions
 async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GamePlan, number>): Promise<GamePlan | null> {
   try {
-    const team_id = localStorage.getItem('selectedTeam');
-    const opponent_id = localStorage.getItem('selectedOpponent');
+    const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
+    const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
 
     if (!team_id || !opponent_id) {
       console.log('Team or opponent not selected');
@@ -755,6 +753,8 @@ export default function PlanPage() {
 
   // Load saved section sizes on mount
   useEffect(() => {
+    if (!isBrowser) return;
+    
     const savedSizes = localStorage.getItem('sectionSizes');
     if (savedSizes) {
       try {
@@ -768,15 +768,21 @@ export default function PlanPage() {
           setSectionSizes(parsed);
         } else {
           console.warn('Invalid saved section sizes, using defaults');
+          if (isBrowser) {
           localStorage.setItem('sectionSizes', JSON.stringify(initialSectionSizes));
+          }
         }
       } catch (error) {
         console.error('Error loading saved section sizes:', error);
+        if (isBrowser) {
         localStorage.setItem('sectionSizes', JSON.stringify(initialSectionSizes));
+        }
       }
     } else {
       // If no saved sizes exist, save the initial sizes
+      if (isBrowser) {
       localStorage.setItem('sectionSizes', JSON.stringify(initialSectionSizes));
+      }
     }
   }, []);
 
@@ -787,20 +793,20 @@ export default function PlanPage() {
         console.log('Loading initial data...');
 
         // Get team and opponent IDs from localStorage
-        const teamId = isBrowser ? localStorage.getItem('selectedTeam') : null;
-        const opponentId = isBrowser ? localStorage.getItem('selectedOpponent') : null;
+      const teamId = isBrowser ? localStorage.getItem('selectedTeam') : null;
+      const opponentId = isBrowser ? localStorage.getItem('selectedOpponent') : null;
 
         if (!teamId || !opponentId) {
           console.log('No team or opponent selected');
-          setLoading(false);
-          return;
-        }
+        setLoading(false);
+        return;
+      }
 
         setSelectedTeam(teamId);
         setSelectedOpponent(opponentId);
 
       // Get saved section sizes
-      const savedSizes = localStorage.getItem('sectionSizes');
+      const savedSizes = isBrowser ? localStorage.getItem('sectionSizes') : null;
       const currentSizes = savedSizes ? JSON.parse(savedSizes) : initialSectionSizes;
 
       // Load game plan with current sizes
@@ -808,7 +814,9 @@ export default function PlanPage() {
         if (initialPlan) {
           console.log('Loaded initial game plan');
           setPlan(initialPlan);
+        if (isBrowser) {
           save('plan', initialPlan);
+        }
         }
 
         // Load play pool
@@ -840,12 +848,16 @@ export default function PlanPage() {
               console.log('Received database change:', payload);
               try {
               // Get current section sizes for the update
-              const currentSizes = JSON.parse(localStorage.getItem('sectionSizes') || JSON.stringify(initialSectionSizes));
+              const currentSizes = isBrowser ? 
+                JSON.parse(localStorage.getItem('sectionSizes') || JSON.stringify(initialSectionSizes)) :
+                initialSectionSizes;
               const updatedPlan = await fetchGamePlanFromDatabase(currentSizes);
                 if (updatedPlan) {
                   console.log('Updating plan from real-time change');
                   setPlan(updatedPlan);
+                if (isBrowser) {
                   save('plan', updatedPlan);
+                }
         }
         } catch (error) {
                 console.error('Error handling real-time update:', error);
@@ -882,7 +894,7 @@ export default function PlanPage() {
       // Load game plan data
       try {
         setLoading(true);
-        const teamId = localStorage.getItem('selectedTeam');
+      const teamId = isBrowser ? localStorage.getItem('selectedTeam') : null;
         if (!teamId) {
           throw new Error('No team selected');
         }
@@ -892,7 +904,9 @@ export default function PlanPage() {
         if (updatedPlan) {
           console.log('Updating plan from opponent change');
           setPlan(updatedPlan);
+        if (isBrowser) {
           save('plan', updatedPlan);
+        }
         }
 
         // Load play pool
@@ -911,7 +925,7 @@ export default function PlanPage() {
       } finally {
         setLoading(false);
       }
-  }, [setSelectedOpponent, setLoading, setPlan, setPlayPool, setShowPlayPool, setPlayPoolSection, setPlayPoolCategory, setPlayPoolFilterType]); // Remove sectionSizes from dependencies
+  }, [setSelectedOpponent, setLoading, setPlan, setPlayPool, setShowPlayPool, setPlayPoolSection, setPlayPoolCategory, setPlayPoolFilterType]);
 
   useEffect(() => {
     window.addEventListener('opponentChanged', handleOpponentChange);
@@ -931,7 +945,7 @@ export default function PlanPage() {
       // Load game plan data
       try {
         setLoading(true);
-        const teamId = localStorage.getItem('selectedTeam');
+        const teamId = isBrowser ? localStorage.getItem('selectedTeam') : null;
         if (!teamId) {
           throw new Error('No team selected');
         }
@@ -941,7 +955,9 @@ export default function PlanPage() {
         if (updatedPlan) {
           console.log('Updating plan from storage change');
           setPlan(updatedPlan);
+          if (isBrowser) {
           save('plan', updatedPlan);
+          }
         }
 
         // Load play pool
@@ -961,10 +977,12 @@ export default function PlanPage() {
         setLoading(false);
       }
     }
-  }, [setSelectedOpponent, setLoading, setPlan, setPlayPool, setShowPlayPool, setPlayPoolSection, setPlayPoolCategory, setPlayPoolFilterType]); // Remove sectionSizes from dependencies
+  }, [setSelectedOpponent, setLoading, setPlan, setPlayPool, setShowPlayPool, setPlayPoolSection, setPlayPoolCategory, setPlayPoolFilterType]);
 
   // Update the main team/opponent effect
   useEffect(() => {
+    if (!isBrowser) return;
+    
     const team = localStorage.getItem('selectedTeam');
     const opponent = localStorage.getItem('selectedOpponent');
     
@@ -1248,7 +1266,9 @@ export default function PlanPage() {
               ...prev,
               [section]: newSize
             };
+            if (isBrowser) {
             localStorage.setItem('sectionSizes', JSON.stringify(updated));
+            }
             return updated;
           });
 
@@ -1262,7 +1282,9 @@ export default function PlanPage() {
               ...Array(newSize - filledSlots.length).fill(emptySlot)
             ];
             
+            if (isBrowser) {
             save('plan', updatedPlan);
+            }
             return updatedPlan;
           });
         };
@@ -1317,35 +1339,35 @@ export default function PlanPage() {
     return (
     <Card className="bg-white rounded shadow h-full">
       <CardHeader className="bg-white border-b p-4">
-        <div className="mb-2">
+          <div className="mb-2">
           <CardTitle className="font-bold text-black">{title}</CardTitle>
-        </div>
-        <div className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-6 w-6 rounded-full"
-              onClick={() => handleSectionSizeChange(section, sectionSizes[section] - 1)}
-              disabled={sectionSizes[section] <= 1}
-            >
-              <span className="sr-only">Decrease size</span>
-              -
-            </Button>
-            <span className="text-sm font-medium w-6 text-center">
-              {sectionSizes[section]}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-6 w-6 rounded-full"
-              onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
-              disabled={sectionSizes[section] >= 20}
-            >
-              <span className="sr-only">Increase size</span>
-              +
-            </Button>
           </div>
+          <div className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-6 w-6 rounded-full"
+                onClick={() => handleSectionSizeChange(section, sectionSizes[section] - 1)}
+                disabled={sectionSizes[section] <= 1}
+              >
+                <span className="sr-only">Decrease size</span>
+                -
+              </Button>
+              <span className="text-sm font-medium w-6 text-center">
+                {sectionSizes[section]}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-6 w-6 rounded-full"
+                onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
+              disabled={sectionSizes[section] >= 20}
+              >
+                <span className="sr-only">Increase size</span>
+                +
+              </Button>
+            </div>
           <Button 
             variant="outline" 
             size="sm" 
@@ -1362,7 +1384,7 @@ export default function PlanPage() {
           >
             {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
           </Button>
-        </div>
+          </div>
       </CardHeader>
       <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
           <Droppable 
@@ -1954,12 +1976,12 @@ export default function PlanPage() {
               const playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
               return (
                 <tr key={idx} className={`border-b ${playBgColor}`}>
-                  <td className="py-0 px-0.5 border-r w-4">□</td>
-                  <td className="py-0 px-0.5 border-r w-4">□</td>
-                  <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
-                  <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
-                    {play.play}
-                  </td>
+                <td className="py-0 px-0.5 border-r w-4">□</td>
+                <td className="py-0 px-0.5 border-r w-4">□</td>
+                <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
+                <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
+                  {play.play}
+                </td>
                 </tr>
               );
             })}
@@ -2000,6 +2022,7 @@ export default function PlanPage() {
     }
 
     setGenerating(true);
+    setIsGenerating(true);
     try {
       // First, clear the existing game plan from the database
       const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
@@ -2062,12 +2085,17 @@ export default function PlanPage() {
         }
       }
 
-      // Instead of reloading the page, fetch the updated game plan
+      // Fetch the updated game plan to refresh the UI
       const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
       if (updatedPlan) {
         setPlan(updatedPlan);
+        if (isBrowser) {
         save('plan', updatedPlan);
+        }
       }
+
+      // Set manual build mode to true to show the game plan interface
+      setIsManualBuildMode(true);
 
       // Show success message
       setNotification({
@@ -2083,6 +2111,7 @@ export default function PlanPage() {
       });
     } finally {
       setGenerating(false);
+      setIsGenerating(false);
     }
   };
 
@@ -2126,7 +2155,7 @@ export default function PlanPage() {
       const emptyPlan = createEmptyPlan(sectionSizes);
       setPlan(emptyPlan);
       if (isBrowser) {
-        save('plan', emptyPlan);
+      save('plan', emptyPlan);
       }
 
       setNotification({
@@ -2429,7 +2458,7 @@ export default function PlanPage() {
                   .print-grid .font-mono {
                     font-size: 6pt;
                   }
-
+                  
                   /* Make text smaller in landscape mode */
                   @media print and (orientation: landscape) {
                     body {
