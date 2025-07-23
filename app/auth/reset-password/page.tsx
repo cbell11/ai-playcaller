@@ -22,6 +22,17 @@ function ResetPasswordForm() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  // Check for auth session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError("No active session. Please use the reset password link from your email.");
+      }
+    };
+    checkSession();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -41,23 +52,48 @@ function ResetPasswordForm() {
     }
 
     try {
-      const { error } = await supabase.auth.updateUser({
+      // First, update the password
+      const { data: updateData, error: updateError } = await supabase.auth.updateUser({
         password: newPassword
       });
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // Get the current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) throw sessionError;
+      
+      if (!session) {
+        throw new Error("Session not found after password update");
+      }
+
+      // Get user profile to check if setup is completed
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('setup_completed')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError) throw profileError;
 
       setSuccess(true);
+      
       // Clear form
       setNewPassword("");
       setConfirmPassword("");
       
-      // Redirect to login after 3 seconds
+      // Redirect based on setup status after 2 seconds
       setTimeout(() => {
-        router.push('/auth');
-      }, 3000);
+        if (profile?.setup_completed) {
+          router.push('/plan');
+        } else {
+          router.push('/setup');
+        }
+      }, 2000);
 
     } catch (error: any) {
+      console.error('Password reset error:', error);
       setError(error.message || "Failed to update password");
     } finally {
       setLoading(false);
@@ -82,7 +118,7 @@ function ResetPasswordForm() {
 
         {success && (
           <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-md text-sm">
-            Password updated successfully! Redirecting to login...
+            Password updated successfully! Redirecting you...
           </div>
         )}
 
