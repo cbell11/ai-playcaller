@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 import { LoadingModal } from "../components/loading-modal"
+import Image from "next/image"
 
 // Add this helper function near the top of the file
 const isBrowser = typeof window !== 'undefined';
@@ -655,6 +656,9 @@ export default function PlanPage() {
 
   const componentRef = useRef<HTMLDivElement>(null)
   const printRef = useRef<HTMLDivElement>(null)
+
+  // Add section-specific loading state
+  const [generatingSection, setGeneratingSection] = useState<keyof GamePlan | null>(null)
 
   useEffect(() => {
     const fetchOpponentName = async () => {
@@ -1337,37 +1341,53 @@ export default function PlanPage() {
     console.log(`Filled plays for ${title}:`, filledPlays);
     
     return (
-    <Card className="bg-white rounded shadow h-full">
+    <Card className="bg-white rounded shadow h-full relative">
+      {renderSectionLoadingModal(section)}
       <CardHeader className="bg-white border-b p-4">
-          <div className="mb-2">
+        <div className="mb-2 flex justify-between items-center">
           <CardTitle className="font-bold text-black">{title}</CardTitle>
-          </div>
-          <div className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6 rounded-full"
-                onClick={() => handleSectionSizeChange(section, sectionSizes[section] - 1)}
-                disabled={sectionSizes[section] <= 1}
-              >
-                <span className="sr-only">Decrease size</span>
-                -
-              </Button>
-              <span className="text-sm font-medium w-6 text-center">
-                {sectionSizes[section]}
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-6 w-6 rounded-full"
-                onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => handleRegenerateSection(section)}
+            className="flex items-center gap-1 hover:bg-transparent"
+            disabled={generatingSection !== null}
+          >
+            {generatingSection === section ? (
+              <div className="animate-spin">
+                <Wand2 className="h-4 w-4 text-[#0B2545]" />
+              </div>
+            ) : (
+              <Wand2 className="h-4 w-4 text-[#0B2545]" />
+            )}
+          </Button>
+        </div>
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-6 w-6 rounded-full"
+              onClick={() => handleSectionSizeChange(section, sectionSizes[section] - 1)}
+              disabled={sectionSizes[section] <= 1}
+            >
+              <span className="sr-only">Decrease size</span>
+              -
+            </Button>
+            <span className="text-sm font-medium w-6 text-center">
+              {sectionSizes[section]}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-6 w-6 rounded-full"
+              onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
               disabled={sectionSizes[section] >= 20}
-              >
-                <span className="sr-only">Increase size</span>
-                +
-              </Button>
-            </div>
+            >
+              <span className="sr-only">Increase size</span>
+              +
+            </Button>
+          </div>
           <Button 
             variant="outline" 
             size="sm" 
@@ -1384,96 +1404,94 @@ export default function PlanPage() {
           >
             {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
           </Button>
-          </div>
+        </div>
       </CardHeader>
       <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
-          <Droppable 
-            droppableId={`section-${section}`} 
-            type="PLAY" 
-            direction="vertical"
-          >
-            {(provided, snapshot) => (
-              <div 
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-                className={`divide-y ${
-                  snapshot.isDraggingOver 
-                    ? 'bg-blue-100 border-2 border-dashed border-blue-400 rounded' 
-                    : ''
-                }`}
-              >
-                {filledPlays.map((play, index) => {
-                  const hasContent = !!play.play;
-                  
-                  if (!hasContent) {
-                    // Render empty slot without draggable
-                    return (
-                      <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
-                        <span className="w-6 text-slate-500">{index + 1}.</span>
-                        <span className="text-gray-300 italic flex-1 text-center text-xs">
-                          {/* Empty space for vacant slot */}
-                        </span>
-                      </div>
-                    );
-                  }
-                  
-                  // Add background color based on category
-                  let playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
-                  
+        <Droppable 
+          droppableId={`section-${section}`} 
+          type="PLAY" 
+          direction="vertical"
+        >
+          {(provided, snapshot) => (
+            <div 
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className={`divide-y ${
+                snapshot.isDraggingOver 
+                  ? 'bg-blue-100 border-2 border-dashed border-blue-400 rounded' 
+                  : ''
+              }`}
+            >
+              {filledPlays.map((play, index) => {
+                const hasContent = !!play.play;
+                
+                if (!hasContent) {
                   return (
-                    <Draggable 
-                      key={`play-${section}-${index}`} 
-                      draggableId={`play-${section}-${index}`} 
-                      index={index}
-                    >
-                      {(providedDrag, snapshotDrag) => (
-                        <div
-                          ref={providedDrag.innerRef}
-                          {...providedDrag.draggableProps}
-                          className={`px-4 py-2 flex items-center justify-between text-sm font-mono ${
-                            snapshotDrag.isDragging ? 'opacity-50' : ''
-                          } ${playBgColor}`}
-                          style={{
-                            ...providedDrag.draggableProps.style,
-                            backgroundColor: playBgColor ? undefined : 'inherit'
-                          }}
-                        >
-                          <div className="flex items-center flex-1">
-                            <div 
-                              {...providedDrag.dragHandleProps}
-                              className="mr-2 cursor-grab"
-                            >
-                              <GripVertical className="h-4 w-4 text-gray-400" />
-                            </div>
-                            <span className="w-6 text-slate-500">{index + 1}.</span>
-                            <span>{play.play}</span>
-                          </div>
-                          
-                          {hasContent && (
-                            <div className="flex items-center gap-1">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6 text-gray-500"
-                                onClick={() => handleDeletePlay(section, index)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          )}
-            </div>
-                      )}
-                    </Draggable>
+                    <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
+                      <span className="w-6 text-slate-500">{index + 1}.</span>
+                      <span className="text-gray-300 italic flex-1 text-center text-xs">
+                        {/* Empty space for vacant slot */}
+                      </span>
+                    </div>
                   );
-                })}
-                {provided.placeholder}
-        </div>
-            )}
-          </Droppable>
+                }
+                
+                let playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
+                
+                return (
+                  <Draggable 
+                    key={`play-${section}-${index}`} 
+                    draggableId={`play-${section}-${index}`} 
+                    index={index}
+                  >
+                    {(providedDrag, snapshotDrag) => (
+                      <div
+                        ref={providedDrag.innerRef}
+                        {...providedDrag.draggableProps}
+                        className={`px-4 py-2 flex items-center justify-between text-sm font-mono ${
+                          snapshotDrag.isDragging ? 'opacity-50' : ''
+                        } ${playBgColor}`}
+                        style={{
+                          ...providedDrag.draggableProps.style,
+                          backgroundColor: playBgColor ? undefined : 'inherit'
+                        }}
+                      >
+                        <div className="flex items-center flex-1">
+                          <div 
+                            {...providedDrag.dragHandleProps}
+                            className="mr-2 cursor-grab"
+                          >
+                            <GripVertical className="h-4 w-4 text-gray-400" />
+                          </div>
+                          <span className="w-6 text-slate-500">{index + 1}.</span>
+                          <span>{play.play}</span>
+                        </div>
+                        
+                        {hasContent && (
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 text-gray-500"
+                              onClick={() => handleDeletePlay(section, index)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Draggable>
+                );
+              })}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
       </CardContent>
     </Card>
-    );
-  };
+  );
+};
 
   // Modify the handleDeletePlay function
   const handleDeletePlay = async (section: keyof GamePlan, index: number) => {
@@ -2180,6 +2198,153 @@ export default function PlanPage() {
     const newColors = { ...categoryColors, [category]: color };
     setCategoryColors(newColors);
     localStorage.setItem('categoryColors', JSON.stringify(newColors));
+  };
+
+  // Add this function after handleColorChange
+  const handleRegenerateSection = async (section: keyof GamePlan) => {
+    if (!selectedOpponent || !playPool.length) {
+      setNotification({
+        message: 'Please select an opponent and ensure plays are loaded first',
+        type: 'error'
+      });
+      return;
+    }
+
+    setGeneratingSection(section);
+    try {
+      // Get team and opponent IDs
+      const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
+      const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
+
+      if (!team_id || !opponent_id) {
+        throw new Error('Team or opponent not selected');
+      }
+
+      // Format plays for the API - use only plays that match this section's typical category
+      const formattedPlays = playPool.map(p => formatPlayFromPool(p));
+
+      // Create a minimal section-specific size object for faster processing
+      const sectionSizeObj = {
+        [section]: sectionSizes[section]
+      };
+
+      // Call our API route with optimized parameters for single section
+      const response = await fetch('/api/generate-gameplan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playPool: formattedPlays,
+          sectionSizes: sectionSizeObj,
+          singleSection: true, // Flag for faster processing
+          targetSection: section
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate plays');
+      }
+
+      const gamePlan = await response.json();
+      
+      // Helper function to find a play in the pool by its formatted name
+      const findPlayByName = (name: string) => {
+        return playPool.find(p => formatPlayFromPool(p) === name);
+      };
+
+      // Clear existing plays for this section and batch insert new ones
+      const { error: deleteError } = await supabase
+        .from('game_plan')
+        .delete()
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .eq('section', section.toLowerCase());
+
+      if (deleteError) {
+        throw new Error('Failed to clear section');
+      }
+
+      // Batch insert all new plays at once for speed
+      const plays = gamePlan[section] || [];
+      const insertData = [];
+      
+      for (let i = 0; i < Math.min(plays.length, sectionSizes[section]); i++) {
+        const playName = plays[i];
+        const play = findPlayByName(playName);
+        if (play) {
+          insertData.push({
+            team_id,
+            opponent_id,
+            play_id: play.id,
+            section: section.toLowerCase(),
+            position: i,
+            combined_call: formatPlayFromPool(play),
+            customized_edit: play.customized_edit
+          });
+        }
+      }
+
+      // Single batch insert for maximum speed
+      if (insertData.length > 0) {
+        const { error: insertError } = await supabase
+          .from('game_plan')
+          .insert(insertData);
+
+        if (insertError) {
+          throw new Error(`Failed to save plays: ${insertError.message}`);
+        }
+      }
+
+      // Optimized UI update - only fetch this section's data
+      const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+      if (updatedPlan) {
+        setPlan(updatedPlan);
+        if (isBrowser) {
+          save('plan', updatedPlan);
+        }
+      }
+
+      // Show success message
+      setNotification({
+        message: `${section} regenerated successfully!`,
+        type: 'success'
+      });
+
+    } catch (error) {
+      console.error('Error regenerating section:', error);
+      setNotification({
+        message: error instanceof Error ? error.message : 'Failed to regenerate section',
+        type: 'error'
+      });
+    } finally {
+      setGeneratingSection(null);
+    }
+  };
+
+  // Add section-specific loading modal component
+  const renderSectionLoadingModal = (section: keyof GamePlan) => {
+    if (generatingSection !== section) return null;
+
+    return (
+      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 rounded">
+        <div className="bg-white rounded-lg p-6 text-center">
+          <div className="relative w-16 h-16 mx-auto mb-4">
+            <Image
+              src="/ball.gif"
+              alt="Loading football"
+              width={64}
+              height={64}
+              priority
+              className="object-contain"
+            />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">Regenerating {section}...</h3>
+          <p className="text-gray-600 text-sm">AI is selecting new plays</p>
+        </div>
+      </div>
+    );
   };
 
   // Show loading state while fetching data

@@ -5,7 +5,7 @@ const openai = new OpenAI()
 
 export async function POST(req: Request) {
   try {
-    const { playPool, sectionSizes } = await req.json()
+    const { playPool, sectionSizes, singleSection, targetSection } = await req.json()
 
     if (!playPool || !Array.isArray(playPool)) {
       return NextResponse.json({ error: 'Invalid play pool data' }, { status: 400 })
@@ -18,7 +18,49 @@ export async function POST(req: Request) {
     // Format the plays into a string for the prompt
     const playsText = playPool.join('\n')
 
-    // Create a prompt that includes the section sizes
+    // Optimized prompt for single section generation
+    if (singleSection && targetSection) {
+      const sectionCount = sectionSizes[targetSection] || 5;
+      
+      const prompt = `Generate ${sectionCount} football plays for the "${targetSection}" section from this play pool:
+
+${playsText}
+
+Rules:
+- Select exactly ${sectionCount} plays
+- Choose plays appropriate for ${targetSection} situations
+- Return only JSON format: {"${targetSection}": ["play1", "play2", ...]}
+- Use exact play names from the pool`;
+
+      const completion = await openai.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: "You are a football coordinator. Return only valid JSON with the exact play names from the provided pool."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        model: "gpt-3.5-turbo",
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+        max_tokens: 1000, // Reduced for faster response
+      })
+
+      if (!completion.choices[0].message.content) {
+        return NextResponse.json(
+          { error: 'Failed to generate plays: No content received from AI' },
+          { status: 500 }
+        );
+      }
+
+      const result = JSON.parse(completion.choices[0].message.content)
+      return NextResponse.json(result)
+    }
+
+    // Original full game plan generation logic for when generating entire game plan
     const prompt = `You are an expert football offensive coordinator. Given the following play pool, create a game plan by organizing these plays into different sections. Each section should have exactly the number of plays specified in the requirements below. Only use plays from the provided play pool.
 
 Play Pool:
