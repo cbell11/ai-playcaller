@@ -654,6 +654,26 @@ export default function PlanPage() {
     };
   })
 
+  // Add this near other state declarations
+  const [customSectionNames, setCustomSectionNames] = useState<Record<string, string>>(() => {
+    if (!isBrowser) return {};
+    const saved = localStorage.getItem('customSectionNames');
+    return saved ? JSON.parse(saved) : {
+      basePackage1: 'Base Package 1',
+      basePackage2: 'Base Package 2',
+      basePackage3: 'Base Package 3'
+    };
+  });
+
+  // Add this function to handle name updates
+  const handleSectionNameChange = (section: string, newName: string) => {
+    const updated = { ...customSectionNames, [section]: newName };
+    setCustomSectionNames(updated);
+    if (isBrowser) {
+      localStorage.setItem('customSectionNames', JSON.stringify(updated));
+    }
+  };
+
   const componentRef = useRef<HTMLDivElement>(null)
   const printRef = useRef<HTMLDivElement>(null)
 
@@ -1340,54 +1360,91 @@ export default function PlanPage() {
 
     console.log(`Filled plays for ${title}:`, filledPlays);
     
+    // Check if this is a Base Package section
+    const isBasePackage = section.startsWith('basePackage');
+    const displayTitle = isBasePackage ? customSectionNames[section] || title : title;
+
     return (
-    <Card className="bg-white rounded shadow h-full relative">
-      {renderSectionLoadingModal(section)}
-      <CardHeader className="bg-white border-b p-4">
-        <div className="mb-2 flex justify-between items-center">
-          <CardTitle className="font-bold text-black">{title}</CardTitle>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => handleRegenerateSection(section)}
-            className="flex items-center gap-1 hover:bg-transparent"
-            disabled={generatingSection !== null}
-          >
-            {generatingSection === section ? (
-              <div className="animate-spin">
-                <Wand2 className="h-4 w-4 text-[#0B2545]" />
-              </div>
-            ) : (
+      <Card className="bg-white rounded shadow h-full">
+        <CardHeader className="bg-white border-b p-4">
+          <div className="mb-2 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <CardTitle className="font-bold text-black">{displayTitle}</CardTitle>
+              {isBasePackage && (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0"
+                    >
+                      <Settings className="h-4 w-4 text-gray-500" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Customize Section Name</DialogTitle>
+                      <DialogDescription>
+                        Enter a new name for this section
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <Label htmlFor="sectionName">Section Name</Label>
+                      <input
+                        id="sectionName"
+                        className="w-full px-3 py-2 border rounded mt-2"
+                        defaultValue={displayTitle}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleSectionNameChange(section, e.currentTarget.value);
+                            (e.currentTarget.closest('dialog') as HTMLDialogElement)?.close();
+                          }
+                        }}
+                        onBlur={(e) => {
+                          handleSectionNameChange(section, e.target.value);
+                        }}
+                      />
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => handleRegenerateSection(section)}
+              className="flex items-center gap-1 hover:bg-transparent"
+              disabled={generating}
+            >
               <Wand2 className="h-4 w-4 text-[#0B2545]" />
-            )}
-          </Button>
-        </div>
-        <div className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-6 w-6 rounded-full"
-              onClick={() => handleSectionSizeChange(section, sectionSizes[section] - 1)}
-              disabled={sectionSizes[section] <= 1}
-            >
-              <span className="sr-only">Decrease size</span>
-              -
-            </Button>
-            <span className="text-sm font-medium w-6 text-center">
-              {sectionSizes[section]}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-6 w-6 rounded-full"
-              onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
-              disabled={sectionSizes[section] >= 20}
-            >
-              <span className="sr-only">Increase size</span>
-              +
             </Button>
           </div>
+          <div className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-6 w-6 rounded-full"
+                onClick={() => handleSectionSizeChange(section, sectionSizes[section] - 1)}
+                disabled={sectionSizes[section] <= 1}
+              >
+                <span className="sr-only">Decrease size</span>
+                -
+              </Button>
+              <span className="text-sm font-medium w-6 text-center">
+                {sectionSizes[section]}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-6 w-6 rounded-full"
+                onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
+              disabled={sectionSizes[section] >= 20}
+              >
+                <span className="sr-only">Increase size</span>
+                +
+              </Button>
+            </div>
           <Button 
             variant="outline" 
             size="sm" 
@@ -1404,94 +1461,94 @@ export default function PlanPage() {
           >
             {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
           </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
-        <Droppable 
-          droppableId={`section-${section}`} 
-          type="PLAY" 
-          direction="vertical"
-        >
-          {(provided, snapshot) => (
-            <div 
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className={`divide-y ${
-                snapshot.isDraggingOver 
-                  ? 'bg-blue-100 border-2 border-dashed border-blue-400 rounded' 
-                  : ''
-              }`}
-            >
-              {filledPlays.map((play, index) => {
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
+          <Droppable 
+            droppableId={`section-${section}`} 
+            type="PLAY" 
+            direction="vertical"
+          >
+            {(provided, snapshot) => (
+              <div 
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className={`divide-y ${
+                  snapshot.isDraggingOver 
+                    ? 'bg-blue-100 border-2 border-dashed border-blue-400 rounded' 
+                    : ''
+                }`}
+              >
+                {filledPlays.map((play, index) => {
                 const hasContent = !!play.play;
-                
-                if (!hasContent) {
-                  return (
-                    <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
-                      <span className="w-6 text-slate-500">{index + 1}.</span>
-                      <span className="text-gray-300 italic flex-1 text-center text-xs">
-                        {/* Empty space for vacant slot */}
-                      </span>
-                    </div>
-                  );
-                }
+                  
+                  if (!hasContent) {
+                    return (
+                      <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
+                        <span className="w-6 text-slate-500">{index + 1}.</span>
+                        <span className="text-gray-300 italic flex-1 text-center text-xs">
+                          {/* Empty space for vacant slot */}
+                        </span>
+                      </div>
+                    );
+                  }
                 
                 let playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
-                
-                return (
-                  <Draggable 
-                    key={`play-${section}-${index}`} 
-                    draggableId={`play-${section}-${index}`} 
-                    index={index}
-                  >
-                    {(providedDrag, snapshotDrag) => (
-                      <div
-                        ref={providedDrag.innerRef}
-                        {...providedDrag.draggableProps}
-                        className={`px-4 py-2 flex items-center justify-between text-sm font-mono ${
+                  
+                  return (
+                    <Draggable 
+                      key={`play-${section}-${index}`} 
+                      draggableId={`play-${section}-${index}`} 
+                      index={index}
+                    >
+                      {(providedDrag, snapshotDrag) => (
+                        <div
+                          ref={providedDrag.innerRef}
+                          {...providedDrag.draggableProps}
+                          className={`px-4 py-2 flex items-center justify-between text-sm font-mono ${
                           snapshotDrag.isDragging ? 'opacity-50' : ''
                         } ${playBgColor}`}
                         style={{
                           ...providedDrag.draggableProps.style,
                           backgroundColor: playBgColor ? undefined : 'inherit'
                         }}
-                      >
-                        <div className="flex items-center flex-1">
-                          <div 
-                            {...providedDrag.dragHandleProps}
-                            className="mr-2 cursor-grab"
-                          >
-                            <GripVertical className="h-4 w-4 text-gray-400" />
-                          </div>
-                          <span className="w-6 text-slate-500">{index + 1}.</span>
-                          <span>{play.play}</span>
-                        </div>
-                        
-                        {hasContent && (
-                          <div className="flex items-center gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-6 w-6 text-gray-500"
-                              onClick={() => handleDeletePlay(section, index)}
+                        >
+                          <div className="flex items-center flex-1">
+                            <div 
+                              {...providedDrag.dragHandleProps}
+                              className="mr-2 cursor-grab"
                             >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                              <GripVertical className="h-4 w-4 text-gray-400" />
+                            </div>
+                            <span className="w-6 text-slate-500">{index + 1}.</span>
+                            <span>{play.play}</span>
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </Draggable>
-                );
-              })}
-              {provided.placeholder}
+                          
+                          {hasContent && (
+                            <div className="flex items-center gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6 text-gray-500"
+                                onClick={() => handleDeletePlay(section, index)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
             </div>
-          )}
-        </Droppable>
+                      )}
+                    </Draggable>
+                  );
+                })}
+                {provided.placeholder}
+        </div>
+            )}
+          </Droppable>
       </CardContent>
     </Card>
-  );
-};
+    );
+  };
 
   // Modify the handleDeletePlay function
   const handleDeletePlay = async (section: keyof GamePlan, index: number) => {
@@ -1963,12 +2020,13 @@ export default function PlanPage() {
     );
   };
 
-  // Update the renderPrintableList function
+  // Update the renderPrintableList function to use custom names
   const renderPrintableList = (
     title: string,
     plays: PlayCall[] | undefined,
     bgColor: string = "bg-blue-100",
-    maxLength: number = 0
+    maxLength: number = 0,
+    section?: keyof GamePlan // Add section parameter
   ) => {
     // Check if plays is undefined and provide an empty array as fallback
     const safetyPlays = plays || [];
@@ -1981,12 +2039,16 @@ export default function PlanPage() {
       return null;
     }
 
+    // Get custom title for base packages
+    const isBasePackage = section?.startsWith('basePackage');
+    const displayTitle = isBasePackage && section ? customSectionNames[section] || title : title;
+
     const emptyRowsCount = maxLength > filledPlays.length ? maxLength - filledPlays.length : 0;
     
     return (
       <div className="break-inside-avoid h-full border border-black">
         <div className="bg-white p-0.5 font-bold border-b text-xxs flex items-center">
-          <span className="text-black">{title}</span>
+          <span className="text-black">{displayTitle}</span>
         </div>
         <table className="w-full border-collapse text-xxs">
           <tbody>
@@ -1994,12 +2056,12 @@ export default function PlanPage() {
               const playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
               return (
                 <tr key={idx} className={`border-b ${playBgColor}`}>
-                <td className="py-0 px-0.5 border-r w-4">□</td>
-                <td className="py-0 px-0.5 border-r w-4">□</td>
-                <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
-                <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
-                  {play.play}
-                </td>
+                  <td className="py-0 px-0.5 border-r w-4">□</td>
+                  <td className="py-0 px-0.5 border-r w-4">□</td>
+                  <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
+                  <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
+                    {play.play}
+                  </td>
                 </tr>
               );
             })}
@@ -2691,15 +2753,20 @@ export default function PlanPage() {
                       const details = sectionDetails[sectionKey as keyof typeof sectionDetails];
                       if (!details) return null;
 
+                      // Get custom title for base packages
+                      const isBasePackage = sectionKey.startsWith('basePackage');
+                      const displayTitle = isBasePackage ? customSectionNames[sectionKey] || details.title : details.title;
+
                       return (
                         <div key={key}>
                           {renderPrintableList(
-                            details.title,
+                            displayTitle,
                             plan[sectionKey],
                             details.bgColor,
-                            maxLength
+                            maxLength,
+                            sectionKey // Pass the section key
                           )}
-                </div>
+                        </div>
                       );
                     });
                   });
@@ -2997,9 +3064,9 @@ export default function PlanPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 auto-rows-auto gap-6 mt-6">
               {[
                 { key: 'openingScript', title: 'Opening Script', bgColor: 'bg-amber-100' },
-                { key: 'basePackage1', title: 'Base Package 1', bgColor: 'bg-green-100' },
-                { key: 'basePackage2', title: 'Base Package 2', bgColor: 'bg-green-100' },
-                { key: 'basePackage3', title: 'Base Package 3', bgColor: 'bg-green-100' },
+                { key: 'basePackage1', title: customSectionNames.basePackage1 || 'Base Package 1', bgColor: 'bg-green-100' },
+                { key: 'basePackage2', title: customSectionNames.basePackage2 || 'Base Package 2', bgColor: 'bg-green-100' },
+                { key: 'basePackage3', title: customSectionNames.basePackage3 || 'Base Package 3', bgColor: 'bg-green-100' },
                 { key: 'firstDowns', title: 'First Downs', bgColor: 'bg-blue-100' },
                 { key: 'shortYardage', title: 'Short Yardage', bgColor: 'bg-blue-100' },
                 { key: 'thirdAndLong', title: 'Third and Long', bgColor: 'bg-blue-100' },
