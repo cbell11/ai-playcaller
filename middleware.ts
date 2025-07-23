@@ -29,6 +29,7 @@ export async function middleware(req: NextRequest) {
   // Check if the user is authenticated
   const isAuthenticated = !!session;
   const isAuthPage = req.nextUrl.pathname === '/auth';
+  const isResetPasswordPage = req.nextUrl.pathname === '/auth/reset-password';
   
   // If user is on the auth page and is already authenticated, redirect to setup
   if (isAuthPage && isAuthenticated) {
@@ -38,6 +39,7 @@ export async function middleware(req: NextRequest) {
   // Skip auth check for public routes
   const isPublicRoute = [
     '/auth',
+    '/auth/reset-password', // Allow access to reset password page
     '/_next',
     '/api',
     '/favicon.ico',

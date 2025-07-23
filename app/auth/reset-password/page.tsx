@@ -12,6 +12,7 @@ function ResetPasswordForm() {
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -22,19 +23,59 @@ function ResetPasswordForm() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // Check for auth session on mount
+  // Handle auth session on mount
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError("No active session. Please use the reset password link from your email.");
+    const handleAuthSession = async () => {
+      try {
+        // Check if we have URL fragments (access_token, refresh_token, etc.)
+        const hashParams = new URLSearchParams(window.location.hash.slice(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        
+        if (accessToken && refreshToken) {
+          // Set the session using the tokens from the URL
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) {
+            console.error('Error setting session:', error);
+            setError('Invalid reset link. Please request a new password reset.');
+            return;
+          }
+          
+          console.log('Session set successfully:', data);
+          setSessionReady(true);
+          
+          // Clean up URL by removing the hash
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+          // Check if we already have a session
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            setSessionReady(true);
+          } else {
+            setError('No active session. Please use the reset password link from your email.');
+          }
+        }
+      } catch (err) {
+        console.error('Auth session error:', err);
+        setError('Error setting up password reset. Please try again.');
       }
     };
-    checkSession();
-  }, []);
+
+    handleAuthSession();
+  }, [supabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!sessionReady) {
+      setError('Please wait for the session to be ready.');
+      return;
+    }
+    
     setError("");
     setLoading(true);
 
@@ -52,14 +93,16 @@ function ResetPasswordForm() {
     }
 
     try {
-      // First, update the password
+      // Update the password
       const { data: updateData, error: updateError } = await supabase.auth.updateUser({
         password: newPassword
       });
 
       if (updateError) throw updateError;
 
-      // Get the current session
+      console.log('Password updated successfully:', updateData);
+
+      // Get the current session to check user profile
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) throw sessionError;
@@ -75,8 +118,6 @@ function ResetPasswordForm() {
         .eq('id', session.user.id)
         .single();
 
-      if (profileError) throw profileError;
-
       setSuccess(true);
       
       // Clear form
@@ -85,10 +126,10 @@ function ResetPasswordForm() {
       
       // Redirect based on setup status after 2 seconds
       setTimeout(() => {
-        if (profile?.setup_completed) {
-          router.push('/plan');
-        } else {
+        if (profileError || !profile?.setup_completed) {
           router.push('/setup');
+        } else {
+          router.push('/plan');
         }
       }, 2000);
 
@@ -122,6 +163,12 @@ function ResetPasswordForm() {
           </div>
         )}
 
+        {!sessionReady && !error && (
+          <div className="mb-4 p-3 bg-blue-100 text-blue-700 rounded-md text-sm">
+            Setting up password reset session...
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="newPassword">
@@ -133,13 +180,15 @@ function ResetPasswordForm() {
                 type={showPassword ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                disabled={!sessionReady}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline disabled:bg-gray-100"
                 placeholder="Enter your new password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                disabled={!sessionReady}
               >
                 {showPassword ? (
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-500">
@@ -165,13 +214,15 @@ function ResetPasswordForm() {
                 type={showConfirmPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                disabled={!sessionReady}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline disabled:bg-gray-100"
                 placeholder="Confirm your new password"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                disabled={!sessionReady}
               >
                 {showConfirmPassword ? (
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-500">
@@ -189,7 +240,7 @@ function ResetPasswordForm() {
 
           <button
             type="submit"
-            disabled={loading || success}
+            disabled={loading || success || !sessionReady}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 flex justify-center items-center"
           >
             {loading ? (
@@ -202,6 +253,15 @@ function ResetPasswordForm() {
             )}
           </button>
         </form>
+
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => router.push('/auth')}
+            className="text-blue-600 text-sm hover:underline"
+          >
+            Back to Sign In
+          </button>
+        </div>
       </div>
     </div>
   );
