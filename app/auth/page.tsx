@@ -324,15 +324,28 @@ export default function AuthPage() {
     setError("");
 
     try {
+      // Get the current domain for the redirect URL
+      const siteUrl = typeof window !== 'undefined' 
+        ? `${window.location.protocol}//${window.location.host}`
+        : process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-ai-playcaller.vercel.app';
+      
+      const redirectUrl = `${siteUrl}/auth/reset-password`;
+      
+      console.log('Sending password reset to:', email);
+      console.log('Redirect URL:', redirectUrl);
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://v0-ai-playcaller.vercel.app'}/auth/reset-password`,
+        redirectTo: redirectUrl,
       });
 
       if (error) throw error;
 
       setResetEmailSent(true);
       setError("");
+      
+      console.log('Password reset email sent successfully');
     } catch (error: any) {
+      console.error('Password reset error:', error);
       setError(error.message || "Failed to send reset email");
     } finally {
       setLoading(false);

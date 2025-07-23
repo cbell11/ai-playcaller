@@ -13,6 +13,7 @@ function ResetPasswordForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
+  const [debugInfo, setDebugInfo] = useState("");
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -27,12 +28,38 @@ function ResetPasswordForm() {
   useEffect(() => {
     const handleAuthSession = async () => {
       try {
-        // Check if we have URL fragments (access_token, refresh_token, etc.)
+        console.log('Starting auth session setup...');
+        console.log('Current URL:', window.location.href);
+        console.log('Hash:', window.location.hash);
+        console.log('Search params:', window.location.search);
+        
+        // First, check for tokens in URL hash (most common for Supabase)
         const hashParams = new URLSearchParams(window.location.hash.slice(1));
-        const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
+        let accessToken = hashParams.get('access_token');
+        let refreshToken = hashParams.get('refresh_token');
+        let tokenType = hashParams.get('token_type');
+        let type = hashParams.get('type');
+        
+        // If not in hash, check search params
+        if (!accessToken) {
+          accessToken = searchParams.get('access_token');
+          refreshToken = searchParams.get('refresh_token');
+          tokenType = searchParams.get('token_type');
+          type = searchParams.get('type');
+        }
+        
+        console.log('Extracted tokens:', {
+          accessToken: accessToken ? 'present' : 'missing',
+          refreshToken: refreshToken ? 'present' : 'missing',
+          tokenType,
+          type
+        });
+        
+        setDebugInfo(`Hash: ${window.location.hash.substring(0, 50)}... | Search: ${window.location.search}`);
         
         if (accessToken && refreshToken) {
+          console.log('Setting session with extracted tokens...');
+          
           // Set the session using the tokens from the URL
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
@@ -41,22 +68,34 @@ function ResetPasswordForm() {
           
           if (error) {
             console.error('Error setting session:', error);
-            setError('Invalid reset link. Please request a new password reset.');
+            setError(`Invalid reset link: ${error.message}`);
             return;
           }
           
           console.log('Session set successfully:', data);
           setSessionReady(true);
           
-          // Clean up URL by removing the hash
-          window.history.replaceState({}, document.title, window.location.pathname);
+          // Clean up URL by removing the hash and search params
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
         } else {
+          console.log('No tokens found in URL, checking existing session...');
+          
           // Check if we already have a session
-          const { data: { session } } = await supabase.auth.getSession();
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error('Session error:', sessionError);
+            setError(`Session error: ${sessionError.message}`);
+            return;
+          }
+          
           if (session) {
+            console.log('Found existing session:', session);
             setSessionReady(true);
           } else {
-            setError('No active session. Please use the reset password link from your email.');
+            console.log('No active session found');
+            setError('No active session. Please use the reset password link from your email or request a new one.');
           }
         }
       } catch (err) {
@@ -66,7 +105,7 @@ function ResetPasswordForm() {
     };
 
     handleAuthSession();
-  }, [supabase]);
+  }, [supabase, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,9 +190,26 @@ function ResetPasswordForm() {
       <div className="bg-white p-8 rounded-lg shadow-md">
         <h2 className="text-2xl font-semibold mb-6">Create New Password</h2>
 
+        {/* Debug info for development */}
+        {process.env.NODE_ENV === 'development' && debugInfo && (
+          <div className="mb-4 p-2 bg-gray-100 text-gray-700 rounded text-xs">
+            <strong>Debug:</strong> {debugInfo}
+          </div>
+        )}
+
         {error && (
           <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md text-sm">
             {error}
+            {!sessionReady && (
+              <div className="mt-2">
+                <button
+                  onClick={() => router.push('/auth')}
+                  className="text-red-800 underline text-xs"
+                >
+                  Request a new password reset
+                </button>
+              </div>
+            )}
           </div>
         )}
 
