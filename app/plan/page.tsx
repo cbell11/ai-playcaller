@@ -101,6 +101,8 @@ interface GamePlan {
   screens: PlayCall[]
   playAction: PlayCall[]
   deepShots: PlayCall[]
+  twoMinuteDrill: PlayCall[]
+  twoPointPlays: PlayCall[]
 }
 
 interface ExtendedPlay extends Play {
@@ -177,7 +179,9 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'backedup': 'backedUp',
   'screens': 'screens',
   'playaction': 'playAction',
-  'deepshots': 'deepShots'
+  'deepshots': 'deepShots',
+  'twominutedrill': 'twoMinuteDrill',
+  'twopointplays': 'twoPointPlays'
 };
 
 // Add initial section sizes configuration
@@ -196,7 +200,9 @@ const initialSectionSizes: Record<keyof GamePlan, number> = {
   backedUp: 5,
   screens: 5,
   playAction: 5,
-  deepShots: 5
+  deepShots: 5,
+  twoMinuteDrill: 10,
+  twoPointPlays: 4
 };
 
 // Add helper function to create empty plans
@@ -225,7 +231,9 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     backedUp: Array(sizes.backedUp).fill(emptySlot),
     screens: Array(sizes.screens).fill(emptySlot),
     playAction: Array(sizes.playAction).fill(emptySlot),
-    deepShots: Array(sizes.deepShots).fill(emptySlot)
+    deepShots: Array(sizes.deepShots).fill(emptySlot),
+    twoMinuteDrill: Array(sizes.twoMinuteDrill).fill(emptySlot),
+    twoPointPlays: Array(sizes.twoPointPlays).fill(emptySlot)
   };
 };
 
@@ -2263,7 +2271,7 @@ export default function PlanPage() {
       if (updatedPlan) {
         setPlan(updatedPlan);
         if (isBrowser) {
-          save('plan', updatedPlan);
+        save('plan', updatedPlan);
         }
       }
 
@@ -2825,7 +2833,7 @@ export default function PlanPage() {
                     ['basePackage3', 'firstDowns', 'shortYardage'],
                     ['thirdAndLong', 'redZone', 'goalline'],
                     ['backedUp', 'screens', 'playAction'],
-                    ['deepShots']
+                    ['deepShots', 'twoMinuteDrill', 'twoPointPlays']
                   ];
 
                   const sectionDetails = {
@@ -2841,7 +2849,9 @@ export default function PlanPage() {
                     backedUp: { title: 'Backed Up', bgColor: 'bg-white' },
                     screens: { title: 'Screens', bgColor: 'bg-white' },
                     playAction: { title: 'Play Action', bgColor: 'bg-white' },
-                    deepShots: { title: 'Deep Shots', bgColor: 'bg-white' }
+                    deepShots: { title: 'Deep Shots', bgColor: 'bg-white' },
+                    twoMinuteDrill: { title: 'Two Minute Drill', bgColor: 'bg-white' },
+                    twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' }
                   };
 
                   return sectionGroups.map(group => {
@@ -3097,6 +3107,26 @@ export default function PlanPage() {
                         }
                       />
                     </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="two-minute-drill">Two Minute Drill</Label>
+                      <Switch
+                        id="two-minute-drill"
+                        checked={sectionVisibility.twoMinuteDrill}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, twoMinuteDrill: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="two-point-plays">Two Point Plays</Label>
+                      <Switch
+                        id="two-point-plays"
+                        checked={sectionVisibility.twoPointPlays}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, twoPointPlays: checked }))
+                        }
+                      />
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -3181,7 +3211,9 @@ export default function PlanPage() {
                 { key: 'backedUp', title: 'Backed Up', bgColor: 'bg-red-100' },
                 { key: 'screens', title: 'Screens', bgColor: 'bg-purple-100' },
                 { key: 'playAction', title: 'Play Action', bgColor: 'bg-purple-100' },
-                { key: 'deepShots', title: 'Deep Shots', bgColor: 'bg-purple-100' }
+                { key: 'deepShots', title: 'Deep Shots', bgColor: 'bg-purple-100' },
+                { key: 'twoMinuteDrill', title: 'Two Minute Drill', bgColor: 'bg-pink-100' },
+                { key: 'twoPointPlays', title: 'Two Point Plays', bgColor: 'bg-pink-100' }
               ].filter(item => sectionVisibility[item.key as keyof GamePlan]).map(item => (
                 <div key={item.key} className="col-span-1">
                   <div className="relative">
