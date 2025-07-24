@@ -2367,7 +2367,11 @@ export default function PlanPage() {
         },
         body: JSON.stringify({
           playPool: formattedPlays,
-          sectionSizes,
+          sectionSizes: {
+            ...sectionSizes,
+            // Ensure firstSecondCombos size is doubled for individual plays
+            firstSecondCombos: sectionSizes.firstSecondCombos * 2
+          },
           basePackageConcepts // Pass the base package concepts
         })
       });
@@ -2387,7 +2391,9 @@ export default function PlanPage() {
       // Update each section, respecting the section sizes
       for (const [section, plays] of Object.entries(gamePlan)) {
         const sectionKey = section as keyof GamePlan;
-        const maxPlays = sectionSizes[sectionKey];
+        const maxPlays = sectionKey === 'firstSecondCombos' 
+          ? sectionSizes[sectionKey] * 2  // Double the size for combos
+          : sectionSizes[sectionKey];
         
         // Only save up to the maximum number of plays for this section
         for (let i = 0; i < Math.min((plays as string[]).length, maxPlays); i++) {
@@ -2404,7 +2410,7 @@ export default function PlanPage() {
       if (updatedPlan) {
         setPlan(updatedPlan);
         if (isBrowser) {
-        save('plan', updatedPlan);
+          save('plan', updatedPlan);
         }
       }
 
