@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 import { LoadingModal } from "../components/loading-modal"
 import Image from "next/image"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Add this helper function near the top of the file
 const isBrowser = typeof window !== 'undefined';
@@ -665,12 +666,40 @@ export default function PlanPage() {
     };
   });
 
+  // Add this near other state declarations
+  const [basePackageConcepts, setBasePackageConcepts] = useState<Record<string, string>>(() => {
+    if (!isBrowser) return {
+      basePackage1: '',
+      basePackage2: '',
+      basePackage3: ''
+    };
+    
+    const saved = localStorage.getItem('basePackageConcepts');
+    return saved ? JSON.parse(saved) : {
+      basePackage1: '',
+      basePackage2: '',
+      basePackage3: ''
+    };
+  });
+
+  // Add this near other state declarations
+  const [uniqueConcepts, setUniqueConcepts] = useState<string[]>([]);
+
   // Add this function to handle name updates
   const handleSectionNameChange = (section: string, newName: string) => {
     const updated = { ...customSectionNames, [section]: newName };
     setCustomSectionNames(updated);
     if (isBrowser) {
       localStorage.setItem('customSectionNames', JSON.stringify(updated));
+    }
+  };
+
+  // Add this function to handle concept changes
+  const handleConceptChange = (section: string, concept: string) => {
+    const updated = { ...basePackageConcepts, [section]: concept };
+    setBasePackageConcepts(updated);
+    if (isBrowser) {
+      localStorage.setItem('basePackageConcepts', JSON.stringify(updated));
     }
   };
 
@@ -1084,6 +1113,22 @@ export default function PlanPage() {
     loadPlays();
   }, [selectedOpponent]); // Remove sectionSizes from dependencies
 
+  // Add effect to populate unique concepts
+  useEffect(() => {
+    if (!playPool.length) return;
+
+    // Get unique concepts from the playpool using Object.keys and reduce
+    const uniqueConceptsMap = playPool.reduce((acc, play) => {
+      if (play.concept) {
+        acc[play.concept] = true;
+      }
+      return acc;
+    }, {} as Record<string, boolean>);
+
+    const concepts = Object.keys(uniqueConceptsMap).sort();
+    setUniqueConcepts(concepts);
+  }, [playPool]);
+
   // Handle before drag start
   const handleBeforeDragStart = (start: any) => {
     console.log("Drag start:", JSON.stringify(start, null, 2));
@@ -1363,9 +1408,9 @@ export default function PlanPage() {
     // Check if this is a Base Package section
     const isBasePackage = section.startsWith('basePackage');
     const displayTitle = isBasePackage ? customSectionNames[section] || title : title;
-
+    
     return (
-      <Card className="bg-white rounded shadow h-full">
+    <Card className="bg-white rounded shadow h-full">
         <CardHeader className="bg-white border-b p-4">
           <div className="mb-2 flex justify-between items-center">
             <div className="flex items-center gap-2">
@@ -1383,27 +1428,51 @@ export default function PlanPage() {
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Customize Section Name</DialogTitle>
+                      <DialogTitle>Customize Section</DialogTitle>
                       <DialogDescription>
-                        Enter a new name for this section
+                        Customize the name and focus concept for this section
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4">
-                      <Label htmlFor="sectionName">Section Name</Label>
-                      <input
-                        id="sectionName"
-                        className="w-full px-3 py-2 border rounded mt-2"
-                        defaultValue={displayTitle}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleSectionNameChange(section, e.currentTarget.value);
-                            (e.currentTarget.closest('dialog') as HTMLDialogElement)?.close();
-                          }
-                        }}
-                        onBlur={(e) => {
-                          handleSectionNameChange(section, e.target.value);
-                        }}
-                      />
+                    <div className="py-4 space-y-4">
+                      <div>
+                        <Label htmlFor="sectionName">Section Name</Label>
+                        <input
+                          id="sectionName"
+                          className="w-full px-3 py-2 border rounded mt-2"
+                          defaultValue={displayTitle}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSectionNameChange(section, e.currentTarget.value);
+                              (e.currentTarget.closest('dialog') as HTMLDialogElement)?.close();
+                            }
+                          }}
+                          onBlur={(e) => {
+                            handleSectionNameChange(section, e.target.value);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="concept">Focus Concept</Label>
+                        <Select
+                          value={basePackageConcepts[section] || 'any'}
+                          onValueChange={(value) => handleConceptChange(section, value === 'any' ? '' : value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a concept" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px] overflow-y-auto">
+                            <SelectItem value="any">Any Concept</SelectItem>
+                            {uniqueConcepts.map((concept) => (
+                              <SelectItem key={concept} value={concept}>
+                                {concept}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Select a concept to focus on for this package
+                        </p>
+                      </div>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -1439,7 +1508,7 @@ export default function PlanPage() {
                 size="icon"
                 className="h-6 w-6 rounded-full"
                 onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
-              disabled={sectionSizes[section] >= 20}
+                disabled={sectionSizes[section] >= 20}
               >
                 <span className="sr-only">Increase size</span>
                 +
@@ -1462,8 +1531,13 @@ export default function PlanPage() {
             {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
           </Button>
           </div>
-        </CardHeader>
-        <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
+          {isBasePackage && basePackageConcepts[section] && (
+            <div className="mt-2 text-xs text-gray-600">
+              Focus: {basePackageConcepts[section]}
+            </div>
+          )}
+      </CardHeader>
+      <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 'calc(100% - 56px)' }}>
           <Droppable 
             droppableId={`section-${section}`} 
             type="PLAY" 
@@ -2056,12 +2130,12 @@ export default function PlanPage() {
               const playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
               return (
                 <tr key={idx} className={`border-b ${playBgColor}`}>
-                  <td className="py-0 px-0.5 border-r w-4">□</td>
-                  <td className="py-0 px-0.5 border-r w-4">□</td>
-                  <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
-                  <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
-                    {play.play}
-                  </td>
+                <td className="py-0 px-0.5 border-r w-4">□</td>
+                <td className="py-0 px-0.5 border-r w-4">□</td>
+                <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
+                <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
+                  {play.play}
+                </td>
                 </tr>
               );
             })}
@@ -2123,10 +2197,28 @@ export default function PlanPage() {
         throw new Error('Failed to clear existing game plan');
       }
 
-      // Format plays for the API and include section sizes
-      const formattedPlays = playPool.map(p => formatPlayFromPool(p));
+      // Pre-filter plays based on base package concepts
+      const filteredPlayPool = playPool.map(play => {
+        // Check if this play is for a base package with a selected concept
+        const basePackageSection = Object.entries(basePackageConcepts).find(([section, concept]) => 
+          concept && play.concept === concept
+        );
 
-      // Call our API route with section sizes
+        // If this play matches a base package concept, mark it for that section
+        if (basePackageSection) {
+          return {
+            ...play,
+            _targetSection: basePackageSection[0] // Store the section this play should go to
+          };
+        }
+
+        return play;
+      });
+
+      // Format plays for the API and include section sizes
+      const formattedPlays = filteredPlayPool.map(p => formatPlayFromPool(p));
+
+      // Call our API route with section sizes and base package concepts
       const response = await fetch('/api/generate-gameplan', {
         method: 'POST',
         headers: {
@@ -2134,7 +2226,8 @@ export default function PlanPage() {
         },
         body: JSON.stringify({
           playPool: formattedPlays,
-          sectionSizes: sectionSizes // Pass the section sizes to the API
+          sectionSizes,
+          basePackageConcepts // Pass the base package concepts
         })
       });
 
@@ -2147,7 +2240,7 @@ export default function PlanPage() {
       
       // Helper function to find a play in the pool by its formatted name
       const findPlayByName = (name: string) => {
-        return playPool.find(p => formatPlayFromPool(p) === name);
+        return filteredPlayPool.find(p => formatPlayFromPool(p) === name);
       };
 
       // Update each section, respecting the section sizes
@@ -2170,7 +2263,7 @@ export default function PlanPage() {
       if (updatedPlan) {
         setPlan(updatedPlan);
         if (isBrowser) {
-        save('plan', updatedPlan);
+          save('plan', updatedPlan);
         }
       }
 
@@ -2283,7 +2376,19 @@ export default function PlanPage() {
       }
 
       // Format plays for the API - use only plays that match this section's typical category
-      const formattedPlays = playPool.map(p => formatPlayFromPool(p));
+      // and selected concept if it's a base package
+      const isBasePackage = section.startsWith('basePackage');
+      const selectedConcept = isBasePackage ? basePackageConcepts[section] : null;
+      
+      const filteredPlays = playPool
+        .filter(p => {
+          // If this is a base package with a selected concept, filter by it
+          if (isBasePackage && selectedConcept) {
+            return p.concept === selectedConcept;
+          }
+          return true;
+        })
+        .map(p => formatPlayFromPool(p));
 
       // Create a minimal section-specific size object for faster processing
       const sectionSizeObj = {
@@ -2297,10 +2402,11 @@ export default function PlanPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          playPool: formattedPlays,
+          playPool: filteredPlays,
           sectionSizes: sectionSizeObj,
           singleSection: true, // Flag for faster processing
-          targetSection: section
+          targetSection: section,
+          selectedConcept: selectedConcept // Pass the selected concept to the API
         })
       });
 
@@ -2766,7 +2872,7 @@ export default function PlanPage() {
                             maxLength,
                             sectionKey // Pass the section key
                           )}
-                        </div>
+                </div>
                       );
                     });
                   });
