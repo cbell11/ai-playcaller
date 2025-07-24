@@ -103,6 +103,7 @@ interface GamePlan {
   deepShots: PlayCall[]
   twoMinuteDrill: PlayCall[]
   twoPointPlays: PlayCall[]
+  firstSecondCombos: PlayCall[]
 }
 
 interface ExtendedPlay extends Play {
@@ -181,7 +182,8 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'playaction': 'playAction',
   'deepshots': 'deepShots',
   'twominutedrill': 'twoMinuteDrill',
-  'twopointplays': 'twoPointPlays'
+  'twopointplays': 'twoPointPlays',
+  'firstsecondcombos': 'firstSecondCombos'
 };
 
 // Add initial section sizes configuration
@@ -202,7 +204,8 @@ const initialSectionSizes: Record<keyof GamePlan, number> = {
   playAction: 5,
   deepShots: 5,
   twoMinuteDrill: 10,
-  twoPointPlays: 4
+  twoPointPlays: 4,
+  firstSecondCombos: 8
 };
 
 // Add helper function to create empty plans
@@ -233,7 +236,8 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     playAction: Array(sizes.playAction).fill(emptySlot),
     deepShots: Array(sizes.deepShots).fill(emptySlot),
     twoMinuteDrill: Array(sizes.twoMinuteDrill).fill(emptySlot),
-    twoPointPlays: Array(sizes.twoPointPlays).fill(emptySlot)
+    twoPointPlays: Array(sizes.twoPointPlays).fill(emptySlot),
+    firstSecondCombos: Array(sizes.firstSecondCombos * 2).fill(emptySlot) // 8 combos = 16 individual plays
   };
 };
 
@@ -1502,21 +1506,29 @@ export default function PlanPage() {
                 variant="outline"
                 size="icon"
                 className="h-6 w-6 rounded-full"
-                onClick={() => handleSectionSizeChange(section, sectionSizes[section] - 1)}
-                disabled={sectionSizes[section] <= 1}
+                onClick={() => {
+                  const isComboSection = section === 'firstSecondCombos';
+                  const decrementAmount = isComboSection ? 2 : 1;
+                  handleSectionSizeChange(section, sectionSizes[section] - decrementAmount);
+                }}
+                disabled={sectionSizes[section] <= (section === 'firstSecondCombos' ? 2 : 1)}
               >
                 <span className="sr-only">Decrease size</span>
                 -
               </Button>
               <span className="text-sm font-medium w-6 text-center">
-                {sectionSizes[section]}
+                {section === 'firstSecondCombos' ? sectionSizes[section] / 2 : sectionSizes[section]}
               </span>
               <Button
                 variant="outline"
                 size="icon"
                 className="h-6 w-6 rounded-full"
-                onClick={() => handleSectionSizeChange(section, sectionSizes[section] + 1)}
-                disabled={sectionSizes[section] >= 20}
+                onClick={() => {
+                  const isComboSection = section === 'firstSecondCombos';
+                  const incrementAmount = isComboSection ? 2 : 1;
+                  handleSectionSizeChange(section, sectionSizes[section] + incrementAmount);
+                }}
+                disabled={sectionSizes[section] >= (section === 'firstSecondCombos' ? 40 : 20)}
               >
                 <span className="sr-only">Increase size</span>
                 +
@@ -1563,16 +1575,103 @@ export default function PlanPage() {
               >
                 {filledPlays.map((play, index) => {
                 const hasContent = !!play.play;
-                  
+                const isComboSection = section === 'firstSecondCombos';
+                
                   if (!hasContent) {
+                    if (isComboSection && index % 2 === 0) {
+                      // For combo section, show combo pairs
+                      const nextPlay = filledPlays[index + 1];
+                      const hasNextContent = nextPlay && !!nextPlay.play;
+                      
+                      return (
+                        <div key={`${section}-${index}-combo-empty`} className="px-4 py-2 bg-white border border-gray-200">
+                          <div className="text-xs font-semibold text-gray-700 mb-1">Combo {Math.floor(index / 2) + 1}</div>
+                          <div className="space-y-1">
+                            <div className="flex items-center p-2 rounded bg-gray-50">
+                              <span className="w-8 text-slate-500 text-xs font-bold">1st:</span>
+                              <span className="text-gray-300 italic flex-1 text-xs">Empty</span>
+                            </div>
+                            <div className="flex items-center p-2 rounded bg-gray-50">
+                              <span className="w-8 text-slate-500 text-xs font-bold">2nd:</span>
+                              <span className="text-gray-300 italic flex-1 text-xs">Empty</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    } else if (isComboSection && index % 2 === 1) {
+                      // Skip odd indices in combo section as they're handled by the even index
+                      return null;
+                    } else {
+                      return (
+                        <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
+                          <span className="w-6 text-slate-500">{index + 1}.</span>
+                          <span className="text-gray-300 italic flex-1 text-center text-xs">
+                            {/* Empty space for vacant slot */}
+                          </span>
+                        </div>
+                      );
+                    }
+                  }
+
+                  if (isComboSection && index % 2 === 0) {
+                    // Render combo pairs for firstSecondCombos
+                    const nextPlay = filledPlays[index + 1];
+                    const hasNextContent = nextPlay && !!nextPlay.play;
+                    
+                    // Get background colors for each play based on category
+                    const firstPlayBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
+                    const secondPlayBgColor = hasNextContent && nextPlay.category ? categoryColors[nextPlay.category as keyof CategoryColors] : '';
+                    
                     return (
-                      <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
-                        <span className="w-6 text-slate-500">{index + 1}.</span>
-                        <span className="text-gray-300 italic flex-1 text-center text-xs">
-                          {/* Empty space for vacant slot */}
-                        </span>
-                      </div>
+                      <Draggable 
+                        key={`combo-${section}-${index}`} 
+                        draggableId={`combo-${section}-${index}`} 
+                        index={Math.floor(index / 2)}
+                      >
+                        {(providedDrag, snapshotDrag) => (
+                          <div
+                            ref={providedDrag.innerRef}
+                            {...providedDrag.draggableProps}
+                            className={`px-4 py-2 bg-white border border-gray-200 ${
+                              snapshotDrag.isDragging ? 'opacity-50' : ''
+                            }`}
+                          >
+                            <div className="flex items-center mb-2">
+                              <div 
+                                {...providedDrag.dragHandleProps}
+                                className="mr-2 cursor-grab"
+                              >
+                                <GripVertical className="h-4 w-4 text-gray-400" />
+                              </div>
+                              <span className="text-xs font-semibold text-gray-700">Combo {Math.floor(index / 2) + 1}</span>
+                              <div className="flex items-center gap-1 ml-auto">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-gray-500"
+                                  onClick={() => handleDeletePlay(section, index)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <div className={`flex items-center text-sm font-mono p-2 rounded ${firstPlayBgColor}`}>
+                                <span className="w-8 text-slate-500 text-xs font-bold">1st:</span>
+                                <span className="flex-1">{play.play || 'Empty'}</span>
+                              </div>
+                              <div className={`flex items-center text-sm font-mono p-2 rounded ${secondPlayBgColor}`}>
+                                <span className="w-8 text-slate-500 text-xs font-bold">2nd:</span>
+                                <span className="flex-1">{hasNextContent ? nextPlay.play : 'Empty'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </Draggable>
                     );
+                  } else if (isComboSection && index % 2 === 1) {
+                    // Skip odd indices in combo section as they're handled by the even index
+                    return null;
                   }
                 
                 let playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
@@ -2833,7 +2932,8 @@ export default function PlanPage() {
                     ['basePackage3', 'firstDowns', 'shortYardage'],
                     ['thirdAndLong', 'redZone', 'goalline'],
                     ['backedUp', 'screens', 'playAction'],
-                    ['deepShots', 'twoMinuteDrill', 'twoPointPlays']
+                    ['deepShots', 'twoMinuteDrill', 'twoPointPlays'],
+                    ['firstSecondCombos']
                   ];
 
                   const sectionDetails = {
@@ -2851,7 +2951,8 @@ export default function PlanPage() {
                     playAction: { title: 'Play Action', bgColor: 'bg-white' },
                     deepShots: { title: 'Deep Shots', bgColor: 'bg-white' },
                     twoMinuteDrill: { title: 'Two Minute Drill', bgColor: 'bg-white' },
-                    twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' }
+                    twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' },
+                    firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' }
                   };
 
                   return sectionGroups.map(group => {
@@ -3127,6 +3228,16 @@ export default function PlanPage() {
                         }
                       />
                     </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="first-second-combos">1st and 2nd Combos</Label>
+                      <Switch
+                        id="first-second-combos"
+                        checked={sectionVisibility.firstSecondCombos}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, firstSecondCombos: checked }))
+                        }
+                      />
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -3213,7 +3324,8 @@ export default function PlanPage() {
                 { key: 'playAction', title: 'Play Action', bgColor: 'bg-purple-100' },
                 { key: 'deepShots', title: 'Deep Shots', bgColor: 'bg-purple-100' },
                 { key: 'twoMinuteDrill', title: 'Two Minute Drill', bgColor: 'bg-pink-100' },
-                { key: 'twoPointPlays', title: 'Two Point Plays', bgColor: 'bg-pink-100' }
+                { key: 'twoPointPlays', title: 'Two Point Plays', bgColor: 'bg-pink-100' },
+                { key: 'firstSecondCombos', title: '1st and 2nd Combos', bgColor: 'bg-indigo-100' }
               ].filter(item => sectionVisibility[item.key as keyof GamePlan]).map(item => (
                 <div key={item.key} className="col-span-1">
                   <div className="relative">
