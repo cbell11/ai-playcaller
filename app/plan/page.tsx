@@ -2410,7 +2410,7 @@ export default function PlanPage() {
       if (updatedPlan) {
         setPlan(updatedPlan);
         if (isBrowser) {
-          save('plan', updatedPlan);
+        save('plan', updatedPlan);
         }
       }
 
@@ -2502,17 +2502,16 @@ export default function PlanPage() {
     localStorage.setItem('categoryColors', JSON.stringify(newColors));
   };
 
-  // Add function to load Coverage 0 Beaters from master_play_pool
+  // Add function to load Cover 0 Beaters from master_play_pool
   const loadCoverage0Beaters = async (count: number = 5) => {
+    console.log('Starting Cover 0 Beaters query...');
     try {
-      console.log('Starting Coverage 0 Beaters query...');
-
-      // Get team and opponent IDs
+      // Get plays that have '0' in coverage_beaters from playpool
       const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
       const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
 
       if (!team_id || !opponent_id) {
-        throw new Error('Team or opponent not selected');
+        throw new Error('Team or opponent not selected for Cover 0 Beaters');
       }
 
       // Get plays from playpool that have '0' in coverage_beaters
@@ -2532,10 +2531,10 @@ export default function PlanPage() {
       }
 
       if (!plays || plays.length === 0) {
-        throw new Error('No Coverage 0 Beaters found in play pool');
+        throw new Error('No Cover 0 Beaters found in play pool for this opponent');
       }
 
-      console.log('Found Coverage 0 plays:', plays.length);
+      console.log('Found Cover 0 plays:', plays.length);
 
       // Take random plays up to the count
       const shuffled = plays.sort(() => 0.5 - Math.random());
@@ -2555,12 +2554,12 @@ export default function PlanPage() {
       console.log('Final plays returned:', playCallsArray);
       return playCallsArray;
     } catch (error) {
-      console.error('Error loading Coverage 0 Beaters:', error);
+      console.error('Error loading Cover 0 Beaters:', error);
       throw error;
     }
   };
 
-  // Add handler for refreshing Coverage 0 Beaters
+  // Add handler for refreshing Cover 0 Beaters
   const handleRefreshCoverage0Beaters = async () => {
     const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
     const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
@@ -2587,7 +2586,7 @@ export default function PlanPage() {
         throw new Error('Failed to clear section');
       }
 
-      // Load new random Coverage 0 Beaters
+      // Load new random Cover 0 Beaters
       const newPlays = await loadCoverage0Beaters(sectionSizes.coverage0Beaters);
 
       // Save new plays to database
@@ -2621,14 +2620,14 @@ export default function PlanPage() {
       }
 
       setNotification({
-        message: 'Coverage 0 Beaters refreshed successfully!',
+        message: 'Cover 0 Beaters refreshed successfully!',
         type: 'success'
       });
 
     } catch (error) {
-      console.error('Error refreshing Coverage 0 Beaters:', error);
+      console.error('Error refreshing Cover 0 Beaters:', error);
       setNotification({
-        message: error instanceof Error ? error.message : 'Failed to refresh Coverage 0 Beaters',
+        message: error instanceof Error ? error.message : 'Failed to refresh Cover 0 Beaters',
         type: 'error'
       });
     } finally {
@@ -3131,7 +3130,7 @@ export default function PlanPage() {
                     twoMinuteDrill: { title: 'Two Minute Drill', bgColor: 'bg-white' },
                     twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' },
                     firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' },
-                    coverage0Beaters: { title: 'Coverage 0 Beaters', bgColor: 'bg-white' }
+                    coverage0Beaters: { title: 'Cover 0 Beaters', bgColor: 'bg-white' }
                   };
 
                   return sectionGroups.map(group => {
@@ -3418,7 +3417,7 @@ export default function PlanPage() {
                       />
                     </div>
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="coverage0-beaters">Coverage 0 Beaters</Label>
+                      <Label htmlFor="coverage0-beaters">Cover 0 Beaters</Label>
                       <Switch
                         id="coverage0-beaters"
                         checked={sectionVisibility.coverage0Beaters}
@@ -3515,7 +3514,7 @@ export default function PlanPage() {
                 { key: 'twoMinuteDrill', title: 'Two Minute Drill', bgColor: 'bg-pink-100' },
                 { key: 'twoPointPlays', title: 'Two Point Plays', bgColor: 'bg-pink-100' },
                 { key: 'firstSecondCombos', title: '1st and 2nd Combos', bgColor: 'bg-indigo-100' },
-                { key: 'coverage0Beaters', title: 'Coverage 0 Beaters', bgColor: 'bg-yellow-100' }
+                { key: 'coverage0Beaters', title: 'Cover 0 Beaters', bgColor: 'bg-yellow-100' }
               ].filter(item => sectionVisibility[item.key as keyof GamePlan]).map(item => (
                 <div key={item.key} className="col-span-1">
                   <div className="relative">
