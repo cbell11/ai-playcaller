@@ -1836,7 +1836,8 @@ export default function PlanPage() {
         fieldAlignment: (play.strength as "+" | "-") || '+',
         motion: play.motion_shift || '',
         play: formatPlayFromPool(play),
-        runDirection: (play.run_direction as "+" | "-") || '+'
+        runDirection: (play.run_direction as "+" | "-") || '+',
+        category: play.category || '' // Add the category
       };
       
       // Make a copy of the current plan
