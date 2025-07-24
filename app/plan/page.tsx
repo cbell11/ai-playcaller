@@ -104,6 +104,13 @@ interface GamePlan {
   twoMinuteDrill: PlayCall[]
   twoPointPlays: PlayCall[]
   firstSecondCombos: PlayCall[]
+  cover0Beaters: PlayCall[]
+  cover1Beaters: PlayCall[]
+  cover2Beaters: PlayCall[]
+  cover2ManBeaters: PlayCall[]
+  cover3Beaters: PlayCall[]
+  cover4Beaters: PlayCall[]
+  cover6Beaters: PlayCall[]
 }
 
 interface ExtendedPlay extends Play {
@@ -183,7 +190,14 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'deepshots': 'deepShots',
   'twominutedrill': 'twoMinuteDrill',
   'twopointplays': 'twoPointPlays',
-  'firstsecondcombos': 'firstSecondCombos'
+  'firstsecondcombos': 'firstSecondCombos',
+  'cover0beaters': 'cover0Beaters',
+  'cover1beaters': 'cover1Beaters',
+  'cover2beaters': 'cover2Beaters',
+  'cover2manbeaters': 'cover2ManBeaters',
+  'cover3beaters': 'cover3Beaters',
+  'cover4beaters': 'cover4Beaters',
+  'cover6beaters': 'cover6Beaters'
 };
 
 // Add initial section sizes configuration
@@ -205,7 +219,14 @@ const initialSectionSizes: Record<keyof GamePlan, number> = {
   deepShots: 5,
   twoMinuteDrill: 10,
   twoPointPlays: 4,
-  firstSecondCombos: 8
+  firstSecondCombos: 8,
+  cover0Beaters: 7,
+  cover1Beaters: 7,
+  cover2Beaters: 7,
+  cover2ManBeaters: 7,
+  cover3Beaters: 7,
+  cover4Beaters: 7,
+  cover6Beaters: 7
 };
 
 // Add helper function to create empty plans
@@ -237,7 +258,14 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     deepShots: Array(sizes.deepShots).fill(emptySlot),
     twoMinuteDrill: Array(sizes.twoMinuteDrill).fill(emptySlot),
     twoPointPlays: Array(sizes.twoPointPlays).fill(emptySlot),
-    firstSecondCombos: Array(sizes.firstSecondCombos * 2).fill(emptySlot) // 8 combos = 16 individual plays
+    firstSecondCombos: Array(sizes.firstSecondCombos * 2).fill(emptySlot), // 8 combos = 16 individual plays
+    cover0Beaters: Array(sizes.cover0Beaters).fill(emptySlot),
+    cover1Beaters: Array(sizes.cover1Beaters).fill(emptySlot),
+    cover2Beaters: Array(sizes.cover2Beaters).fill(emptySlot),
+    cover2ManBeaters: Array(sizes.cover2ManBeaters).fill(emptySlot),
+    cover3Beaters: Array(sizes.cover3Beaters).fill(emptySlot),
+    cover4Beaters: Array(sizes.cover4Beaters).fill(emptySlot),
+    cover6Beaters: Array(sizes.cover6Beaters).fill(emptySlot)
   };
 };
 
@@ -610,6 +638,55 @@ interface CategoryColors {
   dropback_game: string;
   screen_game: string;
   shot_plays: string;
+}
+
+// Add function to fetch coverage beaters from master_play_pool
+async function fetchCoverageBeaters(coverage: string, teamId: string, opponentId: string, neededCount: number): Promise<ExtendedPlay[]> {
+  try {
+    console.log(`Fetching coverage beaters for ${coverage}, need ${neededCount} plays`);
+    
+    const { data: masterPlays, error } = await supabase
+      .from('master_play_pool')
+      .select('*')
+      .contains('coverage_beaters', [coverage])
+      .limit(neededCount);
+
+    if (error) {
+      console.error('Error fetching from master_play_pool:', error);
+      return [];
+    }
+
+    // Convert master_play_pool format to ExtendedPlay format
+    const convertedPlays: ExtendedPlay[] = masterPlays.map(play => ({
+      id: play.id,
+      play_id: play.play_id || play.id,
+      team_id: teamId,
+      category: play.category || '',
+      formation: play.formation || '',
+      tag: play.tag || '',
+      strength: play.strength || '',
+      motion_shift: play.motion_shift || '',
+      concept: play.concept || '',
+      run_concept: play.run_concept || '',
+      run_direction: play.run_direction || '',
+      pass_screen_concept: play.pass_screen_concept || '',
+      screen_direction: play.screen_direction || '',
+      front_beaters: play.front_beaters || '',
+      coverage_beaters: play.coverage_beaters || '',
+      blitz_beaters: play.blitz_beaters || '',
+      is_enabled: true,
+      is_locked: false,
+      is_favorite: false,
+      customized_edit: play.customized_edit || null,
+      combined_call: formatPlayFromPool(play)
+    }));
+
+    console.log(`Found ${convertedPlays.length} coverage beaters for ${coverage}`);
+    return convertedPlays;
+  } catch (error) {
+    console.error('Error in fetchCoverageBeaters:', error);
+    return [];
+  }
 }
 
 export default function PlanPage() {
@@ -2933,7 +3010,10 @@ export default function PlanPage() {
                     ['thirdAndLong', 'redZone', 'goalline'],
                     ['backedUp', 'screens', 'playAction'],
                     ['deepShots', 'twoMinuteDrill', 'twoPointPlays'],
-                    ['firstSecondCombos']
+                    ['firstSecondCombos'],
+                    ['cover0Beaters', 'cover1Beaters', 'cover2Beaters'],
+                    ['cover2ManBeaters', 'cover3Beaters', 'cover4Beaters'],
+                    ['cover6Beaters']
                   ];
 
                   const sectionDetails = {
@@ -2952,7 +3032,14 @@ export default function PlanPage() {
                     deepShots: { title: 'Deep Shots', bgColor: 'bg-white' },
                     twoMinuteDrill: { title: 'Two Minute Drill', bgColor: 'bg-white' },
                     twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' },
-                    firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' }
+                    firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' },
+                    cover0Beaters: { title: 'Cover 0 Beaters', bgColor: 'bg-white' },
+                    cover1Beaters: { title: 'Cover 1 Beaters', bgColor: 'bg-white' },
+                    cover2Beaters: { title: 'Cover 2 Beaters', bgColor: 'bg-white' },
+                    cover2ManBeaters: { title: 'Cover 2 Man Beaters', bgColor: 'bg-white' },
+                    cover3Beaters: { title: 'Cover 3 Beaters', bgColor: 'bg-white' },
+                    cover4Beaters: { title: 'Cover 4 Beaters', bgColor: 'bg-white' },
+                    cover6Beaters: { title: 'Cover 6 Beaters', bgColor: 'bg-white' }
                   };
 
                   return sectionGroups.map(group => {
@@ -3238,6 +3325,76 @@ export default function PlanPage() {
                         }
                       />
                     </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cover0-beaters">Cover 0 Beaters</Label>
+                      <Switch
+                        id="cover0-beaters"
+                        checked={sectionVisibility.cover0Beaters}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, cover0Beaters: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cover1-beaters">Cover 1 Beaters</Label>
+                      <Switch
+                        id="cover1-beaters"
+                        checked={sectionVisibility.cover1Beaters}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, cover1Beaters: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cover2-beaters">Cover 2 Beaters</Label>
+                      <Switch
+                        id="cover2-beaters"
+                        checked={sectionVisibility.cover2Beaters}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, cover2Beaters: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cover2man-beaters">Cover 2 Man Beaters</Label>
+                      <Switch
+                        id="cover2man-beaters"
+                        checked={sectionVisibility.cover2ManBeaters}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, cover2ManBeaters: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cover3-beaters">Cover 3 Beaters</Label>
+                      <Switch
+                        id="cover3-beaters"
+                        checked={sectionVisibility.cover3Beaters}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, cover3Beaters: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cover4-beaters">Cover 4 Beaters</Label>
+                      <Switch
+                        id="cover4-beaters"
+                        checked={sectionVisibility.cover4Beaters}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, cover4Beaters: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="cover6-beaters">Cover 6 Beaters</Label>
+                      <Switch
+                        id="cover6-beaters"
+                        checked={sectionVisibility.cover6Beaters}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, cover6Beaters: checked }))
+                        }
+                      />
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -3325,7 +3482,14 @@ export default function PlanPage() {
                 { key: 'deepShots', title: 'Deep Shots', bgColor: 'bg-purple-100' },
                 { key: 'twoMinuteDrill', title: 'Two Minute Drill', bgColor: 'bg-pink-100' },
                 { key: 'twoPointPlays', title: 'Two Point Plays', bgColor: 'bg-pink-100' },
-                { key: 'firstSecondCombos', title: '1st and 2nd Combos', bgColor: 'bg-indigo-100' }
+                { key: 'firstSecondCombos', title: '1st and 2nd Combos', bgColor: 'bg-indigo-100' },
+                { key: 'cover0Beaters', title: 'Cover 0 Beaters', bgColor: 'bg-teal-100' },
+                { key: 'cover1Beaters', title: 'Cover 1 Beaters', bgColor: 'bg-teal-100' },
+                { key: 'cover2Beaters', title: 'Cover 2 Beaters', bgColor: 'bg-teal-100' },
+                { key: 'cover2ManBeaters', title: 'Cover 2 Man Beaters', bgColor: 'bg-teal-100' },
+                { key: 'cover3Beaters', title: 'Cover 3 Beaters', bgColor: 'bg-teal-100' },
+                { key: 'cover4Beaters', title: 'Cover 4 Beaters', bgColor: 'bg-teal-100' },
+                { key: 'cover6Beaters', title: 'Cover 6 Beaters', bgColor: 'bg-teal-100' }
               ].filter(item => sectionVisibility[item.key as keyof GamePlan]).map(item => (
                 <div key={item.key} className="col-span-1">
                   <div className="relative">
