@@ -7,9 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search, Eye, Settings } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
-// import { makeGamePlan } from "@/app/actions"
 import { getPlayPool, Play } from "@/lib/playpool"
-import { supabase } from '@/lib/supabase'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -17,9 +15,23 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { LoadingModal } from "../components/loading-modal"
 import Image from "next/image"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 
 // Add this helper function near the top of the file
 const isBrowser = typeof window !== 'undefined';
+
+// Create Supabase browser client
+const browserClient = createPagesBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// Create Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 // Helper component for displaying a dragging item - currently unused but may be needed in future
 function DragItem({ play }: { play: Play, snapshot: any }) {
@@ -104,13 +116,7 @@ interface GamePlan {
   twoMinuteDrill: PlayCall[]
   twoPointPlays: PlayCall[]
   firstSecondCombos: PlayCall[]
-  cover0Beaters: PlayCall[]
-  cover1Beaters: PlayCall[]
-  cover2Beaters: PlayCall[]
-  cover2ManBeaters: PlayCall[]
-  cover3Beaters: PlayCall[]
-  cover4Beaters: PlayCall[]
-  cover6Beaters: PlayCall[]
+  coverage0Beaters: PlayCall[]
 }
 
 interface ExtendedPlay extends Play {
@@ -191,13 +197,7 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'twominutedrill': 'twoMinuteDrill',
   'twopointplays': 'twoPointPlays',
   'firstsecondcombos': 'firstSecondCombos',
-  'cover0beaters': 'cover0Beaters',
-  'cover1beaters': 'cover1Beaters',
-  'cover2beaters': 'cover2Beaters',
-  'cover2manbeaters': 'cover2ManBeaters',
-  'cover3beaters': 'cover3Beaters',
-  'cover4beaters': 'cover4Beaters',
-  'cover6beaters': 'cover6Beaters'
+  'coverage0beaters': 'coverage0Beaters'
 };
 
 // Add initial section sizes configuration
@@ -220,13 +220,7 @@ const initialSectionSizes: Record<keyof GamePlan, number> = {
   twoMinuteDrill: 10,
   twoPointPlays: 4,
   firstSecondCombos: 8,
-  cover0Beaters: 7,
-  cover1Beaters: 7,
-  cover2Beaters: 7,
-  cover2ManBeaters: 7,
-  cover3Beaters: 7,
-  cover4Beaters: 7,
-  cover6Beaters: 7
+  coverage0Beaters: 5
 };
 
 // Add helper function to create empty plans
@@ -259,13 +253,7 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     twoMinuteDrill: Array(sizes.twoMinuteDrill).fill(emptySlot),
     twoPointPlays: Array(sizes.twoPointPlays).fill(emptySlot),
     firstSecondCombos: Array(sizes.firstSecondCombos * 2).fill(emptySlot), // 8 combos = 16 individual plays
-    cover0Beaters: Array(sizes.cover0Beaters).fill(emptySlot),
-    cover1Beaters: Array(sizes.cover1Beaters).fill(emptySlot),
-    cover2Beaters: Array(sizes.cover2Beaters).fill(emptySlot),
-    cover2ManBeaters: Array(sizes.cover2ManBeaters).fill(emptySlot),
-    cover3Beaters: Array(sizes.cover3Beaters).fill(emptySlot),
-    cover4Beaters: Array(sizes.cover4Beaters).fill(emptySlot),
-    cover6Beaters: Array(sizes.cover6Beaters).fill(emptySlot)
+    coverage0Beaters: Array(sizes.coverage0Beaters).fill(emptySlot)
   };
 };
 
@@ -285,7 +273,7 @@ async function savePlayToGamePlan(
     }
 
     // First, get the current highest position for this section
-    const { data: existingPlays, error: queryError } = await supabase
+    const { data: existingPlays, error: queryError } = await browserClient
       .from('game_plan')
       .select('position')
       .eq('team_id', team_id)
@@ -314,7 +302,7 @@ async function savePlayToGamePlan(
     });
 
     // Create the game plan entry with team and opponent IDs
-    const { data, error } = await supabase
+    const { data, error } = await browserClient
       .from('game_plan')
       .insert({
         team_id,
@@ -357,7 +345,7 @@ async function validateTeamIds(): Promise<{ team_id: string | null; opponent_id:
 async function ensurePlayExists(play: ExtendedPlay): Promise<{ id: string | null; error: string | null }> {
   try {
     // If play doesn't exist, create it
-    const { data, error } = await supabase
+    const { data, error } = await browserClient
       .from('plays')
       .insert({
         id: play.id,
@@ -416,7 +404,7 @@ async function deletePlayFromGamePlan(
     }
 
     // Delete the game plan entry
-    const { error } = await supabase
+    const { error } = await browserClient
       .from('game_plan')
       .delete()
       .eq('team_id', team_id)
@@ -450,7 +438,7 @@ async function updatePlayPosition(
     }
 
     // First, get the play at the old position
-    const { data: play, error: fetchError } = await supabase
+    const { data: play, error: fetchError } = await browserClient
       .from('game_plan')
       .select('*')
       .eq('team_id', team_id)
@@ -470,7 +458,7 @@ async function updatePlayPosition(
     }
 
     // Update the position
-    const { error: updateError } = await supabase
+    const { error: updateError } = await browserClient
       .from('game_plan')
       .update({ position: newPosition })
       .eq('id', play.id)
@@ -499,7 +487,7 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
     console.log('Fetching game plan for:', { team_id, opponent_id });
 
     // Fetch all plays for this team and opponent
-    const { data: gamePlanData, error } = await supabase
+    const { data: gamePlanData, error } = await browserClient
       .from('game_plan')
       .select(`
         *,
@@ -600,7 +588,7 @@ async function updatePlayPositionsInDatabase(
     });
 
     // First verify we have the function available
-    const { data: functions, error: functionError } = await supabase
+    const { data: functions, error: functionError } = await browserClient
       .rpc('update_game_plan_positions', {
         p_team_id: team_id,
         p_opponent_id: opponent_id,
@@ -640,53 +628,12 @@ interface CategoryColors {
   shot_plays: string;
 }
 
-// Add function to fetch coverage beaters from master_play_pool
-async function fetchCoverageBeaters(coverage: string, teamId: string, opponentId: string, neededCount: number): Promise<ExtendedPlay[]> {
-  try {
-    console.log(`Fetching coverage beaters for ${coverage}, need ${neededCount} plays`);
-    
-    const { data: masterPlays, error } = await supabase
-      .from('master_play_pool')
-      .select('*')
-      .contains('coverage_beaters', [coverage])
-      .limit(neededCount);
-
-    if (error) {
-      console.error('Error fetching from master_play_pool:', error);
-      return [];
-    }
-
-    // Convert master_play_pool format to ExtendedPlay format
-    const convertedPlays: ExtendedPlay[] = masterPlays.map(play => ({
-      id: play.id,
-      play_id: play.play_id || play.id,
-      team_id: teamId,
-      category: play.category || '',
-      formation: play.formation || '',
-      tag: play.tag || '',
-      strength: play.strength || '',
-      motion_shift: play.motion_shift || '',
-      concept: play.concept || '',
-      run_concept: play.run_concept || '',
-      run_direction: play.run_direction || '',
-      pass_screen_concept: play.pass_screen_concept || '',
-      screen_direction: play.screen_direction || '',
-      front_beaters: play.front_beaters || '',
-      coverage_beaters: play.coverage_beaters || '',
-      blitz_beaters: play.blitz_beaters || '',
-      is_enabled: true,
-      is_locked: false,
-      is_favorite: false,
-      customized_edit: play.customized_edit || null,
-      combined_call: formatPlayFromPool(play)
-    }));
-
-    console.log(`Found ${convertedPlays.length} coverage beaters for ${coverage}`);
-    return convertedPlays;
-  } catch (error) {
-    console.error('Error in fetchCoverageBeaters:', error);
-    return [];
-  }
+interface MasterPlay {
+  formations: string;
+  to_motions: string;
+  concept: string;
+  category: string;
+  coverage_beaters: string | null;
 }
 
 export default function PlanPage() {
@@ -801,7 +748,7 @@ export default function PlanPage() {
   useEffect(() => {
     const fetchOpponentName = async () => {
       if (selectedOpponent) {
-        const { data, error } = await supabase
+        const { data, error } = await browserClient
           .from('opponents')
           .select('name')
           .eq('id', selectedOpponent)
@@ -976,7 +923,7 @@ export default function PlanPage() {
         // Set up real-time subscription
         console.log('Setting up real-time subscription for:', { teamId, opponentId });
         
-        const subscription = supabase
+        const subscription = browserClient
           .channel('game_plan_changes')
           .on(
             'postgres_changes',
@@ -1136,7 +1083,7 @@ export default function PlanPage() {
     if (team && opponent) {
       console.log('Setting up real-time subscription for:', { team, opponent });
       
-      const subscription = supabase
+      const subscription = browserClient
         .channel('game_plan_changes')
         .on(
           'postgres_changes',
@@ -1293,7 +1240,7 @@ export default function PlanPage() {
           });
 
           // First, get all plays in this section
-          const { data: sectionPlays, error: fetchError } = await supabase
+          const { data: sectionPlays, error: fetchError } = await browserClient
             .from('game_plan')
             .select('*')
             .eq('team_id', team_id)
@@ -1344,7 +1291,7 @@ export default function PlanPage() {
 
           // Update all positions in a single transaction
           for (const update of updates) {
-            const { error: updateError } = await supabase
+            const { error: updateError } = await browserClient
               .from('game_plan')
               .update({ position: update.position })
               .eq('id', update.id);
@@ -1570,11 +1517,21 @@ export default function PlanPage() {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => handleRegenerateSection(section)}
+              onClick={() => {
+                if (section === 'coverage0Beaters') {
+                  handleRefreshCoverage0Beaters();
+                } else {
+                  handleRegenerateSection(section);
+                }
+              }}
               className="flex items-center gap-1 hover:bg-transparent"
               disabled={generating}
             >
-              <Wand2 className="h-4 w-4 text-[#0B2545]" />
+              {section === 'coverage0Beaters' ? (
+                <RefreshCw className="h-4 w-4 text-[#0B2545]" />
+              ) : (
+                <Wand2 className="h-4 w-4 text-[#0B2545]" />
+              )}
             </Button>
           </div>
           <div className="flex flex-row items-center justify-between">
@@ -1653,7 +1610,7 @@ export default function PlanPage() {
                 {filledPlays.map((play, index) => {
                 const hasContent = !!play.play;
                 const isComboSection = section === 'firstSecondCombos';
-                
+                  
                   if (!hasContent) {
                     if (isComboSection && index % 2 === 0) {
                       // For combo section, show combo pairs
@@ -1679,14 +1636,14 @@ export default function PlanPage() {
                       // Skip odd indices in combo section as they're handled by the even index
                       return null;
                     } else {
-                      return (
-                        <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
-                          <span className="w-6 text-slate-500">{index + 1}.</span>
-                          <span className="text-gray-300 italic flex-1 text-center text-xs">
-                            {/* Empty space for vacant slot */}
-                          </span>
-                        </div>
-                      );
+                    return (
+                      <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
+                        <span className="w-6 text-slate-500">{index + 1}.</span>
+                        <span className="text-gray-300 italic flex-1 text-center text-xs">
+                          {/* Empty space for vacant slot */}
+                        </span>
+                      </div>
+                    );
                     }
                   }
 
@@ -1906,7 +1863,7 @@ export default function PlanPage() {
       // Save to database first
       try {
         // Get the current highest position for this section
-        const { data: existingPlays, error: queryError } = await supabase
+        const { data: existingPlays, error: queryError } = await browserClient
           .from('game_plan')
           .select('position')
           .eq('team_id', localStorage.getItem('selectedTeam'))
@@ -2371,7 +2328,7 @@ export default function PlanPage() {
       }
 
       // Delete all existing plays for this game plan
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await browserClient
         .from('game_plan')
         .delete()
         .eq('team_id', team_id)
@@ -2432,11 +2389,8 @@ export default function PlanPage() {
         const sectionKey = section as keyof GamePlan;
         const maxPlays = sectionSizes[sectionKey];
         
-        // Handle combo section specially - need to save 16 plays for 8 combos
-        const actualMaxPlays = sectionKey === 'firstSecondCombos' ? maxPlays * 2 : maxPlays;
-        
         // Only save up to the maximum number of plays for this section
-        for (let i = 0; i < Math.min((plays as string[]).length, actualMaxPlays); i++) {
+        for (let i = 0; i < Math.min((plays as string[]).length, maxPlays); i++) {
           const playName = (plays as string[])[i];
           const play = findPlayByName(playName);
           if (play) {
@@ -2501,7 +2455,7 @@ export default function PlanPage() {
       setLoading(true);
       
       // Delete all plays from the game plan
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await browserClient
         .from('game_plan')
         .delete()
         .eq('team_id', selectedTeam)
@@ -2540,6 +2494,140 @@ export default function PlanPage() {
     const newColors = { ...categoryColors, [category]: color };
     setCategoryColors(newColors);
     localStorage.setItem('categoryColors', JSON.stringify(newColors));
+  };
+
+  // Add function to load Coverage 0 Beaters from master_play_pool
+  const loadCoverage0Beaters = async (count: number = 5) => {
+    try {
+      console.log('Starting Coverage 0 Beaters query...');
+
+      // Get team and opponent IDs
+      const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
+      const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
+
+      if (!team_id || !opponent_id) {
+        throw new Error('Team or opponent not selected');
+      }
+
+      // Get plays from playpool that have '0' in coverage_beaters
+      const { data: plays, error } = await supabase
+        .from('playpool')
+        .select('*')
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .not('coverage_beaters', 'is', null)
+        .ilike('coverage_beaters', '%0%');
+
+      console.log('Query result:', { playsCount: plays?.length, error });
+
+      if (error) {
+        console.error('Error fetching plays:', error);
+        throw error;
+      }
+
+      if (!plays || plays.length === 0) {
+        throw new Error('No Coverage 0 Beaters found in play pool');
+      }
+
+      console.log('Found Coverage 0 plays:', plays.length);
+
+      // Take random plays up to the count
+      const shuffled = plays.sort(() => 0.5 - Math.random());
+      const selectedPlays = shuffled.slice(0, Math.min(count, shuffled.length));
+
+      // Convert to PlayCall format
+      const playCallsArray = selectedPlays.map(play => ({
+        id: play.id, // Preserve the UUID from playpool
+        formation: play.formations || '',
+        fieldAlignment: '+',
+        motion: play.to_motions || '',
+        play: play.combined_call || play.concept || '',
+        runDirection: '+',
+        category: play.category || ''
+      }));
+
+      console.log('Final plays returned:', playCallsArray);
+      return playCallsArray;
+    } catch (error) {
+      console.error('Error loading Coverage 0 Beaters:', error);
+      throw error;
+    }
+  };
+
+  // Add handler for refreshing Coverage 0 Beaters
+  const handleRefreshCoverage0Beaters = async () => {
+    const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
+    const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
+
+    if (!team_id || !opponent_id) {
+      setNotification({
+        message: 'Please select a team and opponent first',
+        type: 'error'
+      });
+      return;
+    }
+
+    setGeneratingSection('coverage0Beaters');
+    try {
+      // Clear existing plays for this section
+      const { error: deleteError } = await browserClient
+        .from('game_plan')
+        .delete()
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .eq('section', 'coverage0beaters');
+
+      if (deleteError) {
+        throw new Error('Failed to clear section');
+      }
+
+      // Load new random Coverage 0 Beaters
+      const newPlays = await loadCoverage0Beaters(sectionSizes.coverage0Beaters);
+
+      // Save new plays to database
+      const insertData = newPlays.map((play, index) => ({
+        team_id,
+        opponent_id,
+        play_id: play.id, // Use the actual UUID from the playpool
+        section: 'coverage0beaters',
+        position: index,
+        combined_call: play.play,
+        customized_edit: null
+      }));
+
+      if (insertData.length > 0) {
+        const { error: insertError } = await browserClient
+          .from('game_plan')
+          .insert(insertData);
+
+        if (insertError) {
+          throw new Error(`Failed to save plays: ${insertError.message}`);
+        }
+      }
+
+      // Update local state
+      const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+      if (updatedPlan) {
+        setPlan(updatedPlan);
+        if (isBrowser) {
+          save('plan', updatedPlan);
+        }
+      }
+
+      setNotification({
+        message: 'Coverage 0 Beaters refreshed successfully!',
+        type: 'success'
+      });
+
+    } catch (error) {
+      console.error('Error refreshing Coverage 0 Beaters:', error);
+      setNotification({
+        message: error instanceof Error ? error.message : 'Failed to refresh Coverage 0 Beaters',
+        type: 'error'
+      });
+    } finally {
+      setGeneratingSection(null);
+    }
   };
 
   // Add this function after handleColorChange
@@ -2610,7 +2698,7 @@ export default function PlanPage() {
       };
 
       // Clear existing plays for this section and batch insert new ones
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await browserClient
         .from('game_plan')
         .delete()
         .eq('team_id', team_id)
@@ -2643,7 +2731,7 @@ export default function PlanPage() {
 
       // Single batch insert for maximum speed
       if (insertData.length > 0) {
-        const { error: insertError } = await supabase
+        const { error: insertError } = await browserClient
           .from('game_plan')
           .insert(insertData);
 
@@ -2794,6 +2882,9 @@ export default function PlanPage() {
                 </>
               )}
             </Button>
+            
+            
+            
             
             <div className="text-gray-500">Or</div>
             
@@ -3014,9 +3105,7 @@ export default function PlanPage() {
                     ['backedUp', 'screens', 'playAction'],
                     ['deepShots', 'twoMinuteDrill', 'twoPointPlays'],
                     ['firstSecondCombos'],
-                    ['cover0Beaters', 'cover1Beaters', 'cover2Beaters'],
-                    ['cover2ManBeaters', 'cover3Beaters', 'cover4Beaters'],
-                    ['cover6Beaters']
+                    ['coverage0Beaters']
                   ];
 
                   const sectionDetails = {
@@ -3036,13 +3125,7 @@ export default function PlanPage() {
                     twoMinuteDrill: { title: 'Two Minute Drill', bgColor: 'bg-white' },
                     twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' },
                     firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' },
-                    cover0Beaters: { title: 'Cover 0 Beaters', bgColor: 'bg-white' },
-                    cover1Beaters: { title: 'Cover 1 Beaters', bgColor: 'bg-white' },
-                    cover2Beaters: { title: 'Cover 2 Beaters', bgColor: 'bg-white' },
-                    cover2ManBeaters: { title: 'Cover 2 Man Beaters', bgColor: 'bg-white' },
-                    cover3Beaters: { title: 'Cover 3 Beaters', bgColor: 'bg-white' },
-                    cover4Beaters: { title: 'Cover 4 Beaters', bgColor: 'bg-white' },
-                    cover6Beaters: { title: 'Cover 6 Beaters', bgColor: 'bg-white' }
+                    coverage0Beaters: { title: 'Coverage 0 Beaters', bgColor: 'bg-white' }
                   };
 
                   return sectionGroups.map(group => {
@@ -3160,257 +3243,183 @@ export default function PlanPage() {
                     Customize
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-4xl">
+                <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Section Visibility</DialogTitle>
                     <DialogDescription>
                       Toggle which sections are visible in your game plan.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid grid-cols-3 gap-6 py-4">
-                    {/* Column 1: Core Sections */}
-                    <div className="space-y-4">
-                      <h4 className="font-semibold text-sm text-gray-700 border-b pb-2">Core Sections</h4>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="opening-script">Opening Script</Label>
-                        <Switch
-                          id="opening-script"
-                          checked={sectionVisibility.openingScript}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, openingScript: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="base-package-1">Base Package 1</Label>
-                        <Switch
-                          id="base-package-1"
-                          checked={sectionVisibility.basePackage1}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, basePackage1: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="base-package-2">Base Package 2</Label>
-                        <Switch
-                          id="base-package-2"
-                          checked={sectionVisibility.basePackage2}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, basePackage2: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="base-package-3">Base Package 3</Label>
-                        <Switch
-                          id="base-package-3"
-                          checked={sectionVisibility.basePackage3}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, basePackage3: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="first-downs">First Downs</Label>
-                        <Switch
-                          id="first-downs"
-                          checked={sectionVisibility.firstDowns}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, firstDowns: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="short-yardage">Short Yardage</Label>
-                        <Switch
-                          id="short-yardage"
-                          checked={sectionVisibility.shortYardage}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, shortYardage: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="third-and-long">Third and Long</Label>
-                        <Switch
-                          id="third-and-long"
-                          checked={sectionVisibility.thirdAndLong}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, thirdAndLong: checked }))
-                          }
-                        />
-                      </div>
+                  <div className="grid gap-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="opening-script">Opening Script</Label>
+                      <Switch
+                        id="opening-script"
+                        checked={sectionVisibility.openingScript}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, openingScript: checked }))
+                        }
+                      />
                     </div>
-
-                    {/* Column 2: Situational Sections */}
-                    <div className="space-y-4">
-                      <h4 className="font-semibold text-sm text-gray-700 border-b pb-2">Situational</h4>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="red-zone">Red Zone</Label>
-                        <Switch
-                          id="red-zone"
-                          checked={sectionVisibility.redZone}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, redZone: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="goalline">Goalline</Label>
-                        <Switch
-                          id="goalline"
-                          checked={sectionVisibility.goalline}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, goalline: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="backed-up">Backed Up</Label>
-                        <Switch
-                          id="backed-up"
-                          checked={sectionVisibility.backedUp}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, backedUp: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="screens">Screens</Label>
-                        <Switch
-                          id="screens"
-                          checked={sectionVisibility.screens}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, screens: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="play-action">Play Action</Label>
-                        <Switch
-                          id="play-action"
-                          checked={sectionVisibility.playAction}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, playAction: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="deep-shots">Deep Shots</Label>
-                        <Switch
-                          id="deep-shots"
-                          checked={sectionVisibility.deepShots}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, deepShots: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="two-minute-drill">Two Minute Drill</Label>
-                        <Switch
-                          id="two-minute-drill"
-                          checked={sectionVisibility.twoMinuteDrill}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, twoMinuteDrill: checked }))
-                          }
-                        />
-                      </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="base-package-1">Base Package 1</Label>
+                      <Switch
+                        id="base-package-1"
+                        checked={sectionVisibility.basePackage1}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, basePackage1: checked }))
+                        }
+                      />
                     </div>
-
-                    {/* Column 3: Special Sections */}
-                    <div className="space-y-4">
-                      <h4 className="font-semibold text-sm text-gray-700 border-b pb-2">Special & Coverage</h4>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="two-point-plays">Two Point Plays</Label>
-                        <Switch
-                          id="two-point-plays"
-                          checked={sectionVisibility.twoPointPlays}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, twoPointPlays: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="first-second-combos">1st and 2nd Combos</Label>
-                        <Switch
-                          id="first-second-combos"
-                          checked={sectionVisibility.firstSecondCombos}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, firstSecondCombos: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="cover0-beaters">Cover 0 Beaters</Label>
-                        <Switch
-                          id="cover0-beaters"
-                          checked={sectionVisibility.cover0Beaters}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, cover0Beaters: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="cover1-beaters">Cover 1 Beaters</Label>
-                        <Switch
-                          id="cover1-beaters"
-                          checked={sectionVisibility.cover1Beaters}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, cover1Beaters: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="cover2-beaters">Cover 2 Beaters</Label>
-                        <Switch
-                          id="cover2-beaters"
-                          checked={sectionVisibility.cover2Beaters}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, cover2Beaters: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="cover2man-beaters">Cover 2 Man Beaters</Label>
-                        <Switch
-                          id="cover2man-beaters"
-                          checked={sectionVisibility.cover2ManBeaters}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, cover2ManBeaters: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="cover3-beaters">Cover 3 Beaters</Label>
-                        <Switch
-                          id="cover3-beaters"
-                          checked={sectionVisibility.cover3Beaters}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, cover3Beaters: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="cover4-beaters">Cover 4 Beaters</Label>
-                        <Switch
-                          id="cover4-beaters"
-                          checked={sectionVisibility.cover4Beaters}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, cover4Beaters: checked }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="cover6-beaters">Cover 6 Beaters</Label>
-                        <Switch
-                          id="cover6-beaters"
-                          checked={sectionVisibility.cover6Beaters}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, cover6Beaters: checked }))
-                          }
-                        />
-                      </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="base-package-2">Base Package 2</Label>
+                      <Switch
+                        id="base-package-2"
+                        checked={sectionVisibility.basePackage2}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, basePackage2: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="base-package-3">Base Package 3</Label>
+                      <Switch
+                        id="base-package-3"
+                        checked={sectionVisibility.basePackage3}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, basePackage3: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="first-downs">First Downs</Label>
+                      <Switch
+                        id="first-downs"
+                        checked={sectionVisibility.firstDowns}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, firstDowns: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="short-yardage">Short Yardage</Label>
+                      <Switch
+                        id="short-yardage"
+                        checked={sectionVisibility.shortYardage}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, shortYardage: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="third-and-long">Third and Long</Label>
+                      <Switch
+                        id="third-and-long"
+                        checked={sectionVisibility.thirdAndLong}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, thirdAndLong: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="red-zone">Red Zone</Label>
+                      <Switch
+                        id="red-zone"
+                        checked={sectionVisibility.redZone}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, redZone: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="goalline">Goalline</Label>
+                      <Switch
+                        id="goalline"
+                        checked={sectionVisibility.goalline}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, goalline: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="backed-up">Backed Up</Label>
+                      <Switch
+                        id="backed-up"
+                        checked={sectionVisibility.backedUp}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, backedUp: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="screens">Screens</Label>
+                      <Switch
+                        id="screens"
+                        checked={sectionVisibility.screens}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, screens: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="play-action">Play Action</Label>
+                      <Switch
+                        id="play-action"
+                        checked={sectionVisibility.playAction}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, playAction: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="deep-shots">Deep Shots</Label>
+                      <Switch
+                        id="deep-shots"
+                        checked={sectionVisibility.deepShots}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, deepShots: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="two-minute-drill">Two Minute Drill</Label>
+                      <Switch
+                        id="two-minute-drill"
+                        checked={sectionVisibility.twoMinuteDrill}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, twoMinuteDrill: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="two-point-plays">Two Point Plays</Label>
+                      <Switch
+                        id="two-point-plays"
+                        checked={sectionVisibility.twoPointPlays}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, twoPointPlays: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="first-second-combos">1st and 2nd Combos</Label>
+                      <Switch
+                        id="first-second-combos"
+                        checked={sectionVisibility.firstSecondCombos}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, firstSecondCombos: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="coverage0-beaters">Coverage 0 Beaters</Label>
+                      <Switch
+                        id="coverage0-beaters"
+                        checked={sectionVisibility.coverage0Beaters}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, coverage0Beaters: checked }))
+                        }
+                      />
                     </div>
                   </div>
                 </DialogContent>
@@ -3500,13 +3509,7 @@ export default function PlanPage() {
                 { key: 'twoMinuteDrill', title: 'Two Minute Drill', bgColor: 'bg-pink-100' },
                 { key: 'twoPointPlays', title: 'Two Point Plays', bgColor: 'bg-pink-100' },
                 { key: 'firstSecondCombos', title: '1st and 2nd Combos', bgColor: 'bg-indigo-100' },
-                { key: 'cover0Beaters', title: 'Cover 0 Beaters', bgColor: 'bg-teal-100' },
-                { key: 'cover1Beaters', title: 'Cover 1 Beaters', bgColor: 'bg-teal-100' },
-                { key: 'cover2Beaters', title: 'Cover 2 Beaters', bgColor: 'bg-teal-100' },
-                { key: 'cover2ManBeaters', title: 'Cover 2 Man Beaters', bgColor: 'bg-teal-100' },
-                { key: 'cover3Beaters', title: 'Cover 3 Beaters', bgColor: 'bg-teal-100' },
-                { key: 'cover4Beaters', title: 'Cover 4 Beaters', bgColor: 'bg-teal-100' },
-                { key: 'cover6Beaters', title: 'Cover 6 Beaters', bgColor: 'bg-teal-100' }
+                { key: 'coverage0Beaters', title: 'Coverage 0 Beaters', bgColor: 'bg-yellow-100' }
               ].filter(item => sectionVisibility[item.key as keyof GamePlan]).map(item => (
                 <div key={item.key} className="col-span-1">
                   <div className="relative">
@@ -3529,5 +3532,7 @@ export default function PlanPage() {
     </>
   )
 }
+
+
 
 
