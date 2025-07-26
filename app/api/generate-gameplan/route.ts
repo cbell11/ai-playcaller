@@ -38,9 +38,9 @@ export async function POST(req: Request) {
       // Add specific requirements for special sections
       let specificRequirements = '';
       if (targetSection === 'twoMinuteDrill') {
-        specificRequirements = '\n- Focus on quick game and dropback game plays\n- NO motions or shifts allowed\n- Select plays that can be executed quickly';
+        specificRequirements = '\n- Majority of focus on quick game and dropback game plays\n- Only 1 or 2shot plays allowed\n- NO motions or shifts allowed\n- Select plays that can be executed quickly';
       } else if (targetSection === 'twoPointPlays') {
-        specificRequirements = '\n- Must include exactly 1 run play and 3 quick game plays\n- Select creative and distinct plays with high success potential\n- Prioritize unique formations and concepts';
+        specificRequirements = '\n- Must include exactly 1 run play and 3 quick game plays\n- STRICTLY NO shot plays or deep passing concepts allowed\n- Select creative and distinct plays with high success potential\n- Prioritize unique formations and concepts\n- Only use quick game, RPO, or run plays\n- Maximum pass depth of 10 yards';
       }
       
       const prompt = `Generate ${sectionCount} football plays for the "${targetSection}" section from this play pool:\n\n${playPool.join('\n')}\n\nRules:\n- Select exactly ${sectionCount} plays\n- Choose plays appropriate for ${targetSection} situations${specificRequirements}\n- Ensure variety: select different formations, concepts, motions, and directions\n- NO DUPLICATES: Each play must be unique\n- Return only JSON format: {"${targetSection}": ["play1", "play2", ...]}\n- Use exact play names from the pool` as const;
@@ -67,8 +67,18 @@ export async function POST(req: Request) {
 
     // Add specific section requirements
     const sectionRequirements = `\nSection-Specific Requirements:
-- twoMinuteDrill: Mix of quick game and dropback game plays WITHOUT any motions or shifts
-- twoPointPlays: Must include exactly 1 run play and 3 quick game plays, should be creative and distinct with high success potential
+- twoMinuteDrill: 
+  • Majority of focus on quick game and dropback game plays
+  • Only 1 or 2 shot plays allowed
+  • NO motions or shifts allowed
+  • Select plays that can be executed quickly
+- twoPointPlays: 
+  • Must include exactly 1 run play and 3 quick game plays
+  • STRICTLY NO shot plays or deep passing concepts allowed
+  • Only use quick game, RPO, or run plays
+  • Maximum pass depth of 10 yards
+  • Select creative and distinct plays with high success potential
+  • Prioritize unique formations and concepts
 - All other sections: Choose plays appropriate for their typical game situations`;
 
     const prompt = `Generate a complete football game plan using plays from this play pool:\n\n${playPool.join('\n')}\n\nRules:\n- For each section, select the exact number of plays specified:\n${Object.entries(sectionSizes)
