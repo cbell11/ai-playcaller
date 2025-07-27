@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
-import { LoadingModal } from "../components/loading-modal"
 import Image from "next/image"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs'
@@ -2320,6 +2319,7 @@ export default function PlanPage() {
 
     setGenerating(true);
     setIsGenerating(true);
+    
     try {
       // First, clear the existing game plan from the database
       const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
@@ -2340,79 +2340,49 @@ export default function PlanPage() {
         throw new Error('Failed to clear existing game plan');
       }
 
-      // Pre-filter plays based on base package concepts
-      const filteredPlayPool = playPool.map(play => {
-        // Check if this play is for a base package with a selected concept
-        const basePackageSection = Object.entries(basePackageConcepts).find(([section, concept]) => 
-          concept && play.concept === concept
-        );
+      // Define the order of sections to regenerate
+      const sectionsToGenerate: (keyof GamePlan)[] = [
+        'openingScript',
+        'basePackage1', 
+        'basePackage2',
+        'basePackage3',
+        'firstDowns',
+        'shortYardage',
+        'thirdAndLong',
+        'redZone',
+        'goalline',
+        'backedUp',
+        'screens',
+        'playAction',
+        'deepShots',
+        'twoMinuteDrill',
+        'twoPointPlays',
+        'firstSecondCombos',
+        'coverage0Beaters'
+      ];
 
-        // If this play matches a base package concept, mark it for that section
-        if (basePackageSection) {
-          return {
-            ...play,
-            _targetSection: basePackageSection[0] // Store the section this play should go to
-          };
-        }
+      // Filter sections based on visibility
+      const visibleSections = sectionsToGenerate.filter(section => sectionVisibility[section]);
 
-        return play;
-      });
-
-      // Format plays for the API and include section sizes
-      const formattedPlays = filteredPlayPool.map(p => formatPlayFromPool(p));
-
-      // Call our API route with section sizes and base package concepts
-      const response = await fetch('/api/generate-gameplan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          playPool: formattedPlays,
-          sectionSizes: {
-            ...sectionSizes,
-            // Ensure firstSecondCombos size is doubled for individual plays
-            firstSecondCombos: sectionSizes.firstSecondCombos * 2
-          },
-          basePackageConcepts // Pass the base package concepts
-        })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to generate game plan');
-      }
-
-      const gamePlan = await response.json();
-      
-      // Helper function to find a play in the pool by its formatted name
-      const findPlayByName = (name: string) => {
-        return filteredPlayPool.find(p => formatPlayFromPool(p) === name);
-      };
-
-      // Update each section, respecting the section sizes
-      for (const [section, plays] of Object.entries(gamePlan)) {
-        const sectionKey = section as keyof GamePlan;
-        const maxPlays = sectionKey === 'firstSecondCombos' 
-          ? sectionSizes[sectionKey] * 2  // Double the size for combos
-          : sectionSizes[sectionKey];
-        
-        // Only save up to the maximum number of plays for this section
-        for (let i = 0; i < Math.min((plays as string[]).length, maxPlays); i++) {
-          const playName = (plays as string[])[i];
-          const play = findPlayByName(playName);
-          if (play) {
-            await savePlayToGamePlan(play, sectionKey, i);
+      // Regenerate each section sequentially
+      for (const section of visibleSections) {
+        try {
+          if (section === 'coverage0Beaters') {
+            await handleRefreshCoverage0Beaters();
+          } else {
+            await handleRegenerateSection(section);
           }
-        }
-      }
-
-      // Fetch the updated game plan to refresh the UI
-      const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
-      if (updatedPlan) {
-        setPlan(updatedPlan);
-        if (isBrowser) {
-        save('plan', updatedPlan);
+          
+          // Add a small delay between sections for better UX
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (sectionError) {
+          console.error(`Error regenerating ${section}:`, sectionError);
+          // Continue with other sections even if one fails
+          setNotification({
+            message: `Failed to generate ${section}, continuing with other sections...`,
+            type: 'error'
+          });
+          setTimeout(() => setNotification(null), 3000);
         }
       }
 
@@ -2670,7 +2640,16 @@ export default function PlanPage() {
           }
           return true;
         })
-        .map(p => formatPlayFromPool(p));
+        .map(p => ({
+          name: formatPlayFromPool(p),
+          category: p.category
+        }));
+
+      console.log('Sending to API:', {
+        section,
+        playCount: filteredPlays.length,
+        screenPlays: filteredPlays.filter(p => p.category === 'screen_game').length
+      });
 
       // Create a minimal section-specific size object for faster processing
       const sectionSizeObj = {
@@ -2698,10 +2677,21 @@ export default function PlanPage() {
       }
 
       const gamePlan = await response.json();
+      console.log('API Response:', {
+        section,
+        plays: gamePlan[section]
+      });
       
       // Helper function to find a play in the pool by its formatted name
       const findPlayByName = (name: string) => {
-        return playPool.find(p => formatPlayFromPool(p) === name);
+        const play = playPool.find(p => formatPlayFromPool(p) === name);
+        if (!play) {
+          console.log('Failed to find play:', {
+            searchName: name,
+            availableNames: playPool.map(p => formatPlayFromPool(p))
+          });
+        }
+        return play;
       };
 
       // Clear existing plays for this section and batch insert new ones
@@ -2718,6 +2708,12 @@ export default function PlanPage() {
 
       // Batch insert all new plays at once for speed
       const plays = gamePlan[section] || [];
+      console.log('Preparing to insert plays:', {
+        section,
+        receivedPlays: plays.length,
+        maxPlays: sectionSizes[section]
+      });
+
       const insertData = [];
       
       for (let i = 0; i < Math.min(plays.length, sectionSizes[section]); i++) {
@@ -2736,6 +2732,12 @@ export default function PlanPage() {
         }
       }
 
+      console.log('Inserting plays:', {
+        section,
+        foundPlays: insertData.length,
+        expectedPlays: Math.min(plays.length, sectionSizes[section])
+      });
+
       // Single batch insert for maximum speed
       if (insertData.length > 0) {
         const { error: insertError } = await browserClient
@@ -2743,6 +2745,7 @@ export default function PlanPage() {
           .insert(insertData);
 
         if (insertError) {
+          console.error('Insert error:', insertError);
           throw new Error(`Failed to save plays: ${insertError.message}`);
         }
       }
@@ -2778,8 +2781,8 @@ export default function PlanPage() {
     if (generatingSection !== section) return null;
 
     return (
-      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 rounded-lg overflow-hidden">
-        <div className="bg-white rounded-lg p-6 text-center shadow-xl">
+      <div className="absolute inset-0 backdrop-blur-sm bg-white/30 flex items-center justify-center z-50 rounded-lg overflow-hidden">
+        <div className="bg-white/90 rounded-lg p-6 text-center shadow-xl">
           <div className="relative w-16 h-16 mx-auto mb-4">
             <Image
               src="/ball.gif"
@@ -2857,7 +2860,6 @@ export default function PlanPage() {
     console.log('Game plan is empty, showing build options');
     return (
       <>
-        {generating && <LoadingModal message="Generating your Game Plan now!" />}
       <div className="container mx-auto py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-bold">Game Plan</h1>
@@ -2916,7 +2918,6 @@ export default function PlanPage() {
 
   return (
     <>
-      {generating && <LoadingModal message="Generating your Game Plan now!" />}
       <DragDropContext onDragEnd={handleDragEnd} onBeforeDragStart={handleBeforeDragStart}>
         <div className={`container mx-auto px-4 py-8 ${isDragging ? 'bg-gray-50' : ''}`}>
           {isDragging && (
