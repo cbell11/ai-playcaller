@@ -1446,7 +1446,8 @@ export default function PlanPage() {
     const displayTitle = isBasePackage ? customSectionNames[section] || title : title;
     
     return (
-    <Card className="bg-white rounded shadow h-full">
+      <Card className="bg-white rounded shadow h-full relative">
+        {renderSectionLoadingModal(section)}
         <CardHeader className="bg-white border-b p-4">
           <div className="mb-2 flex justify-between items-center">
             <div className="flex items-center gap-2">
@@ -2777,8 +2778,8 @@ export default function PlanPage() {
     if (generatingSection !== section) return null;
 
     return (
-      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 rounded">
-        <div className="bg-white rounded-lg p-6 text-center">
+      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 rounded-lg overflow-hidden">
+        <div className="bg-white rounded-lg p-6 text-center shadow-xl">
           <div className="relative w-16 h-16 mx-auto mb-4">
             <Image
               src="/ball.gif"
