@@ -105,6 +105,8 @@ interface GamePlan {
   secondAndShort: PlayCall[]
   secondAndLong: PlayCall[]
   shortYardage: PlayCall[]
+  thirdAndShort: PlayCall[]
+  thirdAndMedium: PlayCall[]
   thirdAndLong: PlayCall[]
   redZone: PlayCall[]
   goalline: PlayCall[]
@@ -186,6 +188,8 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'secondandshort': 'secondAndShort',
   'secondandlong': 'secondAndLong',
   'shortyardage': 'shortYardage',
+  'thirdandshort': 'thirdAndShort',
+  'thirdandmedium': 'thirdAndMedium',
   'thirdandlong': 'thirdAndLong',
   'redzone': 'redZone',
   'goalline': 'goalline',
@@ -209,6 +213,8 @@ const initialSectionSizes: Record<keyof GamePlan, number> = {
   secondAndShort: 5,
   secondAndLong: 5,
   shortYardage: 5,
+  thirdAndShort: 5,
+  thirdAndMedium: 5,
   thirdAndLong: 5,
   redZone: 5,
   goalline: 5,
@@ -218,7 +224,7 @@ const initialSectionSizes: Record<keyof GamePlan, number> = {
   deepShots: 5,
   twoMinuteDrill: 10,
   twoPointPlays: 4,
-  firstSecondCombos: 8,
+  firstSecondCombos: 4,
   coverage0Beaters: 5
 };
 
@@ -242,6 +248,8 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     secondAndShort: Array(sizes.secondAndShort).fill(emptySlot),
     secondAndLong: Array(sizes.secondAndLong).fill(emptySlot),
     shortYardage: Array(sizes.shortYardage).fill(emptySlot),
+    thirdAndShort: Array(sizes.thirdAndShort).fill(emptySlot),
+    thirdAndMedium: Array(sizes.thirdAndMedium).fill(emptySlot),
     thirdAndLong: Array(sizes.thirdAndLong).fill(emptySlot),
     redZone: Array(sizes.redZone).fill(emptySlot),
     goalline: Array(sizes.goalline).fill(emptySlot),
@@ -3109,10 +3117,10 @@ export default function PlanPage() {
                   const sectionGroups = [
                     ['openingScript', 'basePackage1', 'basePackage2'],
                     ['basePackage3', 'firstDowns', 'shortYardage'],
-                    ['thirdAndLong', 'redZone', 'goalline'],
-                    ['backedUp', 'screens', 'playAction'],
-                    ['deepShots', 'twoMinuteDrill', 'twoPointPlays'],
-                    ['firstSecondCombos'],
+                    ['thirdAndShort', 'thirdAndMedium', 'thirdAndLong'],
+                    ['redZone', 'goalline', 'backedUp'],
+                    ['screens', 'playAction', 'deepShots'],
+                    ['twoMinuteDrill', 'twoPointPlays', 'firstSecondCombos'],
                     ['coverage0Beaters']
                   ];
 
@@ -3123,7 +3131,9 @@ export default function PlanPage() {
                     basePackage3: { title: 'Base Package 3', bgColor: 'bg-white' },
                     firstDowns: { title: 'First Downs', bgColor: 'bg-white' },
                     shortYardage: { title: 'Short Yardage', bgColor: 'bg-white' },
-                    thirdAndLong: { title: '3rd and Long', bgColor: 'bg-white' },
+                    thirdAndShort: { title: 'Third and Short', bgColor: 'bg-white' },
+                    thirdAndMedium: { title: 'Third and Medium', bgColor: 'bg-white' },
+                    thirdAndLong: { title: 'Third and Long', bgColor: 'bg-white' },
                     redZone: { title: 'Red Zone', bgColor: 'bg-white' },
                     goalline: { title: 'Goalline', bgColor: 'bg-white' },
                     backedUp: { title: 'Backed Up', bgColor: 'bg-white' },
@@ -3320,6 +3330,26 @@ export default function PlanPage() {
                       />
                     </div>
                     <div className="flex items-center justify-between">
+                      <Label htmlFor="third-and-short">Third and Short</Label>
+                      <Switch
+                        id="third-and-short"
+                        checked={sectionVisibility.thirdAndShort}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, thirdAndShort: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="third-and-medium">Third and Medium</Label>
+                      <Switch
+                        id="third-and-medium"
+                        checked={sectionVisibility.thirdAndMedium}
+                        onCheckedChange={(checked) => 
+                          setSectionVisibility(prev => ({ ...prev, thirdAndMedium: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
                       <Label htmlFor="third-and-long">Third and Long</Label>
                       <Switch
                         id="third-and-long"
@@ -3507,6 +3537,8 @@ export default function PlanPage() {
                 { key: 'basePackage3', title: customSectionNames.basePackage3 || 'Base Package 3', bgColor: 'bg-green-100' },
                 { key: 'firstDowns', title: 'First Downs', bgColor: 'bg-blue-100' },
                 { key: 'shortYardage', title: 'Short Yardage', bgColor: 'bg-blue-100' },
+                { key: 'thirdAndShort', title: 'Third and Short', bgColor: 'bg-blue-100' },
+                { key: 'thirdAndMedium', title: 'Third and Medium', bgColor: 'bg-blue-100' },
                 { key: 'thirdAndLong', title: 'Third and Long', bgColor: 'bg-blue-100' },
                 { key: 'redZone', title: 'Red Zone', bgColor: 'bg-red-100' },
                 { key: 'goalline', title: 'Goalline', bgColor: 'bg-red-100' },
