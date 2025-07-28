@@ -2646,6 +2646,10 @@ export default function PlanPage() {
           if (isBasePackage && selectedConcept) {
             return p.concept === selectedConcept;
           }
+          // For screens section, only include screen_game plays
+          if (section === 'screens') {
+            return p.category === 'screen_game';
+          }
           return true;
         })
         .map(p => ({

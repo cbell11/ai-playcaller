@@ -124,8 +124,15 @@ export async function POST(req: Request) {
 
     if (targetSection === 'screens') {
       filteredPlayPool = playPool.filter(play => {
-        return play.category === 'screen_game';
+        console.log('Filtering screen play:', play);
+        const isScreenPlay = play.category === 'screen_game';
+        if (!isScreenPlay) {
+          console.log('Rejected non-screen play:', play.name, play.category);
+        }
+        return isScreenPlay;
       });
+
+      console.log('Filtered screen plays:', filteredPlayPool.length);
 
       if (filteredPlayPool.length === 0) {
         return NextResponse.json({ error: 'No screen plays found in play pool' }, { status: 400 });
