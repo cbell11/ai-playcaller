@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, MouseEventHandler, useCallback } from "rea
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search, Eye, Settings, Lock, LockOpen } from "lucide-react"
+import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search, Eye, Settings, Lock, LockOpen, Pencil } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
 import { getPlayPool, Play } from "@/lib/playpool"
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { createClient } from '@supabase/supabase-js'
 import React from "react"
+import { Input } from "@/components/ui/input"
 
 // Add this helper function near the top of the file
 const isBrowser = typeof window !== 'undefined';
@@ -87,6 +88,7 @@ interface PlayCall {
   runDirection?: "+" | "-"  // + for field, - for boundary (only for run plays)
   category?: string  // Add this line
   is_locked?: boolean  // Add this line for tracking lock state
+  customized_edit?: string  // Add this line for custom edits
 }
 
 // Add new types for the cascading dropdowns - currently unused but may be used in future versions
@@ -736,6 +738,125 @@ export default function PlanPage() {
 
   // Add this near other state declarations
   const [uniqueConcepts, setUniqueConcepts] = useState<string[]>([]);
+
+  // Add new state for edit dialog
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingPlay, setEditingPlay] = useState<{ section: keyof GamePlan; index: number; text: string } | null>(null);
+
+  // Replace handleEditPlay with this new version
+  const handleEditPlay = (section: keyof GamePlan, index: number) => {
+    if (!plan) return;
+    
+    const currentPlay = plan[section][index];
+    if (!currentPlay || !currentPlay.play) return;
+    
+    setEditingPlay({
+      section,
+      index,
+      text: currentPlay.customized_edit || currentPlay.play
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPlay || !plan) return;
+    
+    try {
+      const team_id = localStorage.getItem('selectedTeam');
+      const opponent_id = localStorage.getItem('selectedOpponent');
+      
+      if (!team_id || !opponent_id) {
+        throw new Error('Team or opponent not selected');
+      }
+      
+      const { section, index, text } = editingPlay;
+      
+      // Update the customized_edit in the database
+      const { error } = await browserClient
+        .from('game_plan')
+        .update({ customized_edit: text })
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .eq('section', section.toLowerCase())
+        .eq('position', index);
+        
+      if (error) throw error;
+      
+      // Update local state
+      const updatedPlan = { ...plan };
+      updatedPlan[section][index] = {
+        ...updatedPlan[section][index],
+        customized_edit: text
+      };
+      setPlan(updatedPlan);
+      
+      setNotification({
+        message: 'Play updated successfully',
+        type: 'success'
+      });
+      
+    } catch (error) {
+      console.error('Error editing play:', error);
+      setNotification({
+        message: 'Failed to save edited play',
+        type: 'error'
+      });
+    } finally {
+      setEditDialogOpen(false);
+      setEditingPlay(null);
+    }
+  };
+
+  const handleResetEdit = async () => {
+    if (!editingPlay || !plan) return;
+    
+    try {
+      const team_id = localStorage.getItem('selectedTeam');
+      const opponent_id = localStorage.getItem('selectedOpponent');
+      
+      if (!team_id || !opponent_id) {
+        throw new Error('Team or opponent not selected');
+      }
+      
+      const { section, index } = editingPlay;
+      const currentPlay = plan[section][index];
+      
+      // Reset the customized_edit to null in the database
+      const { error } = await browserClient
+        .from('game_plan')
+        .update({ customized_edit: null })
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .eq('section', section.toLowerCase())
+        .eq('position', index);
+        
+      if (error) throw error;
+      
+      // Update local state
+      const updatedPlan = { ...plan };
+      updatedPlan[section][index] = {
+        ...updatedPlan[section][index],
+        customized_edit: undefined // Use undefined instead of null to match the type
+      };
+      setPlan(updatedPlan);
+      
+      // Close the dialog
+      setEditDialogOpen(false);
+      setEditingPlay(null);
+      
+      setNotification({
+        message: 'Play reset to default. Refresh the page to see default plays.',
+        type: 'success'
+      });
+      
+    } catch (error) {
+      console.error('Error resetting play:', error);
+      setNotification({
+        message: 'Failed to reset play',
+        type: 'error'
+      });
+    }
+  };
 
   const handleToggleLock = async (section: keyof GamePlan, index: number) => {
     if (!plan) return;
@@ -1937,7 +2058,7 @@ export default function PlanPage() {
                               <GripVertical className="h-4 w-4 text-gray-400" />
                             </div>
                             <span className="w-6 text-slate-500">{index + 1}.</span>
-                            <span>{play.play}</span>
+                            <span>{play.customized_edit || play.play}</span>
                           </div>
                           
                           {hasContent && (
@@ -1951,6 +2072,12 @@ export default function PlanPage() {
                                 ) : (
                                   <LockOpen className="h-4 w-4 text-gray-400" />
                                 )}
+                              </button>
+                              <button
+                                onClick={() => handleEditPlay(section, index)}
+                                className="p-1 hover:bg-gray-100 rounded"
+                              >
+                                <Pencil className="h-4 w-4 text-gray-400" />
                               </button>
                               <Button 
                                 variant="ghost" 
@@ -3246,8 +3373,42 @@ export default function PlanPage() {
     );
   }
 
+  // Add this JSX near the end of the component, before the final return
+  const renderEditDialog = () => (
+    <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Play</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <Input
+            value={editingPlay?.text || ''}
+            onChange={(e) => setEditingPlay(prev => prev ? { ...prev, text: e.target.value } : null)}
+            placeholder="Enter play text..."
+          />
+        </div>
+        <DialogFooter className="flex justify-between">
+                      <Button
+              onClick={handleResetEdit}
+              className="bg-black hover:bg-gray-800 text-white"
+            >
+              Reset to Default
+            </Button>
+          <Button 
+            onClick={handleSaveEdit}
+            className="bg-[#2ECC70] hover:bg-[#27AE60]"
+          >
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <>
+      {/* Add this line before the final closing tag */}
+      {renderEditDialog()}
       <DragDropContext onDragEnd={handleDragEnd} onBeforeDragStart={handleBeforeDragStart}>
         <div className={`container mx-auto px-4 py-8 ${isDragging ? 'bg-gray-50' : ''}`}>
           {isDragging && (
