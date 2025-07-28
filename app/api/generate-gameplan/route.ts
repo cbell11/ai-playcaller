@@ -45,67 +45,21 @@ const sectionRequirements: Record<string, string> = {
 - High percentage plays for 3rd and short
 - Include QB sneaks and power runs`,
   thirdAndShort: `
-- STRICT category distribution required:
-  • 30% run game plays
-  • 20% RPO game plays
-  • 30% quick game plays
-  • 20% dropback game plays
-- Focus on high percentage plays
-- Plays designed for 2-4 yards
-- Include power runs and quick passes
-- NO shot plays allowed`,
-  thirdAndMedium: `
-- STRICT category distribution required:
-  • 30% quick game plays
-  • 30% dropback game plays
-  • 20% screen game plays
-  • 20% RPO game plays
-- Focus on plays designed for 4-7 yards
-- Mix of quick and intermediate routes
-- NO shot plays or run plays allowed
-- Include misdirection concepts`,
-  thirdAndLong: `
-- Focus on pass plays
-- Include screen plays
-- Routes should reach past the first down marker`,
-  redZone: `
-- Quick-hitting plays
-- Include specific red zone concepts
-- Mix of run and pass plays`,
-  goalline: `
 - STRICTLY NO shot plays allowed
-- Focus on power run plays and quick passes
-- Plays designed for tight spaces and short yardage
-- Include QB sneaks and power runs
-- Quick-hitting pass plays under 10 yards
-- High percentage plays only`,
-  backedUp: `
-- Conservative plays
-- Focus on gaining some yards safely
-- Avoid risky plays`,
-  screens: `
-- STRICTLY ONLY use plays from screen_game category
-- NO plays from shot_plays, quick_game, dropback_game, or run_game categories
-- Mix of RB, WR, and TE screens
-- Include RPO screens if available
-- Various formations and looks
-- Focus on misdirection and deception`,
-  playAction: `
-- Must be set up by run game
-- Mix of short and deep concepts
-- Include bootlegs and rollouts`,
-  deepShots: `
-- Focus on vertical passing concepts
-- Include play-action shots
-- Multiple deep route combinations`,
-  firstSecondCombos: `
-- Pairs of plays that work together
-- First down sets up second down
-- Mix of run and pass combinations`,
-  coverage0Beaters: `
-- Quick-hitting plays
-- Hot routes and sight adjustments
-- Plays that beat all-out blitz`
+- Focus on run game, quick game, and RPO game plays
+- Target distribution: 40% run game, 30% quick game, 30% RPO game
+- High percentage plays for 3rd and 1-3 yards
+- Quick-hitting plays that can gain 3-4 yards consistently
+- Include QB runs and power concepts
+- Avoid deep developing routes`,
+  thirdAndMedium: `
+- STRICTLY NO shot plays allowed
+- Focus heavily on quick game and dropback game plays
+- Target distribution: 50% quick game, 50% dropback game
+- Routes should be at or just past the first down marker
+- Include some screen game concepts
+- Avoid deep developing routes
+- Quick-hitting pass plays that can gain 4-7 yards`
 };
 
 export async function POST(req: Request) {
@@ -116,7 +70,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
 
-    const sectionCount = sectionSizes[targetSection] || 5;
+      const sectionCount = sectionSizes[targetSection] || 5;
     
     // Filter play pool for specific sections
     let filteredPlayPool = playPool;
@@ -154,51 +108,26 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'No valid plays found for two minute drill after filtering' }, { status: 400 });
       }
     } else if (targetSection === 'thirdAndShort') {
-      categoryRequirements = {
-        'run_game': 0.3,
-        'rpo_game': 0.2,
-        'quick_game': 0.3,
-        'dropback_game': 0.2
-      };
+      filteredPlayPool = playPool.filter(play => {
+        return play.category !== 'shot_plays';
+      });
 
-      // Check if we have plays in each required category
-      const availableCategories = Object.keys(categoryRequirements).filter(category =>
-        playPool.some(play => play.category === category)
-      );
-
-      if (availableCategories.length < Object.keys(categoryRequirements).length) {
-        return NextResponse.json({ error: 'Missing required play categories for third and short' }, { status: 400 });
+      if (filteredPlayPool.length === 0) {
+        return NextResponse.json({ error: 'No valid plays found for third and short after filtering' }, { status: 400 });
       }
-
-      // Filter out shot plays
-      filteredPlayPool = playPool.filter(play => play.category !== 'shot_plays');
     } else if (targetSection === 'thirdAndMedium') {
-      categoryRequirements = {
-        'quick_game': 0.3,
-        'dropback_game': 0.3,
-        'screen_game': 0.2,
-        'rpo_game': 0.2
-      };
+      filteredPlayPool = playPool.filter(play => {
+        return play.category !== 'shot_plays';
+      });
 
-      // Check if we have plays in each required category
-      const availableCategories = Object.keys(categoryRequirements).filter(category =>
-        playPool.some(play => play.category === category)
-      );
-
-      if (availableCategories.length < Object.keys(categoryRequirements).length) {
-        return NextResponse.json({ error: 'Missing required play categories for third and medium' }, { status: 400 });
+      if (filteredPlayPool.length === 0) {
+        return NextResponse.json({ error: 'No valid plays found for third and medium after filtering' }, { status: 400 });
       }
-
-      // Filter out shot plays and run plays
-      filteredPlayPool = playPool.filter(play => 
-        !['shot_plays', 'run_game'].includes(play.category)
-      );
     }
 
+    // Log if we have fewer plays than requested, but don't throw an error
     if (filteredPlayPool.length < sectionCount) {
-      return NextResponse.json({ 
-        error: `Not enough valid plays available. Need ${sectionCount} plays but only have ${filteredPlayPool.length}.` 
-      }, { status: 400 });
+      console.log(`Warning: Only ${filteredPlayPool.length} valid plays available for ${targetSection} (requested ${sectionCount})`);
     }
     
     // Build the prompt with section-specific requirements
@@ -223,7 +152,7 @@ export async function POST(req: Request) {
     // Format plays with their categories
     const formattedPlays = filteredPlayPool.map(p => `${p.name} [${p.category}]`).join('\n');
     
-    const prompt = `Generate plays for the "${targetSection}" section from this play pool:\n\n${formattedPlays}\n\nSection Requirements:${baseRequirements}${conceptRequirement}${countRequirement}${distributionRequirement}\n\nGeneral Rules:\n- Ensure variety: select different formations, motions, and directions\n- NO DUPLICATES: Each play must be unique\n- Return only JSON format: {"${targetSection}": ["play1", "play2", ...]}\n- Use exact play names from the pool (without the category in brackets)` as const;
+    const prompt = `Generate ${sectionCount} football plays for the "${targetSection}" section from this play pool:\n\n${filteredPlayPool.map(p => p.name).join('\n')}\n\nSection Requirements:${baseRequirements}${conceptRequirement}\n\nGeneral Rules:\n- Select up to ${sectionCount} plays (use all available plays if less than ${sectionCount} are available)\n- Ensure variety: select different formations, motions, and directions\n- NO DUPLICATES: Each play must be unique\n- Return only JSON format: {"${targetSection}": ["play1", "play2", ...]}\n- Use exact play names from the pool` as const;
 
     const completion = await openai.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
@@ -235,7 +164,12 @@ export async function POST(req: Request) {
     });
 
     const result = JSON.parse(completion.choices[0].message.content || '{}');
-    
+
+    // If we got fewer plays than requested, that's okay - use what we have
+    if (result[targetSection] && result[targetSection].length < sectionCount) {
+      console.log(`Warning: Only found ${result[targetSection].length} valid plays for ${targetSection} (requested ${sectionCount})`);
+    }
+
     // Validate the response
     if (!result[targetSection] || !Array.isArray(result[targetSection])) {
       return NextResponse.json({ error: 'Invalid response format from AI' }, { status: 500 });
