@@ -190,6 +190,9 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'shortyardage': 'shortYardage',
   'thirdandshort': 'thirdAndShort',
   'thirdandmedium': 'thirdAndMedium',
+  'shortyardage': 'shortYardage',
+  'thirdandshort': 'thirdAndShort',
+  'thirdandmedium': 'thirdAndMedium',
   'thirdandlong': 'thirdAndLong',
   'redzone': 'redZone',
   'goalline': 'goalline',
@@ -2356,6 +2359,8 @@ export default function PlanPage() {
         'basePackage3',
         'firstDowns',
         'shortYardage',
+        'thirdAndShort',
+        'thirdAndMedium',
         'thirdAndLong',
         'redZone',
         'goalline',
@@ -2650,6 +2655,14 @@ export default function PlanPage() {
           if (section === 'screens') {
             return p.category === 'screen_game';
           }
+          // For Third and Short, exclude shot plays
+          if (section === 'thirdAndShort') {
+            return p.category !== 'shot_plays';
+          }
+          // For Third and Medium, exclude shot plays
+          if (section === 'thirdAndMedium') {
+            return p.category !== 'shot_plays';
+          }
           return true;
         })
         .map(p => ({
@@ -2760,6 +2773,21 @@ export default function PlanPage() {
           console.error('Insert error:', insertError);
           throw new Error(`Failed to save plays: ${insertError.message}`);
         }
+
+        // Show success message with count if we got fewer plays than requested
+        const successMessage = insertData.length < sectionSizes[section] 
+          ? `${section} regenerated with ${insertData.length} plays (limited by available plays)`
+          : `${section} regenerated successfully!`;
+
+        setNotification({
+          message: successMessage,
+          type: 'success'
+        });
+      } else {
+        setNotification({
+          message: 'No valid plays found for this section',
+          type: 'warning'
+        });
       }
 
       // Optimized UI update - only fetch this section's data
@@ -2770,12 +2798,6 @@ export default function PlanPage() {
           save('plan', updatedPlan);
         }
       }
-
-      // Show success message
-      setNotification({
-        message: `${section} regenerated successfully!`,
-        type: 'success'
-      });
 
     } catch (error) {
       console.error('Error regenerating section:', error);
@@ -3265,205 +3287,227 @@ export default function PlanPage() {
                     Customize
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-4xl">
                   <DialogHeader>
                     <DialogTitle>Section Visibility</DialogTitle>
                     <DialogDescription>
                       Toggle which sections are visible in your game plan.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="opening-script">Opening Script</Label>
-                      <Switch
-                        id="opening-script"
-                        checked={sectionVisibility.openingScript}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, openingScript: checked }))
-                        }
-                      />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4 max-h-[70vh] overflow-y-auto pr-4">
+                    {/* Column 1: Base Packages */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-sm border-b pb-2">Base Packages</h3>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="opening-script">Opening Script</Label>
+                        <Switch
+                          id="opening-script"
+                          checked={sectionVisibility.openingScript}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, openingScript: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="base-package-1">Base Package 1</Label>
+                        <Switch
+                          id="base-package-1"
+                          checked={sectionVisibility.basePackage1}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, basePackage1: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="base-package-2">Base Package 2</Label>
+                        <Switch
+                          id="base-package-2"
+                          checked={sectionVisibility.basePackage2}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, basePackage2: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="base-package-3">Base Package 3</Label>
+                        <Switch
+                          id="base-package-3"
+                          checked={sectionVisibility.basePackage3}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, basePackage3: checked }))
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="base-package-1">Base Package 1</Label>
-                      <Switch
-                        id="base-package-1"
-                        checked={sectionVisibility.basePackage1}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, basePackage1: checked }))
-                        }
-                      />
+
+                    {/* Column 2: Down & Distance */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-sm border-b pb-2">Down & Distance</h3>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="first-downs">First Downs</Label>
+                        <Switch
+                          id="first-downs"
+                          checked={sectionVisibility.firstDowns}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, firstDowns: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="short-yardage">Short Yardage</Label>
+                        <Switch
+                          id="short-yardage"
+                          checked={sectionVisibility.shortYardage}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, shortYardage: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="third-and-short">Third and Short</Label>
+                        <Switch
+                          id="third-and-short"
+                          checked={sectionVisibility.thirdAndShort}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, thirdAndShort: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="third-and-medium">Third and Medium</Label>
+                        <Switch
+                          id="third-and-medium"
+                          checked={sectionVisibility.thirdAndMedium}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, thirdAndMedium: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="third-and-long">Third and Long</Label>
+                        <Switch
+                          id="third-and-long"
+                          checked={sectionVisibility.thirdAndLong}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, thirdAndLong: checked }))
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="base-package-2">Base Package 2</Label>
-                      <Switch
-                        id="base-package-2"
-                        checked={sectionVisibility.basePackage2}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, basePackage2: checked }))
-                        }
-                      />
+
+                    {/* Column 3: Situational */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-sm border-b pb-2">Situational</h3>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="red-zone">Red Zone</Label>
+                        <Switch
+                          id="red-zone"
+                          checked={sectionVisibility.redZone}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, redZone: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="goalline">Goalline</Label>
+                        <Switch
+                          id="goalline"
+                          checked={sectionVisibility.goalline}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, goalline: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="backed-up">Backed Up</Label>
+                        <Switch
+                          id="backed-up"
+                          checked={sectionVisibility.backedUp}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, backedUp: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="two-minute-drill">Two Minute Drill</Label>
+                        <Switch
+                          id="two-minute-drill"
+                          checked={sectionVisibility.twoMinuteDrill}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, twoMinuteDrill: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="two-point-plays">Two Point Plays</Label>
+                        <Switch
+                          id="two-point-plays"
+                          checked={sectionVisibility.twoPointPlays}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, twoPointPlays: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="first-second-combos">1st and 2nd Combos</Label>
+                        <Switch
+                          id="first-second-combos"
+                          checked={sectionVisibility.firstSecondCombos}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, firstSecondCombos: checked }))
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="base-package-3">Base Package 3</Label>
-                      <Switch
-                        id="base-package-3"
-                        checked={sectionVisibility.basePackage3}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, basePackage3: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="first-downs">First Downs</Label>
-                      <Switch
-                        id="first-downs"
-                        checked={sectionVisibility.firstDowns}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, firstDowns: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="short-yardage">Short Yardage</Label>
-                      <Switch
-                        id="short-yardage"
-                        checked={sectionVisibility.shortYardage}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, shortYardage: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="third-and-short">Third and Short</Label>
-                      <Switch
-                        id="third-and-short"
-                        checked={sectionVisibility.thirdAndShort}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, thirdAndShort: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="third-and-medium">Third and Medium</Label>
-                      <Switch
-                        id="third-and-medium"
-                        checked={sectionVisibility.thirdAndMedium}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, thirdAndMedium: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="third-and-long">Third and Long</Label>
-                      <Switch
-                        id="third-and-long"
-                        checked={sectionVisibility.thirdAndLong}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, thirdAndLong: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="red-zone">Red Zone</Label>
-                      <Switch
-                        id="red-zone"
-                        checked={sectionVisibility.redZone}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, redZone: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="goalline">Goalline</Label>
-                      <Switch
-                        id="goalline"
-                        checked={sectionVisibility.goalline}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, goalline: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="backed-up">Backed Up</Label>
-                      <Switch
-                        id="backed-up"
-                        checked={sectionVisibility.backedUp}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, backedUp: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="screens">Screens</Label>
-                      <Switch
-                        id="screens"
-                        checked={sectionVisibility.screens}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, screens: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="play-action">Play Action</Label>
-                      <Switch
-                        id="play-action"
-                        checked={sectionVisibility.playAction}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, playAction: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="deep-shots">Deep Shots</Label>
-                      <Switch
-                        id="deep-shots"
-                        checked={sectionVisibility.deepShots}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, deepShots: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="two-minute-drill">Two Minute Drill</Label>
-                      <Switch
-                        id="two-minute-drill"
-                        checked={sectionVisibility.twoMinuteDrill}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, twoMinuteDrill: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="two-point-plays">Two Point Plays</Label>
-                      <Switch
-                        id="two-point-plays"
-                        checked={sectionVisibility.twoPointPlays}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, twoPointPlays: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="first-second-combos">1st and 2nd Combos</Label>
-                      <Switch
-                        id="first-second-combos"
-                        checked={sectionVisibility.firstSecondCombos}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, firstSecondCombos: checked }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="coverage0-beaters">Cover 0 Beaters</Label>
-                      <Switch
-                        id="coverage0-beaters"
-                        checked={sectionVisibility.coverage0Beaters}
-                        onCheckedChange={(checked) => 
-                          setSectionVisibility(prev => ({ ...prev, coverage0Beaters: checked }))
-                        }
-                      />
+
+                    {/* Column 4: Play Types */}
+                    <div className="space-y-4 md:col-span-3 lg:col-span-1">
+                      <h3 className="font-semibold text-sm border-b pb-2">Play Types</h3>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="screens">Screens</Label>
+                        <Switch
+                          id="screens"
+                          checked={sectionVisibility.screens}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, screens: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="play-action">Play Action</Label>
+                        <Switch
+                          id="play-action"
+                          checked={sectionVisibility.playAction}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, playAction: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="deep-shots">Deep Shots</Label>
+                        <Switch
+                          id="deep-shots"
+                          checked={sectionVisibility.deepShots}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, deepShots: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="coverage0-beaters">Cover 0 Beaters</Label>
+                        <Switch
+                          id="coverage0-beaters"
+                          checked={sectionVisibility.coverage0Beaters}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, coverage0Beaters: checked }))
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
+                  <DialogFooter>
+                    <Button onClick={() => setShowVisibilitySettings(false)}>Done</Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
               <Button 
