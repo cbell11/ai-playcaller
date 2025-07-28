@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, MouseEventHandler, useCallback } from "rea
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search, Eye, Settings } from "lucide-react"
+import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search, Eye, Settings, Lock, LockOpen } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
 import { getPlayPool, Play } from "@/lib/playpool"
@@ -86,6 +86,7 @@ interface PlayCall {
   play: string
   runDirection?: "+" | "-"  // + for field, - for boundary (only for run plays)
   category?: string  // Add this line
+  is_locked?: boolean  // Add this line for tracking lock state
 }
 
 // Add new types for the cascading dropdowns - currently unused but may be used in future versions
@@ -546,7 +547,8 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
           motion: '',
           play: entry.customized_edit || entry.combined_call || '',
           runDirection: '+',
-          category: entry.play?.category || entry.category // Add this line to include category
+          category: entry.play?.category || entry.category,
+          is_locked: entry.is_locked || false // Add this line to include lock state
         };
 
       // Add the play to its section array
@@ -734,6 +736,51 @@ export default function PlanPage() {
 
   // Add this near other state declarations
   const [uniqueConcepts, setUniqueConcepts] = useState<string[]>([]);
+
+  const handleToggleLock = async (section: keyof GamePlan, index: number) => {
+    if (!plan) return;
+    
+    const currentPlay = plan[section][index];
+    if (!currentPlay || !currentPlay.play) return; // Don't toggle empty slots
+    
+    const newLockedState = !currentPlay.is_locked;
+    
+    try {
+      const team_id = localStorage.getItem('selectedTeam');
+      const opponent_id = localStorage.getItem('selectedOpponent');
+      
+      if (!team_id || !opponent_id) {
+        throw new Error('Team or opponent not selected');
+      }
+      
+      // Update the lock state in the database
+      const { error } = await browserClient
+        .from('game_plan')
+        .update({ is_locked: newLockedState })
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .eq('section', section.toLowerCase())
+        .eq('position', index);
+        
+      if (error) throw error;
+      
+      // Update local state
+      const updatedPlan = { ...plan };
+      updatedPlan[section][index] = {
+        ...currentPlay,
+        is_locked: newLockedState
+      };
+      setPlan(updatedPlan);
+      
+    } catch (error) {
+      console.error('Error toggling lock:', error);
+      setNotification({
+        message: 'Failed to toggle lock state',
+        type: 'error'
+      });
+      setTimeout(() => setNotification(null), 3000);
+    }
+  };
 
   // Add state declarations at the top with other states
   const [basePackageFormations, setBasePackageFormations] = useState<Record<string, string>>(() => {
@@ -1895,6 +1942,16 @@ export default function PlanPage() {
                           
                           {hasContent && (
                             <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleToggleLock(section, index)}
+                                className="p-1 hover:bg-gray-100 rounded"
+                              >
+                                {play.is_locked ? (
+                                  <Lock className="h-4 w-4 text-blue-500" />
+                                ) : (
+                                  <LockOpen className="h-4 w-4 text-gray-400" />
+                                )}
+                              </button>
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
@@ -2830,8 +2887,8 @@ export default function PlanPage() {
     }
   };
 
-  // Add this function after handleColorChange
-  const handleRegenerateSection = async (section: keyof GamePlan) => {
+      // Add this function after handleColorChange
+    const handleRegenerateSection = async (section: keyof GamePlan) => {
     if (!selectedOpponent || !playPool.length) {
       setNotification({
         message: 'Please select an opponent and ensure plays are loaded first',
@@ -2849,6 +2906,20 @@ export default function PlanPage() {
       if (!team_id || !opponent_id) {
         throw new Error('Team or opponent not selected');
       }
+
+      // Step 1: Save all locked plays and their positions
+      const { data: lockedPlays, error: lockedError } = await browserClient
+        .from('game_plan')
+        .select('*')
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .eq('section', section.toLowerCase())
+        .eq('is_locked', true);
+
+      if (lockedError) throw lockedError;
+
+      // Calculate how many new plays we need (section size minus locked plays)
+      const neededPlays = sectionSizes[section] - (lockedPlays?.length || 0);
 
       // Format plays for the API - use only plays that match this section's typical category
       // and selected concept if it's a base package
@@ -2888,12 +2959,13 @@ export default function PlanPage() {
       console.log('Sending to API:', {
         section,
         playCount: filteredPlays.length,
-        screenPlays: filteredPlays.filter(p => p.category === 'screen_game').length
+        screenPlays: filteredPlays.filter(p => p.category === 'screen_game').length,
+        neededPlays
       });
 
       // Create a minimal section-specific size object for faster processing
       const sectionSizeObj = {
-        [section]: sectionSizes[section]
+        [section]: neededPlays
       };
 
       // Call our API route with optimized parameters for single section
@@ -2934,41 +3006,50 @@ export default function PlanPage() {
         return play;
       };
 
-      // Clear existing plays for this section and batch insert new ones
+      // Step 2: Delete only unlocked plays
       const { error: deleteError } = await browserClient
         .from('game_plan')
         .delete()
         .eq('team_id', team_id)
         .eq('opponent_id', opponent_id)
-        .eq('section', section.toLowerCase());
+        .eq('section', section.toLowerCase())
+        .eq('is_locked', false);
 
       if (deleteError) {
-        throw new Error('Failed to clear section');
+        throw new Error('Failed to clear unlocked plays');
       }
 
-      // Batch insert all new plays at once for speed
+      // Batch insert new plays for available positions
       const plays = gamePlan[section] || [];
       console.log('Preparing to insert plays:', {
         section,
         receivedPlays: plays.length,
-        maxPlays: sectionSizes[section]
+        neededPlays: neededPlays,
+        lockedPlays: lockedPlays?.length || 0
       });
 
       const insertData = [];
+      const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+      let playIndex = 0;
       
-      for (let i = 0; i < Math.min(plays.length, sectionSizes[section]); i++) {
-        const playName = plays[i];
-        const play = findPlayByName(playName);
-        if (play) {
-          insertData.push({
-            team_id,
-            opponent_id,
-            play_id: play.id,
-            section: section.toLowerCase(),
-            position: i,
-            combined_call: formatPlayFromPool(play),
-            customized_edit: play.customized_edit
-          });
+      // Insert new plays into available (non-locked) positions
+      for (let i = 0; i < sectionSizes[section] && playIndex < plays.length; i++) {
+        if (!lockedPositions.has(i)) {
+          const playName = plays[playIndex];
+          const play = findPlayByName(playName);
+          if (play) {
+            insertData.push({
+              team_id,
+              opponent_id,
+              play_id: play.id,
+              section: section.toLowerCase(),
+              position: i,
+              combined_call: formatPlayFromPool(play),
+              customized_edit: play.customized_edit,
+              is_locked: false
+            });
+            playIndex++;
+          }
         }
       }
 
