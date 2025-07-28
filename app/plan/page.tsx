@@ -16,6 +16,7 @@ import Image from "next/image"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { createClient } from '@supabase/supabase-js'
+import React from "react"
 
 // Add this helper function near the top of the file
 const isBrowser = typeof window !== 'undefined';
@@ -2274,7 +2275,74 @@ export default function PlanPage() {
     const displayTitle = isBasePackage && section ? customSectionNames[section] || title : title;
 
     const emptyRowsCount = maxLength > filledPlays.length ? maxLength - filledPlays.length : 0;
+
+    // Special handling for First and Second Combos
+    if (section === 'firstSecondCombos') {
+      return (
+        <div className="break-inside-avoid h-full border border-black">
+          <div className="bg-white p-0.5 font-bold border-b text-xxs flex items-center">
+            <span className="text-black">{displayTitle}</span>
+          </div>
+          <table className="w-full border-collapse text-xxs">
+            <tbody>
+              {/* Group plays in pairs */}
+              {Array.from({ length: Math.ceil(filledPlays.length / 2) }).map((_, comboIndex) => {
+                const firstPlay = filledPlays[comboIndex * 2];
+                const secondPlay = filledPlays[comboIndex * 2 + 1];
+                const firstPlayBgColor = firstPlay?.category ? categoryColors[firstPlay.category as keyof CategoryColors] : '';
+                const secondPlayBgColor = secondPlay?.category ? categoryColors[secondPlay.category as keyof CategoryColors] : '';
+
+                return (
+                  <React.Fragment key={comboIndex}>
+                    {/* First Down Play */}
+                    {firstPlay && (
+                      <tr className={`border-b ${firstPlayBgColor}`} style={{ borderTop: comboIndex > 0 ? '2px solid black' : '' }}>
+                        <td className="py-0 px-0.5 border-r w-4">□</td>
+                        <td className="py-0 px-0.5 border-r w-4">□</td>
+                        <td className="py-0 px-0.5 border-r w-12 font-bold">1st</td>
+                        <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
+                          {firstPlay.play}
+                        </td>
+                      </tr>
+                    )}
+                    {/* Second Down Play */}
+                    {secondPlay && (
+                      <tr className={`border-b ${secondPlayBgColor}`} style={{ borderBottom: '2px solid black' }}>
+                        <td className="py-0 px-0.5 border-r w-4">□</td>
+                        <td className="py-0 px-0.5 border-r w-4">□</td>
+                        <td className="py-0 px-0.5 border-r w-12 font-bold">2nd</td>
+                        <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
+                          {secondPlay.play}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+              {/* Add empty rows if needed */}
+              {Array.from({ length: Math.floor(emptyRowsCount / 2) }).map((_, idx) => (
+                <React.Fragment key={`empty-${idx}`}>
+                  <tr className="border-b" style={{ borderTop: idx === 0 && filledPlays.length > 0 ? '2px solid black' : '' }}>
+                    <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
+                    <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
+                    <td className="py-0 px-0.5 border-r w-12 font-bold">1st</td>
+                    <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">&nbsp;</td>
+                  </tr>
+                  <tr className="border-b" style={{ borderBottom: '2px solid black' }}>
+                    <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
+                    <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
+                    <td className="py-0 px-0.5 border-r w-12 font-bold">2nd</td>
+                    <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">&nbsp;</td>
+                  </tr>
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
     
+    // Regular section rendering
     return (
       <div className="break-inside-avoid h-full border border-black">
         <div className="bg-white p-0.5 font-bold border-b text-xxs flex items-center">
@@ -2286,12 +2354,12 @@ export default function PlanPage() {
               const playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
               return (
                 <tr key={idx} className={`border-b ${playBgColor}`}>
-                <td className="py-0 px-0.5 border-r w-4">□</td>
-                <td className="py-0 px-0.5 border-r w-4">□</td>
-                <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
-                <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
-                  {play.play}
-                </td>
+                  <td className="py-0 px-0.5 border-r w-4">□</td>
+                  <td className="py-0 px-0.5 border-r w-4">□</td>
+                  <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
+                  <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
+                    {play.play}
+                  </td>
                 </tr>
               );
             })}
