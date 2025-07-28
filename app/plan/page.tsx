@@ -735,6 +735,23 @@ export default function PlanPage() {
   // Add this near other state declarations
   const [uniqueConcepts, setUniqueConcepts] = useState<string[]>([]);
 
+  // Add state declarations at the top with other states
+  const [basePackageFormations, setBasePackageFormations] = useState<Record<string, string>>(() => {
+    if (!isBrowser) return {
+      basePackage1: '',
+      basePackage2: '',
+      basePackage3: ''
+    };
+    
+    const saved = localStorage.getItem('basePackageFormations');
+    return saved ? JSON.parse(saved) : {
+      basePackage1: '',
+      basePackage2: '',
+      basePackage3: ''
+    };
+  });
+  const [uniqueFormations, setUniqueFormations] = useState<string[]>([]);
+
   // Add this function to handle name updates
   const handleSectionNameChange = (section: string, newName: string) => {
     const updated = { ...customSectionNames, [section]: newName };
@@ -746,10 +763,39 @@ export default function PlanPage() {
 
   // Add this function to handle concept changes
   const handleConceptChange = (section: string, concept: string) => {
+    // If selecting a concept and there's already a formation selected
+    if (concept && basePackageFormations[section]) {
+      setNotification({
+        message: 'Please clear formation focus before selecting a concept focus',
+        type: 'error'
+      });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
     const updated = { ...basePackageConcepts, [section]: concept };
     setBasePackageConcepts(updated);
     if (isBrowser) {
       localStorage.setItem('basePackageConcepts', JSON.stringify(updated));
+    }
+  };
+
+  // Add this function to handle formation changes
+  const handleFormationChange = (section: string, formation: string) => {
+    // If selecting a formation and there's already a concept selected
+    if (formation && basePackageConcepts[section]) {
+      setNotification({
+        message: 'Please clear concept focus before selecting a formation focus',
+        type: 'error'
+      });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    const updated = { ...basePackageFormations, [section]: formation };
+    setBasePackageFormations(updated);
+    if (isBrowser) {
+      localStorage.setItem('basePackageFormations', JSON.stringify(updated));
     }
   };
 
@@ -758,6 +804,14 @@ export default function PlanPage() {
 
   // Add section-specific loading state
   const [generatingSection, setGeneratingSection] = useState<keyof GamePlan | null>(null)
+
+  // Add state for dialog open state
+  const [dialogOpen, setDialogOpen] = useState<Record<string, boolean>>({});
+
+  // Add this near other state declarations
+  const handleDialogOpenChange = (section: string, open: boolean) => {
+    setDialogOpen(prev => ({ ...prev, [section]: open }));
+  };
 
   useEffect(() => {
     const fetchOpponentName = async () => {
@@ -1163,7 +1217,7 @@ export default function PlanPage() {
     loadPlays();
   }, [selectedOpponent]); // Remove sectionSizes from dependencies
 
-  // Add effect to populate unique concepts
+  // Add effect to populate unique concepts and formations from playpool
   useEffect(() => {
     if (!playPool.length) return;
 
@@ -1175,8 +1229,27 @@ export default function PlanPage() {
       return acc;
     }, {} as Record<string, boolean>);
 
+    // Get unique formations from the playpool
+    const uniqueFormationsMap = playPool.reduce((acc, play) => {
+      console.log('Processing play for formations:', { 
+        playId: play.id,
+        formation: play.formation,
+        category: play.category 
+      });
+      if (play.formations) {
+        acc[play.formations] = true;
+      }
+      return acc;
+    }, {} as Record<string, boolean>);
+
     const concepts = Object.keys(uniqueConceptsMap).sort();
+    const formations = Object.keys(uniqueFormationsMap).sort();
+    console.log('Found formations:', formations);
+    
+    console.log('Setting concepts:', concepts);
+    console.log('Setting formations:', formations);
     setUniqueConcepts(concepts);
+    setUniqueFormations(formations);
   }, [playPool]);
 
   // Handle before drag start
@@ -1465,9 +1538,21 @@ export default function PlanPage() {
         <CardHeader className="bg-white border-b p-4">
           <div className="mb-2 flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <CardTitle className="font-bold text-black">{displayTitle}</CardTitle>
+              <div>
+                <CardTitle className="font-bold text-black">{displayTitle}</CardTitle>
+                {isBasePackage && (basePackageConcepts[section] || basePackageFormations[section]) && (
+                  <div className="flex gap-2 text-sm text-gray-500">
+                    {basePackageConcepts[section] && (
+                      <span>Focus: {basePackageConcepts[section]}</span>
+                    )}
+                    {basePackageFormations[section] && (
+                      <span>Formation: {basePackageFormations[section]}</span>
+                    )}
+                  </div>
+                )}
+              </div>
               {isBasePackage && (
-                <Dialog>
+                <Dialog open={dialogOpen[section]} onOpenChange={(open) => handleDialogOpenChange(section, open)}>
                   <DialogTrigger asChild>
                     <Button 
                       variant="ghost" 
@@ -1494,7 +1579,7 @@ export default function PlanPage() {
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               handleSectionNameChange(section, e.currentTarget.value);
-                              (e.currentTarget.closest('dialog') as HTMLDialogElement)?.close();
+                              handleDialogOpenChange(section, false);
                             }
                           }}
                           onBlur={(e) => {
@@ -1507,6 +1592,7 @@ export default function PlanPage() {
                         <Select
                           value={basePackageConcepts[section] || 'any'}
                           onValueChange={(value) => handleConceptChange(section, value === 'any' ? '' : value)}
+                          disabled={!!basePackageFormations[section]}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select a concept" />
@@ -1520,9 +1606,62 @@ export default function PlanPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-sm text-gray-500 mt-1">
-                          Select a concept to focus on for this package
-                        </p>
+                        {basePackageFormations[section] && (
+                          <p className="text-sm text-red-500 mt-1">
+                            You can only select a focus formation or concept but not both. To select this, please reset your formation focus to its default value.
+                          </p>
+                        )}
+                        {!basePackageFormations[section] && (
+                          <p className="text-sm text-gray-500 mt-1">
+                            Select a concept to focus on for this package
+                          </p>
+                        )}
+
+                        <div className="mt-4">
+                          <Label htmlFor="formation">Focus Formation</Label>
+                          <Select
+                            value={basePackageFormations[section] || 'any'}
+                            onValueChange={(value) => handleFormationChange(section, value === 'any' ? '' : value)}
+                            disabled={!!basePackageConcepts[section]}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a formation" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[200px] overflow-y-auto">
+                              <SelectItem value="any">Any Formation</SelectItem>
+                              {uniqueFormations.map((formation) => (
+                                <SelectItem key={formation} value={formation}>
+                                  {formation}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {basePackageConcepts[section] && (
+                            <p className="text-sm text-red-500 mt-1">
+                              You can only select a focus formation or concept but not both. To select this, please reset your concept focus to its default value.
+                            </p>
+                          )}
+                          {!basePackageConcepts[section] && (
+                            <p className="text-sm text-gray-500 mt-1">
+                              Select a formation to focus on for this package
+                            </p>
+                          )}
+                        </div>
+
+                        {(basePackageConcepts[section] || basePackageFormations[section]) && (
+                          <div className="mt-6 flex justify-end">
+                            <Button 
+                              onClick={() => {
+                                handleRegenerateSection(section);
+                                handleDialogOpenChange(section, false);
+                              }}
+                              className="bg-[#2ECC70] hover:bg-[#27AE60] text-white flex items-center gap-2"
+                            >
+                              <Wand2 className="h-4 w-4" />
+                              Regenerate with Focus
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </DialogContent>
@@ -1542,7 +1681,7 @@ export default function PlanPage() {
               className="flex items-center gap-1 hover:bg-transparent"
               disabled={generating}
             >
-              {section === 'coverage0Beaters' ? (
+                              {section === 'coverage0Beaters' ? (
                 <RefreshCw className="h-4 w-4 text-[#0B2545]" />
               ) : (
                 <Wand2 className="h-4 w-4 text-[#0B2545]" />
@@ -2715,12 +2854,17 @@ export default function PlanPage() {
       // and selected concept if it's a base package
       const isBasePackage = section.startsWith('basePackage');
       const selectedConcept = isBasePackage ? basePackageConcepts[section] : null;
+      const selectedFormation = isBasePackage ? basePackageFormations[section] : null;
       
       const filteredPlays = playPool
         .filter(p => {
           // If this is a base package with a selected concept, filter by it
-          if (isBasePackage && selectedConcept) {
-            return p.concept === selectedConcept;
+          if (isBasePackage && selectedConcept && p.concept !== selectedConcept) {
+            return false;
+          }
+          // If this is a base package with a selected formation, filter by it
+          if (isBasePackage && selectedFormation && p.formations !== selectedFormation) {
+            return false;
           }
           // For screens section, only include screen_game plays
           if (section === 'screens') {

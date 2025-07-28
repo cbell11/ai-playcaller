@@ -8,7 +8,7 @@ export interface Play {
   play_id: string
   team_id: string
   category: string
-  formation: string
+  formations: string
   tag: string
   strength: string
   motion_shift: string
@@ -127,6 +127,13 @@ export async function getPlayPool(): Promise<Play[]> {
       .order('category')
       .order('is_locked', { ascending: false })
       .order('concept')
+    
+    console.log('Raw plays from database:', plays?.slice(0, 5).map(p => ({
+      id: p.id,
+      formation: p.formation,
+      concept: p.concept,
+      category: p.category
+    })));
     
     if (error) {
       console.error('Error fetching play pool:', {
