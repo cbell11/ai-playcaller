@@ -22,44 +22,54 @@ const sectionRequirements: Record<string, string> = {
 - Maximum pass depth of 10 yards
 - Select creative and distinct plays with high success potential
 - Prioritize unique formations and concepts`,
-  openingScript: `
-- Mix of run and pass plays
-- Include at least one screen play
-- Focus on high-percentage plays
-- Avoid deep shots or risky plays`,
-  basePackage1: `
-- Core plays that form the foundation of the offense
-- Balance between run and pass concepts`,
-  basePackage2: `
-- Complementary plays to base package 1
-- Should work well in combination with base package 1 plays`,
-  basePackage3: `
-- Alternative formation or personnel grouping
-- Distinct from base packages 1 and 2`,
-  firstDowns: `
-- Mix of run and pass plays
-- Focus on gaining 4-6 yards
-- Include some play-action passes`,
-  shortYardage: `
-- Focus on run plays and quick passes
-- High percentage plays for 3rd and short
-- Include QB sneaks and power runs`,
-  thirdAndShort: `
+  highRedZone: `
 - STRICTLY NO shot plays allowed
-- Focus on run game, quick game, and RPO game plays
-- Target distribution: 40% run game, 30% quick game, 30% RPO game
-- High percentage plays for 3rd and 1-3 yards
-- Quick-hitting plays that can gain 3-4 yards consistently
-- Include QB runs and power concepts
-- Avoid deep developing routes`,
-  thirdAndMedium: `
+- Focus on run game, quick game, dropback game, and screen game plays
+- Target distribution: 30% run game, 30% quick game, 20% dropback game, 20% screen game
+- Plays designed for 10-20 yard line
+- Quick-hitting plays that can score or get first downs
+- Include misdirection concepts`,
+  lowRedZone: `
+- STRICTLY NO shot plays or screen game plays allowed
+- Focus heavily on run game and quick game plays
+- Target distribution: 50% run game, 50% quick game
+- Plays designed for 5-10 yard line
+- Quick-hitting plays that can score
+- Include power run concepts and quick passes`,
+  goalline: `
 - STRICTLY NO shot plays allowed
-- Focus heavily on quick game and dropback game plays
-- Target distribution: 50% quick game, 50% dropback game
-- Routes should be at or just past the first down marker
-- Include some screen game concepts
-- Avoid deep developing routes
-- Quick-hitting pass plays that can gain 4-7 yards`
+- Focus on power run plays and quick passes
+- Plays designed for tight spaces and short yardage
+- Include QB sneaks and power runs
+- Quick-hitting pass plays under 10 yards
+- High percentage plays only`,
+  backedUp: `
+- Conservative plays
+- Focus on gaining some yards safely
+- Avoid risky plays`,
+  screens: `
+- STRICTLY ONLY use plays from screen_game category
+- NO plays from shot_plays, quick_game, dropback_game, or run_game categories
+- Mix of RB, WR, and TE screens
+- Include RPO screens if available
+- Various formations and looks
+- Focus on misdirection and deception`,
+  playAction: `
+- Must be set up by run game
+- Mix of short and deep concepts
+- Include bootlegs and rollouts`,
+  deepShots: `
+- Focus on vertical passing concepts
+- Include play-action shots
+- Multiple deep route combinations`,
+  firstSecondCombos: `
+- Pairs of plays that work together
+- First down sets up second down
+- Mix of run and pass combinations`,
+  coverage0Beaters: `
+- Quick-hitting plays
+- Hot routes and sight adjustments
+- Plays that beat all-out blitz`
 };
 
 export async function POST(req: Request) {
@@ -122,6 +132,22 @@ export async function POST(req: Request) {
 
       if (filteredPlayPool.length === 0) {
         return NextResponse.json({ error: 'No valid plays found for third and medium after filtering' }, { status: 400 });
+      }
+    } else if (targetSection === 'highRedZone') {
+      filteredPlayPool = playPool.filter(play => {
+        return play.category !== 'shot_plays';
+      });
+
+      if (filteredPlayPool.length === 0) {
+        return NextResponse.json({ error: 'No valid plays found for high red zone after filtering' }, { status: 400 });
+      }
+    } else if (targetSection === 'lowRedZone') {
+      filteredPlayPool = playPool.filter(play => {
+        return !['shot_plays', 'screen_game'].includes(play.category);
+      });
+
+      if (filteredPlayPool.length === 0) {
+        return NextResponse.json({ error: 'No valid plays found for low red zone after filtering' }, { status: 400 });
       }
     }
 

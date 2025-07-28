@@ -108,7 +108,8 @@ interface GamePlan {
   thirdAndShort: PlayCall[]
   thirdAndMedium: PlayCall[]
   thirdAndLong: PlayCall[]
-  redZone: PlayCall[]
+  highRedZone: PlayCall[]
+  lowRedZone: PlayCall[]
   goalline: PlayCall[]
   backedUp: PlayCall[]
   screens: PlayCall[]
@@ -194,7 +195,8 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'thirdandshort': 'thirdAndShort',
   'thirdandmedium': 'thirdAndMedium',
   'thirdandlong': 'thirdAndLong',
-  'redzone': 'redZone',
+  'highredzone': 'highRedZone',
+  'lowredzone': 'lowRedZone',
   'goalline': 'goalline',
   'backedup': 'backedUp',
   'screens': 'screens',
@@ -219,7 +221,8 @@ const initialSectionSizes: Record<keyof GamePlan, number> = {
   thirdAndShort: 5,
   thirdAndMedium: 5,
   thirdAndLong: 5,
-  redZone: 5,
+  highRedZone: 5,
+  lowRedZone: 5,
   goalline: 5,
   backedUp: 5,
   screens: 5,
@@ -3399,12 +3402,22 @@ export default function PlanPage() {
                     <div className="space-y-4">
                       <h3 className="font-semibold text-sm border-b pb-2">Situational</h3>
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="red-zone">Red Zone</Label>
+                        <Label htmlFor="high-red-zone">High Red Zone (10-20)</Label>
                         <Switch
-                          id="red-zone"
-                          checked={sectionVisibility.redZone}
+                          id="high-red-zone"
+                          checked={sectionVisibility.highRedZone}
                           onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, redZone: checked }))
+                            setSectionVisibility(prev => ({ ...prev, highRedZone: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="low-red-zone">Low Red Zone (5-10)</Label>
+                        <Switch
+                          id="low-red-zone"
+                          checked={sectionVisibility.lowRedZone}
+                          onCheckedChange={(checked) => 
+                            setSectionVisibility(prev => ({ ...prev, lowRedZone: checked }))
                           }
                         />
                       </div>
@@ -3588,7 +3601,8 @@ export default function PlanPage() {
                 { key: 'thirdAndShort', title: 'Third and Short', bgColor: 'bg-blue-100' },
                 { key: 'thirdAndMedium', title: 'Third and Medium', bgColor: 'bg-blue-100' },
                 { key: 'thirdAndLong', title: 'Third and Long', bgColor: 'bg-blue-100' },
-                { key: 'redZone', title: 'Red Zone', bgColor: 'bg-red-100' },
+                { key: 'highRedZone', title: 'High Red Zone (10-20)', bgColor: 'bg-red-100' },
+    { key: 'lowRedZone', title: 'Low Red Zone (5-10)', bgColor: 'bg-red-100' },
                 { key: 'goalline', title: 'Goalline', bgColor: 'bg-red-100' },
                 { key: 'backedUp', title: 'Backed Up', bgColor: 'bg-red-100' },
                 { key: 'screens', title: 'Screens', bgColor: 'bg-purple-100' },
