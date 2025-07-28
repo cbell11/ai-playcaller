@@ -3147,23 +3147,24 @@ export default function PlanPage() {
                     ['openingScript', 'basePackage1', 'basePackage2'],
                     ['basePackage3', 'firstDowns', 'shortYardage'],
                     ['thirdAndShort', 'thirdAndMedium', 'thirdAndLong'],
-                    ['redZone', 'goalline', 'backedUp'],
-                    ['screens', 'playAction', 'deepShots'],
-                    ['twoMinuteDrill', 'twoPointPlays', 'firstSecondCombos'],
-                    ['coverage0Beaters']
+                    ['highRedZone', 'lowRedZone', 'goalline'],
+                    ['backedUp', 'screens', 'playAction'],
+                    ['deepShots', 'twoMinuteDrill', 'twoPointPlays'],
+                    ['firstSecondCombos', 'coverage0Beaters']
                   ];
 
                   const sectionDetails = {
                     openingScript: { title: 'Opening Script', bgColor: 'bg-white' },
-                    basePackage1: { title: 'Base Package 1', bgColor: 'bg-white' },
-                    basePackage2: { title: 'Base Package 2', bgColor: 'bg-white' },
-                    basePackage3: { title: 'Base Package 3', bgColor: 'bg-white' },
+                    basePackage1: { title: customSectionNames.basePackage1 || 'Base Package 1', bgColor: 'bg-white' },
+                    basePackage2: { title: customSectionNames.basePackage2 || 'Base Package 2', bgColor: 'bg-white' },
+                    basePackage3: { title: customSectionNames.basePackage3 || 'Base Package 3', bgColor: 'bg-white' },
                     firstDowns: { title: 'First Downs', bgColor: 'bg-white' },
                     shortYardage: { title: 'Short Yardage', bgColor: 'bg-white' },
                     thirdAndShort: { title: 'Third and Short', bgColor: 'bg-white' },
                     thirdAndMedium: { title: 'Third and Medium', bgColor: 'bg-white' },
                     thirdAndLong: { title: 'Third and Long', bgColor: 'bg-white' },
-                    redZone: { title: 'Red Zone', bgColor: 'bg-white' },
+                    highRedZone: { title: 'High Red Zone (10-20)', bgColor: 'bg-white' },
+                    lowRedZone: { title: 'Low Red Zone (5-10)', bgColor: 'bg-white' },
                     goalline: { title: 'Goalline', bgColor: 'bg-white' },
                     backedUp: { title: 'Backed Up', bgColor: 'bg-white' },
                     screens: { title: 'Screens', bgColor: 'bg-white' },
