@@ -254,6 +254,15 @@ export default function MasterPlayPoolPage() {
         return
       }
 
+      // Find the formation object to get its label
+      const formationObj = formations.find(f => f.concept === newPlay.formations)
+      const formationLabel = formationObj ? formationObj.label : newPlay.formations
+
+      // Convert beaters arrays to comma-separated strings
+      const front_beaters = newPlay.front_beaters.join(', ')
+      const coverage_beaters = newPlay.coverage_beaters.join(', ')
+      const blitz_beaters = newPlay.blitz_beaters.join(', ')
+
       // Check for duplicate play
       const { data: existingPlays, error: checkError } = await supabase
         .from('master_play_pool')
@@ -261,7 +270,7 @@ export default function MasterPlayPoolPage() {
         .eq('category', newPlay.category)
         .eq('shifts', newPlay.shifts || '')
         .eq('to_motions', newPlay.to_motions || '')
-        .eq('formations', newPlay.formations)
+        .eq('formations', formationLabel)
         .eq('tags', newPlay.tags || '')
         .eq('from_motions', newPlay.from_motions || '')
         .eq('concept', newPlay.concept)
@@ -295,11 +304,15 @@ export default function MasterPlayPoolPage() {
 
       const nextPlayId = maxPlayId ? maxPlayId.play_id + 1 : 1
 
-      // Create the play
+      // Create the play with formatted beaters
       const { error: createError } = await supabase
         .from('master_play_pool')
         .insert({
           ...newPlay,
+          formations: formationLabel,
+          front_beaters,
+          coverage_beaters,
+          blitz_beaters,
           play_id: nextPlayId,
           concept_direction: dbConceptDirection,
           created_at: new Date().toISOString(),
