@@ -360,7 +360,7 @@ export default function MasterPlayPoolPage() {
         setToMotions(terminology.filter(t => t.category === 'to_motions'))
         setFromMotions(terminology.filter(t => t.category === 'from_motions'))
         setPassProtections(terminology.filter(t => t.category === 'pass_protections'))
-        setConceptTags(terminology.filter(t => t.category === 'concept_tag'))
+        setConceptTags(terminology.filter(t => t.category === 'concept_tags')) // Updated from concept_tag
         setRpoTags(terminology.filter(t => t.category === 'rpo_tag'))
         
         // Combine all offensive concepts
@@ -372,53 +372,6 @@ export default function MasterPlayPoolPage() {
           ...terminology.filter(t => t.category === 'shot_plays')
         ]
         setConcepts(allConcepts)
-
-        // Get defensive terminology from scouting reports
-        const { data: scoutingData, error: scoutingError } = await supabase
-          .from('scouting_reports')
-          .select('fronts, coverages, blitzes')
-          .limit(1)
-          .single()
-
-        if (scoutingError) {
-          console.error('Error fetching scouting data:', scoutingError)
-          return
-        }
-
-        if (scoutingData) {
-          const data = scoutingData as ScoutingData
-          
-          // Convert scouting data to terminology format
-          if (data.fronts && Array.isArray(data.fronts)) {
-            setFronts(data.fronts.map(f => ({ 
-              id: f.name, 
-              concept: f.name, 
-              label: f.name, 
-              category: 'fronts', 
-              is_enabled: true 
-            })))
-          }
-          
-          if (data.coverages && Array.isArray(data.coverages)) {
-            setCoverages(data.coverages.map(c => ({ 
-              id: c.name, 
-              concept: c.name, 
-              label: c.name, 
-              category: 'coverages', 
-              is_enabled: true 
-            })))
-          }
-          
-          if (data.blitzes && Array.isArray(data.blitzes)) {
-            setBlitzes(data.blitzes.map(b => ({ 
-              id: b.name, 
-              concept: b.name, 
-              label: b.name, 
-              category: 'blitzes', 
-              is_enabled: true 
-            })))
-          }
-        }
       }
     } catch (err) {
       console.error('Error fetching terminology:', err)
@@ -918,90 +871,67 @@ export default function MasterPlayPoolPage() {
 
         {/* Add Play Modal */}
         <Dialog open={isAddPlayOpen} onOpenChange={(open) => {
+          if (open) {
+            fetchTerminology()
+          }
           setIsAddPlayOpen(open)
           if (!open) {
             setNotification(null)
             setNewPlay(defaultNewPlay)
           }
         }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="max-w-[95%] md:max-w-[85%] lg:max-w-[75%] xl:max-w-[65%] max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="pb-2 flex flex-row items-center justify-between">
               <DialogTitle>Add New Play to Master Pool</DialogTitle>
+              <Button
+                type="submit"
+                onClick={handleAddPlay}
+                disabled={isSubmitting || !newPlay.category || !newPlay.formations || !newPlay.concept}
+                className="bg-[#2ecc71] hover:bg-[#27ae60] text-white mr-8"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding Play...
+                  </>
+                ) : (
+                  'Add Play'
+                )}
+              </Button>
             </DialogHeader>
             {notification && notification.type === 'error' && (
-              <div className="bg-red-50 text-red-700 border border-red-200 rounded-md p-3 mb-4">
+              <div className="bg-red-50 text-red-700 border border-red-200 rounded-md p-2 mb-2">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4" />
                   {notification.message}
                 </div>
               </div>
             )}
-            <div className="grid gap-4 py-4">
-              {/* Category Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="category">Category *</Label>
-                <Select
-                  value={newPlay.category}
-                  onValueChange={(value) => setNewPlay(prev => ({ ...prev, category: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    <SelectItem value="run_game">Run Game</SelectItem>
-                    <SelectItem value="quick_game">Quick Game</SelectItem>
-                    <SelectItem value="dropback_game">Dropback Game</SelectItem>
-                    <SelectItem value="screen_game">Screen Game</SelectItem>
-                    <SelectItem value="shot_plays">Shot Plays</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid gap-3 py-2">
+              {/* Main Play Information - 3 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Category Selection */}
+                <div className="space-y-1">
+                  <Label htmlFor="category">Category *</Label>
+                  <Select
+                    value={newPlay.category}
+                    onValueChange={(value) => setNewPlay(prev => ({ ...prev, category: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="run_game">Run Game</SelectItem>
+                      <SelectItem value="quick_game">Quick Game</SelectItem>
+                      <SelectItem value="dropback_game">Dropback Game</SelectItem>
+                      <SelectItem value="screen_game">Screen Game</SelectItem>
+                      <SelectItem value="shot_plays">Shot Plays</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* Shifts */}
-              <div className="space-y-2">
-                <Label htmlFor="shifts">Shifts</Label>
-                <Select
-                  value={newPlay.shifts || "none"}
-                  onValueChange={(value) => setNewPlay(prev => ({ ...prev, shifts: value === "none" ? "" : value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select shifts" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    <SelectItem value="none">None</SelectItem>
-                    {shifts.map(shift => (
-                      <SelectItem key={shift.id} value={shift.concept}>
-                        {shift.label || shift.concept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* To Motion */}
-              <div className="space-y-2">
-                <Label htmlFor="to_motions">To Motion</Label>
-                <Select
-                  value={newPlay.to_motions || "none"}
-                  onValueChange={(value) => setNewPlay(prev => ({ ...prev, to_motions: value === "none" ? "" : value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select to motion" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    <SelectItem value="none">None</SelectItem>
-                    {toMotions.map(motion => (
-                      <SelectItem key={motion.id} value={motion.concept}>
-                        {motion.label || motion.concept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Formation and Formation Tag */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                {/* Formation and Formation Tag */}
+                <div className="space-y-1">
                   <Label htmlFor="formations">Formation *</Label>
                   <Select
                     value={newPlay.formations}
@@ -1020,7 +950,7 @@ export default function MasterPlayPoolPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label htmlFor="tags">Formation Tag</Label>
                   <Select
                     value={newPlay.tags || "none"}
@@ -1041,30 +971,76 @@ export default function MasterPlayPoolPage() {
                 </div>
               </div>
 
-              {/* From Motion */}
-              <div className="space-y-2">
-                <Label htmlFor="from_motions">From Motion</Label>
-                <Select
-                  value={newPlay.from_motions || "none"}
-                  onValueChange={(value) => setNewPlay(prev => ({ ...prev, from_motions: value === "none" ? "" : value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select from motion" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    <SelectItem value="none">None</SelectItem>
-                    {fromMotions.map(motion => (
-                      <SelectItem key={motion.id} value={motion.concept}>
-                        {motion.label || motion.concept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Motion and Protection - 3 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Shifts */}
+                <div className="space-y-1">
+                  <Label htmlFor="shifts">Shifts</Label>
+                  <Select
+                    value={newPlay.shifts || "none"}
+                    onValueChange={(value) => setNewPlay(prev => ({ ...prev, shifts: value === "none" ? "" : value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select shifts" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {shifts.map(shift => (
+                        <SelectItem key={shift.id} value={shift.concept}>
+                          {shift.label || shift.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* To Motion */}
+                <div className="space-y-1">
+                  <Label htmlFor="to_motions">To Motion</Label>
+                  <Select
+                    value={newPlay.to_motions || "none"}
+                    onValueChange={(value) => setNewPlay(prev => ({ ...prev, to_motions: value === "none" ? "" : value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select to motion" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {toMotions.map(motion => (
+                        <SelectItem key={motion.id} value={motion.concept}>
+                          {motion.label || motion.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* From Motion */}
+                <div className="space-y-1">
+                  <Label htmlFor="from_motions">From Motion</Label>
+                  <Select
+                    value={newPlay.from_motions || "none"}
+                    onValueChange={(value) => setNewPlay(prev => ({ ...prev, from_motions: value === "none" ? "" : value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select from motion" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {fromMotions.map(motion => (
+                        <SelectItem key={motion.id} value={motion.concept}>
+                          {motion.label || motion.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Concept and Direction */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+              {/* Concept Information - 3 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Concept */}
+                <div className="space-y-1">
                   <Label htmlFor="concept">Concept *</Label>
                   <Select
                     value={newPlay.concept}
@@ -1088,29 +1064,8 @@ export default function MasterPlayPoolPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="concept_direction">Concept Direction</Label>
-                  <Select
-                    value={newPlay.concept_direction}
-                    onValueChange={(value: 'plus' | 'minus' | 'none') => 
-                      setNewPlay(prev => ({ ...prev, concept_direction: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select direction" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      <SelectItem value="none">No Direction</SelectItem>
-                      <SelectItem value="plus">+ (Plus)</SelectItem>
-                      <SelectItem value="minus">- (Minus)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Concept Tag and RPO Tag */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                {/* Concept Tag */}
+                <div className="space-y-1">
                   <Label htmlFor="concept_tag">Concept Tag</Label>
                   <Select
                     value={newPlay.concept_tag || "none"}
@@ -1130,7 +1085,52 @@ export default function MasterPlayPoolPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
+                {/* Concept Direction */}
+                <div className="space-y-1">
+                  <Label htmlFor="concept_direction">Concept Direction</Label>
+                  <Select
+                    value={newPlay.concept_direction}
+                    onValueChange={(value: 'plus' | 'minus' | 'none') => 
+                      setNewPlay(prev => ({ ...prev, concept_direction: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select direction" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">No Direction</SelectItem>
+                      <SelectItem value="plus">+ (Plus)</SelectItem>
+                      <SelectItem value="minus">- (Minus)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Additional Options - 2 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Pass Protection */}
+                <div className="space-y-1">
+                  <Label htmlFor="pass_protections">Pass Protection</Label>
+                  <Select
+                    value={newPlay.pass_protections || "none"}
+                    onValueChange={(value) => setNewPlay(prev => ({ ...prev, pass_protections: value === "none" ? "" : value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select pass protection" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {passProtections.map(protection => (
+                        <SelectItem key={protection.id} value={protection.concept}>
+                          {protection.label || protection.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* RPO Tag */}
+                <div className="space-y-1">
                   <Label htmlFor="rpo_tag">RPO Tag</Label>
                   <Select
                     value={newPlay.rpo_tag || "none"}
@@ -1151,218 +1151,183 @@ export default function MasterPlayPoolPage() {
                 </div>
               </div>
 
-              {/* Pass Protection */}
-              <div className="space-y-2">
-                <Label htmlFor="pass_protections">Pass Protection</Label>
-                <Select
-                  value={newPlay.pass_protections || "none"}
-                  onValueChange={(value) => setNewPlay(prev => ({ ...prev, pass_protections: value === "none" ? "" : value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select pass protection" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    <SelectItem value="none">None</SelectItem>
-                    {passProtections.map(protection => (
-                      <SelectItem key={protection.id} value={protection.concept}>
-                        {protection.label || protection.concept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* Beaters Section */}
-              <div className="space-y-4">
-                <h3 className="font-medium">Beaters</h3>
-                
-                {/* Front Beaters */}
-                <div className="space-y-2">
-                  <Label>Front Beaters</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {scoutingTerms.fronts.map((front) => (
-                      <div
-                        key={front.id}
-                        className="flex items-center"
-                      >
-                        <Checkbox
-                          id={`front-${front.id}`}
-                          checked={newPlay.front_beaters.includes(front.name)}
-                          onCheckedChange={(checked) => {
-                            setNewPlay(prev => ({
-                              ...prev,
-                              front_beaters: checked
-                                ? [...prev.front_beaters, front.name]
-                                : prev.front_beaters.filter(f => f !== front.name)
-                            }))
-                          }}
-                        />
-                        <Label
-                          htmlFor={`front-${front.id}`}
-                          className="ml-2 text-sm font-normal"
-                        >
-                          {front.name}
-                        </Label>
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Beaters</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Front Beaters */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Front Beaters</Label>
+                    <div className="max-h-[150px] overflow-y-auto border rounded-md p-2">
+                      <div className="space-y-1">
+                        {scoutingTerms.fronts.map((front) => (
+                          <div
+                            key={front.id}
+                            className="flex items-center"
+                          >
+                            <Checkbox
+                              id={`front-${front.id}`}
+                              checked={newPlay.front_beaters.includes(front.name)}
+                              onCheckedChange={(checked) => {
+                                setNewPlay(prev => ({
+                                  ...prev,
+                                  front_beaters: checked
+                                    ? [...prev.front_beaters, front.name]
+                                    : prev.front_beaters.filter(f => f !== front.name)
+                                }))
+                              }}
+                            />
+                            <Label
+                              htmlFor={`front-${front.id}`}
+                              className="ml-2 text-xs font-normal"
+                            >
+                              {front.name}
+                            </Label>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
-                </div>
 
-                {/* Coverage Beaters */}
-                <div className="space-y-2">
-                  <Label>Coverage Beaters</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {scoutingTerms.coverages.map((coverage) => (
-                      <div
-                        key={coverage.id}
-                        className="flex items-center"
-                      >
-                        <Checkbox
-                          id={`coverage-${coverage.id}`}
-                          checked={newPlay.coverage_beaters.includes(coverage.name)}
-                          onCheckedChange={(checked) => {
-                            setNewPlay(prev => ({
-                              ...prev,
-                              coverage_beaters: checked
-                                ? [...prev.coverage_beaters, coverage.name]
-                                : prev.coverage_beaters.filter(c => c !== coverage.name)
-                            }))
-                          }}
-                        />
-                        <Label
-                          htmlFor={`coverage-${coverage.id}`}
-                          className="ml-2 text-sm font-normal"
-                        >
-                          {coverage.name}
-                        </Label>
+                  {/* Coverage Beaters */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Coverage Beaters</Label>
+                    <div className="max-h-[150px] overflow-y-auto border rounded-md p-2">
+                      <div className="space-y-1">
+                        {scoutingTerms.coverages.map((coverage) => (
+                          <div
+                            key={coverage.id}
+                            className="flex items-center"
+                          >
+                            <Checkbox
+                              id={`coverage-${coverage.id}`}
+                              checked={newPlay.coverage_beaters.includes(coverage.name)}
+                              onCheckedChange={(checked) => {
+                                setNewPlay(prev => ({
+                                  ...prev,
+                                  coverage_beaters: checked
+                                    ? [...prev.coverage_beaters, coverage.name]
+                                    : prev.coverage_beaters.filter(c => c !== coverage.name)
+                                }))
+                              }}
+                            />
+                            <Label
+                              htmlFor={`coverage-${coverage.id}`}
+                              className="ml-2 text-xs font-normal"
+                            >
+                              {coverage.name}
+                            </Label>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
-                </div>
 
-                {/* Blitz Beaters */}
-                <div className="space-y-2">
-                  <Label>Blitz Beaters</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {scoutingTerms.blitzes.map((blitz) => (
-                      <div
-                        key={blitz.id}
-                        className="flex items-center"
-                      >
-                        <Checkbox
-                          id={`blitz-${blitz.id}`}
-                          checked={newPlay.blitz_beaters.includes(blitz.name)}
-                          onCheckedChange={(checked) => {
-                            setNewPlay(prev => ({
-                              ...prev,
-                              blitz_beaters: checked
-                                ? [...prev.blitz_beaters, blitz.name]
-                                : prev.blitz_beaters.filter(b => b !== blitz.name)
-                            }))
-                          }}
-                        />
-                        <Label
-                          htmlFor={`blitz-${blitz.id}`}
-                          className="ml-2 text-sm font-normal"
-                        >
-                          {blitz.name}
-                        </Label>
+                  {/* Blitz Beaters */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Blitz Beaters</Label>
+                    <div className="max-h-[150px] overflow-y-auto border rounded-md p-2">
+                      <div className="space-y-1">
+                        {scoutingTerms.blitzes.map((blitz) => (
+                          <div
+                            key={blitz.id}
+                            className="flex items-center"
+                          >
+                            <Checkbox
+                              id={`blitz-${blitz.id}`}
+                              checked={newPlay.blitz_beaters.includes(blitz.name)}
+                              onCheckedChange={(checked) => {
+                                setNewPlay(prev => ({
+                                  ...prev,
+                                  blitz_beaters: checked
+                                    ? [...prev.blitz_beaters, blitz.name]
+                                    : prev.blitz_beaters.filter(b => b !== blitz.name)
+                                }))
+                              }}
+                            />
+                            <Label
+                              htmlFor={`blitz-${blitz.id}`}
+                              className="ml-2 text-xs font-normal"
+                            >
+                              {blitz.name}
+                            </Label>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Situations */}
-              <div className="space-y-4">
-                <h3 className="font-medium">Situations</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="third_s"
-                        checked={newPlay.third_s}
-                        onCheckedChange={(checked) => 
-                          setNewPlay(prev => ({ ...prev, third_s: !!checked }))
-                        }
-                      />
-                      <Label htmlFor="third_s">3rd & Short</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="third_m"
-                        checked={newPlay.third_m}
-                        onCheckedChange={(checked) => 
-                          setNewPlay(prev => ({ ...prev, third_m: !!checked }))
-                        }
-                      />
-                      <Label htmlFor="third_m">3rd & Medium</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="third_l"
-                        checked={newPlay.third_l}
-                        onCheckedChange={(checked) => 
-                          setNewPlay(prev => ({ ...prev, third_l: !!checked }))
-                        }
-                      />
-                      <Label htmlFor="third_l">3rd & Long</Label>
-                    </div>
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Situations</h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="third_s"
+                      checked={newPlay.third_s}
+                      onCheckedChange={(checked) => 
+                        setNewPlay(prev => ({ ...prev, third_s: !!checked }))
+                      }
+                    />
+                    <Label htmlFor="third_s" className="text-xs">3rd & Short</Label>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="rz"
-                        checked={newPlay.rz}
-                        onCheckedChange={(checked) => 
-                          setNewPlay(prev => ({ ...prev, rz: !!checked }))
-                        }
-                      />
-                      <Label htmlFor="rz">Red Zone</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="gl"
-                        checked={newPlay.gl}
-                        onCheckedChange={(checked) => 
-                          setNewPlay(prev => ({ ...prev, gl: !!checked }))
-                        }
-                      />
-                      <Label htmlFor="gl">Goal Line</Label>
-                    </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="third_m"
+                      checked={newPlay.third_m}
+                      onCheckedChange={(checked) => 
+                        setNewPlay(prev => ({ ...prev, third_m: !!checked }))
+                      }
+                    />
+                    <Label htmlFor="third_m" className="text-xs">3rd & Medium</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="third_l"
+                      checked={newPlay.third_l}
+                      onCheckedChange={(checked) => 
+                        setNewPlay(prev => ({ ...prev, third_l: !!checked }))
+                      }
+                    />
+                    <Label htmlFor="third_l" className="text-xs">3rd & Long</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="rz"
+                      checked={newPlay.rz}
+                      onCheckedChange={(checked) => 
+                        setNewPlay(prev => ({ ...prev, rz: !!checked }))
+                      }
+                    />
+                    <Label htmlFor="rz" className="text-xs">Red Zone</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="gl"
+                      checked={newPlay.gl}
+                      onCheckedChange={(checked) => 
+                        setNewPlay(prev => ({ ...prev, gl: !!checked }))
+                      }
+                    />
+                    <Label htmlFor="gl" className="text-xs">Goal Line</Label>
                   </div>
                 </div>
               </div>
 
               {/* Notes */}
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
+              <div className="space-y-1">
+                <Label htmlFor="notes" className="text-sm">Notes</Label>
                 <Textarea
                   id="notes"
                   value={newPlay.notes}
                   onChange={(e) => setNewPlay(prev => ({ ...prev, notes: e.target.value }))}
                   placeholder="Enter any additional notes"
+                  className="h-20"
                 />
               </div>
             </div>
-
-            <DialogFooter>
-              <Button
-                type="submit"
-                onClick={handleAddPlay}
-                disabled={isSubmitting || !newPlay.category || !newPlay.formations || !newPlay.concept}
-                className="bg-[#2ecc71] hover:bg-[#27ae60] text-white"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding Play...
-                  </>
-                ) : (
-                  'Add Play'
-                )}
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       </CardContent>
