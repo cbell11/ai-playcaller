@@ -3084,6 +3084,10 @@ export default function PlanPage() {
       
       const filteredPlays = playPool
         .filter(p => {
+          // For First and Second Combos, include all plays (no filtering)
+          if (section === 'firstSecondCombos') {
+            return true; // Allow all play types
+          }
           // If this is a base package with a selected concept, filter by it
           if (isBasePackage && selectedConcept && p.concept !== selectedConcept) {
             return false;
@@ -3095,6 +3099,10 @@ export default function PlanPage() {
           // For screens section, only include screen_game plays
           if (section === 'screens') {
             return p.category === 'screen_game';
+          }
+          // For Deep Shots section, only include shot_plays and dropback_game
+          if (section === 'deepShots') {
+            return p.category === 'shot_plays' || p.category === 'dropback_game';
           }
           // For Third and Short, exclude shot plays
           if (section === 'thirdAndShort') {
@@ -3216,6 +3224,102 @@ export default function PlanPage() {
 
       // Single batch insert for maximum speed
       if (insertData.length > 0) {
+        // Special handling for firstSecondCombos to ensure we have enough plays
+        if (section === 'firstSecondCombos' && insertData.length < sectionSizes[section] / 2) {
+          console.log('Not enough plays for First and Second Combos, attempting additional generation...');
+          
+          // Make up to 3 additional attempts to get more plays
+          for (let attempt = 0; attempt < 3 && insertData.length < sectionSizes[section]; attempt++) {
+            const additionalResponse = await fetch('/api/generate-gameplan', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                playPool: filteredPlays,
+                sectionSizes: { [section]: sectionSizes[section] - insertData.length },
+                singleSection: true,
+                targetSection: section
+              })
+            });
+
+            if (additionalResponse.ok) {
+              const additionalGamePlan = await additionalResponse.json();
+              const additionalPlays = additionalGamePlan[section] || [];
+              
+              // Process additional plays in pairs for firstSecondCombos
+              let currentPosition = insertData.length;
+              
+              // For firstSecondCombos, process plays in pairs
+              if (section === 'firstSecondCombos') {
+                for (let i = 0; i < additionalPlays.length - 1; i += 2) {
+                  if (currentPosition >= sectionSizes[section] - 1) break; // Need space for both plays
+                  
+                  const firstPlay = findPlayByName(additionalPlays[i]);
+                  const secondPlay = findPlayByName(additionalPlays[i + 1]);
+                  
+                  // Only add if we have both plays and positions are available
+                  if (firstPlay && secondPlay && 
+                      !lockedPositions.has(currentPosition) && 
+                      !lockedPositions.has(currentPosition + 1)) {
+                    
+                    // Add first down play
+                    insertData.push({
+                      team_id,
+                      opponent_id,
+                      play_id: firstPlay.id,
+                      section: section.toLowerCase(),
+                      position: currentPosition,
+                      combined_call: formatPlayFromPool(firstPlay),
+                      customized_edit: firstPlay.customized_edit,
+                      is_locked: false
+                    });
+                    
+                    // Add second down play
+                    insertData.push({
+                      team_id,
+                      opponent_id,
+                      play_id: secondPlay.id,
+                      section: section.toLowerCase(),
+                      position: currentPosition + 1,
+                      combined_call: formatPlayFromPool(secondPlay),
+                      customized_edit: secondPlay.customized_edit,
+                      is_locked: false
+                    });
+                    
+                    currentPosition += 2;
+                  }
+                }
+              } else {
+                // Normal processing for other sections
+                for (const playName of additionalPlays) {
+                  if (currentPosition >= sectionSizes[section]) break;
+                  
+                  const play = findPlayByName(playName);
+                  if (play && !lockedPositions.has(currentPosition)) {
+                    insertData.push({
+                      team_id,
+                      opponent_id,
+                      play_id: play.id,
+                      section: section.toLowerCase(),
+                      position: currentPosition,
+                      combined_call: formatPlayFromPool(play),
+                      customized_edit: play.customized_edit,
+                      is_locked: false
+                    });
+                    currentPosition++;
+                  }
+                }
+              }
+
+              if (insertData.length >= sectionSizes[section] / 2) {
+                console.log(`Got enough plays after attempt ${attempt + 1}`);
+                break;
+              }
+            }
+          }
+        }
+
         const { error: insertError } = await browserClient
           .from('game_plan')
           .insert(insertData);
@@ -3226,8 +3330,11 @@ export default function PlanPage() {
         }
 
         // Show success message with count if we got fewer plays than requested
+        const expectedPairs = section === 'firstSecondCombos' ? sectionSizes[section] / 2 : sectionSizes[section];
+        const actualPairs = section === 'firstSecondCombos' ? Math.floor(insertData.length / 2) : insertData.length;
+        
         const successMessage = insertData.length < sectionSizes[section] 
-          ? `${section} regenerated with ${insertData.length} plays (limited by available plays)`
+          ? `${section} regenerated with ${actualPairs} ${section === 'firstSecondCombos' ? 'pairs' : 'plays'} (limited by available plays)`
           : `${section} regenerated successfully!`;
 
         setNotification({
@@ -3235,10 +3342,82 @@ export default function PlanPage() {
           type: 'success'
         });
       } else {
-        setNotification({
-          message: 'No valid plays found for this section',
-          type: 'warning'
+        // Try one more time if no valid plays were found
+        console.log('No valid plays found, attempting second try...');
+        
+        // Call our API route again
+        const secondResponse = await fetch('/api/generate-gameplan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            playPool: filteredPlays,
+            sectionSizes: sectionSizeObj,
+            singleSection: true,
+            targetSection: section,
+            selectedConcept: selectedConcept
+          })
         });
+
+        if (!secondResponse.ok) {
+          const error = await secondResponse.json();
+          throw new Error(error.error || 'Failed to generate plays on second attempt');
+        }
+
+        const secondGamePlan = await secondResponse.json();
+        const secondPlays = secondGamePlan[section] || [];
+        
+        if (secondPlays.length > 0) {
+          // Process and insert the plays from second attempt
+          const secondInsertData = [];
+          let playIndex = 0;
+          
+          for (let i = 0; i < sectionSizes[section] && playIndex < secondPlays.length; i++) {
+            if (!lockedPositions.has(i)) {
+              const playName = secondPlays[playIndex];
+              const play = findPlayByName(playName);
+              if (play) {
+                secondInsertData.push({
+                  team_id,
+                  opponent_id,
+                  play_id: play.id,
+                  section: section.toLowerCase(),
+                  position: i,
+                  combined_call: formatPlayFromPool(play),
+                  customized_edit: play.customized_edit,
+                  is_locked: false
+                });
+                playIndex++;
+              }
+            }
+          }
+
+          if (secondInsertData.length > 0) {
+            const { error: insertError } = await browserClient
+              .from('game_plan')
+              .insert(secondInsertData);
+
+            if (insertError) {
+              throw new Error(`Failed to save plays on second attempt: ${insertError.message}`);
+            }
+
+            setNotification({
+              message: `${section} regenerated with ${secondInsertData.length} plays on second attempt`,
+              type: 'success'
+            });
+          } else {
+            setNotification({
+              message: 'Sorry, we found no valid plays for this section. Try regenerating the section again',
+              type: 'error'
+            });
+          }
+        } else {
+          setNotification({
+            message: 'Sorry, we found no valid plays for this section. Try regenerating the section again',
+            type: 'error'
+          });
+        }
       }
 
       // Optimized UI update - only fetch this section's data
