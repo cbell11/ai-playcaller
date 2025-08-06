@@ -3037,17 +3037,18 @@ export default function PlanPage() {
 
     // Check if all plays in the section are locked
     if (plan && plan[section]) {
-      const allPlaysLocked = plan[section]
-        .filter(play => play.play) // Only consider non-empty plays
-        .every(play => play.is_locked);
-      
-      if (allPlaysLocked) {
-        setNotification({
-          message: 'Unable to use AI as all plays are already locked',
-          type: 'error'
-        });
-        setTimeout(() => setNotification(null), 3000);
-        return;
+      const playsInSection = plan[section].filter(play => play.play); // Only consider non-empty plays
+      if (playsInSection.length > 0) { // Only check if there are actual plays
+        const allPlaysLocked = playsInSection.every(play => play.is_locked);
+        
+        if (allPlaysLocked) {
+          setNotification({
+            message: 'Unable to use AI as all plays are already locked',
+            type: 'error'
+          });
+          setTimeout(() => setNotification(null), 3000);
+          return;
+        }
       }
     }
 
