@@ -1890,22 +1890,33 @@ export default function PlanPage() {
                 +
               </Button>
             </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => {
-              if (showPlayPool && playPoolSection === section) {
-                setShowPlayPool(false);
-                setPlayPoolSection(null);
-              } else {
-                setShowPlayPool(true);
-                setPlayPoolSection(section);
-              }
-            }}
-            className="text-xs"
-          >
-            {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
-          </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-xs flex items-center gap-1 bg-[#0B2545] hover:bg-[#0B2545]/90 text-white"
+                onClick={() => handleLockSection(section)}
+              >
+                <Lock className="h-3 w-3" />
+                Lock Section
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  if (showPlayPool && playPoolSection === section) {
+                    setShowPlayPool(false);
+                    setPlayPoolSection(null);
+                  } else {
+                    setShowPlayPool(true);
+                    setPlayPoolSection(section);
+                  }
+                }}
+                className="text-xs"
+              >
+                {showPlayPool && playPoolSection === section ? "Hide" : "Add a Play"}
+              </Button>
+            </div>
           </div>
           {isBasePackage && basePackageConcepts[section] && (
             <div className="mt-2 text-xs text-gray-600">
@@ -3024,6 +3035,22 @@ export default function PlanPage() {
       return;
     }
 
+    // Check if all plays in the section are locked
+    if (plan && plan[section]) {
+      const allPlaysLocked = plan[section]
+        .filter(play => play.play) // Only consider non-empty plays
+        .every(play => play.is_locked);
+      
+      if (allPlaysLocked) {
+        setNotification({
+          message: 'Unable to use AI as all plays are already locked',
+          type: 'error'
+        });
+        setTimeout(() => setNotification(null), 3000);
+        return;
+      }
+    }
+
     setGeneratingSection(section);
     try {
       // Get team and opponent IDs
@@ -3404,6 +3431,61 @@ export default function PlanPage() {
       </DialogContent>
     </Dialog>
   );
+
+  const handleLockSection = async (section: keyof GamePlan) => {
+    if (!plan) return;
+
+    const team_id = localStorage.getItem('selectedTeam');
+    const opponent_id = localStorage.getItem('selectedOpponent');
+
+    if (!team_id || !opponent_id) {
+      setNotification({ message: 'Team or opponent not selected.', type: 'error' });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    const playsToLock = plan[section].filter(play => play.play && !play.is_locked);
+    if (playsToLock.length === 0) {
+      setNotification({ message: 'No unlocked plays in this section.', type: 'error' });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    const positionsToLock = plan[section]
+      .map((play, index) => (play.play && !play.is_locked ? index : -1))
+      .filter(index => index !== -1);
+    
+    // Optimistic UI update
+    const updatedPlan = { ...plan };
+    const updatedSectionPlays = [...updatedPlan[section]];
+    positionsToLock.forEach(index => {
+      updatedSectionPlays[index].is_locked = true;
+    });
+    updatedPlan[section] = updatedSectionPlays;
+    setPlan(updatedPlan);
+
+    try {
+      const { error } = await browserClient
+        .from('game_plan')
+        .update({ is_locked: true })
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .eq('section', section.toLowerCase())
+        .in('position', positionsToLock);
+
+      if (error) throw error;
+
+      setNotification({ message: 'Section locked successfully.', type: 'success' });
+      setTimeout(() => setNotification(null), 3000);
+
+    } catch (error) {
+      // Revert UI on error
+      setPlan(plan);
+      setNotification({ message: 'Failed to lock section.', type: 'error' });
+      setTimeout(() => setNotification(null), 3000);
+      console.error('Error locking section:', error);
+    }
+  };
 
   return (
     <>
