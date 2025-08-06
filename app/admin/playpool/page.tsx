@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PlayCircle, Loader2, Check, X, Plus, AlertCircle, Pencil, Trash2 } from 'lucide-react'
+import { PlayCircle, Loader2, Check, X, Plus, AlertCircle, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -160,6 +160,22 @@ export default function MasterPlayPoolPage() {
     coverages: [],
     blitzes: []
   })
+
+  const [expandedRows, setExpandedRows] = useState<{[key: string]: boolean}>({})
+  const [selectedBeaters, setSelectedBeaters] = useState<{
+    play: MasterPlay | null,
+    type: 'front' | 'coverage' | null
+  }>({
+    play: null,
+    type: null
+  })
+
+  const toggleRowExpansion = (playId: string) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [playId]: !prev[playId]
+    }))
+  }
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -690,8 +706,26 @@ export default function MasterPlayPoolPage() {
                       <td className="p-4">{play.concept_tag}</td>
                       <td className="p-4">{play.concept_direction}</td>
                       <td className="p-4">{play.rpo_tag}</td>
-                      <td className="p-4 max-w-[200px] break-words">{play.front_beaters}</td>
-                      <td className="p-4 max-w-[200px] break-words">{play.coverage_beaters}</td>
+                      <td className="p-4 max-w-[200px]">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="p-0 h-6"
+                          onClick={() => setSelectedBeaters({ play, type: 'front' })}
+                        >
+                          View Front Beaters
+                        </Button>
+                      </td>
+                      <td className="p-4 max-w-[200px]">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="p-0 h-6"
+                          onClick={() => setSelectedBeaters({ play, type: 'coverage' })}
+                        >
+                          View Coverage Beaters
+                        </Button>
+                      </td>
                       <td className="p-4">
                         <div className="flex items-center justify-center space-x-2">
                           <Button
@@ -713,6 +747,54 @@ export default function MasterPlayPoolPage() {
             </div>
           )}
         </div>
+
+        {/* Beaters Dialog */}
+        <Dialog 
+          open={selectedBeaters.play !== null} 
+          onOpenChange={(open) => {
+            if (!open) setSelectedBeaters({ play: null, type: null })
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedBeaters.type === 'front' ? 'Front Beaters' : 'Coverage Beaters'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="space-y-2">
+                {selectedBeaters.type === 'front' && selectedBeaters.play?.front_beaters && (
+                  <div className="text-sm space-y-1">
+                    {selectedBeaters.play.front_beaters.split(',')
+                      .filter(beater => beater.trim())
+                      .map((beater, index) => (
+                        <div key={index} className="py-1 px-2 rounded-md bg-muted">
+                          {beater.trim()}
+                        </div>
+                    ))}
+                  </div>
+                )}
+                {selectedBeaters.type === 'coverage' && selectedBeaters.play?.coverage_beaters && (
+                  <div className="text-sm space-y-1">
+                    {selectedBeaters.play.coverage_beaters.split(',')
+                      .filter(beater => beater.trim())
+                      .map((beater, index) => (
+                        <div key={index} className="py-1 px-2 rounded-md bg-muted">
+                          {beater.trim()}
+                        </div>
+                    ))}
+                  </div>
+                )}
+                {(!selectedBeaters.play?.front_beaters && selectedBeaters.type === 'front') && (
+                  <div className="text-sm text-muted-foreground">No front beaters defined</div>
+                )}
+                {(!selectedBeaters.play?.coverage_beaters && selectedBeaters.type === 'coverage') && (
+                  <div className="text-sm text-muted-foreground">No coverage beaters defined</div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Play Modal */}
         <Dialog open={isEditPlayOpen} onOpenChange={(open) => {
