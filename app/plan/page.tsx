@@ -1044,6 +1044,25 @@ export default function PlanPage() {
     setShowPrintDialog(true);
   };
 
+  const wristcoachRef = useRef<HTMLDivElement>(null);
+  
+  const handlePrintWristcoach = useReactToPrint({
+    contentRef: wristcoachRef,
+    documentTitle: "Wristcoach",
+    pageStyle: `
+      @page {
+        size: landscape;
+        margin: 0.25in;
+      }
+      @media print {
+        body {
+          margin: 0;
+          padding: 0;
+        }
+      }
+    `,
+  });
+
   // Helper function to format a play call using labels instead of concepts
   const formatPlayCall = (play: PlayCall) => {
     // If the play field already contains spaces, it's likely a full formatted string
@@ -2669,6 +2688,87 @@ export default function PlanPage() {
     }
     
     return totalPlays;
+  };
+
+  const renderWristcoachView = () => {
+    if (!plan) return null;
+
+    const allPlays: { number: number; text: string }[] = [];
+    let currentNumber = 1;
+
+    // Collect all plays in order
+    for (const group of sectionGroups) {
+      for (const section of group) {
+        if (!sectionVisibility[section as keyof GamePlan]) continue;
+
+        const plays = plan[section as keyof GamePlan]?.filter(p => p.play) || [];
+        
+        if (section === 'firstSecondCombos') {
+          plays.forEach(play => {
+            // Only add plays that have content
+            if (play.play) {
+              allPlays.push({ number: currentNumber++, text: play.play });
+            }
+            if (play.customized_edit) {
+              allPlays.push({ number: currentNumber++, text: play.customized_edit });
+            }
+          });
+        } else {
+          plays.forEach(play => {
+            const playText = play.customized_edit || play.play;
+            if (playText) {
+              allPlays.push({ number: currentNumber++, text: playText });
+            }
+          });
+        }
+      }
+    }
+
+    // Calculate dimensions
+    const maxWidth = 4.5; // inches (horizontal)
+    const maxHeight = 2.25; // inches (vertical)
+    const columnWidth = maxWidth / 3;
+    const playsPerColumn = Math.floor(maxHeight / 0.15); // Reduced to 0.15 inch per play
+    const playsPerPage = playsPerColumn * 3;
+    const totalPages = Math.ceil(allPlays.length / playsPerPage);
+
+    // Reorganize plays into columns
+    const reorganizePlaysIntoColumns = (plays: typeof allPlays, playsPerColumn: number) => {
+      const result: typeof allPlays[] = [[], [], []];
+      plays.forEach((play, index) => {
+        const columnIndex = Math.floor(index / playsPerColumn);
+        if (columnIndex < 3) {
+          result[columnIndex].push(play);
+        }
+      });
+      return result;
+    };
+
+    return (
+      <div ref={wristcoachRef} className="hidden print:block">
+        {Array.from({ length: totalPages }).map((_, pageIndex) => {
+          const pagePlays = allPlays.slice(pageIndex * playsPerPage, (pageIndex + 1) * playsPerPage);
+          const columns = reorganizePlaysIntoColumns(pagePlays, playsPerColumn);
+          
+          return (
+            <div key={pageIndex} className="w-[11in] h-[8.5in] flex flex-col items-center justify-center page-break-after-always">
+              <div className="grid grid-cols-3 divide-x divide-black border border-black" style={{ width: `${maxWidth}in` }}>
+                {columns.map((column, colIndex) => (
+                  <div key={colIndex} className="divide-y divide-black">
+                    {column.map((play, index) => (
+                      <div key={index} className="text-[8px] whitespace-nowrap overflow-hidden px-0.5 flex items-center" style={{ height: '0.15in' }}>
+                        <span className="font-bold mr-0.5">{play.number}.</span>
+                        <span className="truncate">{play.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   const renderPrintableList = (
@@ -4330,13 +4430,22 @@ export default function PlanPage() {
               </Dialog>
               <Button 
                 onClick={handlePrint} 
-                className="flex items-center gap-2 bg-[#2ecc71] hover:bg-[#27ae60] text-white border-[#2ecc71]"
+                className="flex items-center gap-2 bg-[#2ecc71] hover:bg-[#27ae60] text-white border-[#2ecc71] mr-2"
               >
                 <Printer className="h-4 w-4" />
                 Print PDF
               </Button>
+              <Button 
+                onClick={handlePrintWristcoach}
+                className="flex items-center gap-2 bg-[#2ecc71] hover:bg-[#27ae60] text-white border-[#2ecc71]"
+              >
+                <Printer className="h-4 w-4" />
+                Print Wristcoach
+              </Button>
             </div>
           </div>
+
+          {renderWristcoachView()}
 
           {/* User Preferences Form */}
           <Card className="bg-white">
