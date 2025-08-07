@@ -261,7 +261,8 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     thirdAndShort: Array(sizes.thirdAndShort).fill(emptySlot),
     thirdAndMedium: Array(sizes.thirdAndMedium).fill(emptySlot),
     thirdAndLong: Array(sizes.thirdAndLong).fill(emptySlot),
-    redZone: Array(sizes.redZone).fill(emptySlot),
+    highRedZone: Array(sizes.highRedZone).fill(emptySlot),
+    lowRedZone: Array(sizes.lowRedZone).fill(emptySlot),
     goalline: Array(sizes.goalline).fill(emptySlot),
     backedUp: Array(sizes.backedUp).fill(emptySlot),
     screens: Array(sizes.screens).fill(emptySlot),
@@ -653,6 +654,25 @@ interface MasterPlay {
   category: string;
   coverage_beaters: string | null;
 }
+
+// Define section groups at the component level - this is the single source of truth for section order
+const sectionGroups = [
+  ['openingScript'],
+  ['basePackage1', 'basePackage2', 'basePackage3'],
+  ['firstDowns'],
+  ['secondAndShort', 'secondAndLong'],
+  ['shortYardage'],
+  ['thirdAndShort', 'thirdAndMedium', 'thirdAndLong'],
+  ['highRedZone', 'lowRedZone', 'goalline'],
+  ['backedUp'],
+  ['screens'],
+  ['playAction'],
+  ['deepShots'],
+  ['twoMinuteDrill'],
+  ['twoPointPlays'],
+  ['firstSecondCombos'],
+  ['coverage0Beaters']
+] as const;
 
 export default function PlanPage() {
   const router = useRouter()
@@ -1675,6 +1695,9 @@ export default function PlanPage() {
     // Add safety check for undefined
     const safetyPlays = plays || [];
     
+    // Get the starting number for continuous numbering
+    const startingNumber = getStartingNumber(section);
+    
     console.log(`Rendering ${title} card:`, {
       plays: safetyPlays,
       expectedLength,
@@ -1952,15 +1975,15 @@ export default function PlanPage() {
                       
                       return (
                         <div key={`${section}-${index}-combo-empty`} className="px-4 py-2 bg-white border border-gray-200">
-                          <div className="text-xs font-semibold text-gray-700 mb-1">Combo {Math.floor(index / 2) + 1}</div>
+                          <div className="text-xs font-semibold text-gray-700 mb-1">Combo {Math.floor((startingNumber + index - 1) / 2) + 1}</div>
                           <div className="space-y-1">
                             <div className="flex items-center p-2 rounded bg-gray-50">
-                              <span className="w-8 text-slate-500 text-xs font-bold">1st:</span>
-                              <span className="text-gray-300 italic flex-1 text-xs">Empty</span>
+                              <span className="w-10 text-slate-500 text-xs font-bold">{startingNumber + index}:</span>
+                              <span className="text-gray-300 italic flex-1 text-sm">Empty</span>
                             </div>
                             <div className="flex items-center p-2 rounded bg-gray-50">
-                              <span className="w-8 text-slate-500 text-xs font-bold">2nd:</span>
-                              <span className="text-gray-300 italic flex-1 text-xs">Empty</span>
+                              <span className="w-10 text-slate-500 text-xs font-bold">{startingNumber + index + 1}:</span>
+                              <span className="text-gray-300 italic flex-1 text-sm">Empty</span>
                             </div>
                           </div>
                         </div>
@@ -1971,7 +1994,7 @@ export default function PlanPage() {
                     } else {
                     return (
                       <div key={`${section}-${index}-empty`} className="px-4 py-1 flex items-center">
-                        <span className="w-6 text-slate-500">{index + 1}.</span>
+                        <span className="w-8 text-slate-500 text-xs">{startingNumber + index}.</span>
                         <span className="text-gray-300 italic flex-1 text-center text-xs">
                           {/* Empty space for vacant slot */}
                         </span>
@@ -2010,7 +2033,7 @@ export default function PlanPage() {
                               >
                                 <GripVertical className="h-4 w-4 text-gray-400" />
                               </div>
-                              <span className="text-xs font-semibold text-gray-700">Combo {Math.floor(index / 2) + 1}</span>
+                              <span className="text-xs font-semibold text-gray-700">Combo {Math.floor((startingNumber + index - 1) / 2) + 1}</span>
                               <div className="flex items-center gap-1 ml-auto">
                                 <Button 
                                   variant="ghost" 
@@ -2024,12 +2047,12 @@ export default function PlanPage() {
                             </div>
                             <div className="space-y-1">
                               <div className={`flex items-center text-sm font-mono p-2 rounded ${firstPlayBgColor}`}>
-                                <span className="w-8 text-slate-500 text-xs font-bold">1st:</span>
-                                <span className="flex-1">{play.play || 'Empty'}</span>
+                                <span className="w-10 text-slate-500 text-xs font-bold">{startingNumber + index}:</span>
+                                <span className="flex-1 text-sm">{play.play || 'Empty'}</span>
                               </div>
                               <div className={`flex items-center text-sm font-mono p-2 rounded ${secondPlayBgColor}`}>
-                                <span className="w-8 text-slate-500 text-xs font-bold">2nd:</span>
-                                <span className="flex-1">{hasNextContent ? nextPlay.play : 'Empty'}</span>
+                                <span className="w-10 text-slate-500 text-xs font-bold">{startingNumber + index + 1}:</span>
+                                <span className="flex-1 text-sm">{hasNextContent ? nextPlay.play : 'Empty'}</span>
                               </div>
                             </div>
                           </div>
@@ -2068,8 +2091,8 @@ export default function PlanPage() {
                             >
                               <GripVertical className="h-4 w-4 text-gray-400" />
                             </div>
-                            <span className="w-6 text-slate-500">{index + 1}.</span>
-                            <span>{play.customized_edit || play.play}</span>
+                            <span className="w-8 text-slate-500 text-xs">{startingNumber + index}.</span>
+                            <span className="text-sm">{play.customized_edit || play.play}</span>
                           </div>
                           
                           {hasContent && (
@@ -2585,7 +2608,69 @@ export default function PlanPage() {
     );
   };
 
-  // Update the renderPrintableList function to use custom names
+  // Calculate the starting number for a section based on previous sections
+  const getStartingNumber = (currentSection: keyof GamePlan): number => {
+    if (!plan) return 1;
+    
+    let total = 1;
+    let foundSection = false;
+    
+    // Iterate through section groups to maintain the correct order
+    for (const group of sectionGroups) {
+      for (const section of group) {
+        if (section === currentSection) {
+          foundSection = true;
+          break;
+        }
+        
+        if (!sectionVisibility[section as keyof GamePlan]) continue; // Skip hidden sections
+        
+        const sectionPlays = plan[section as keyof GamePlan]?.filter(p => p.play) || [];
+        const playCount = section === 'firstSecondCombos' ? sectionPlays.length * 2 : sectionPlays.length;
+        
+        total += playCount;
+      }
+      
+      if (foundSection) break;
+    }
+    
+    return total;
+  };
+
+  // Calculate the starting index for a section based on previous sections
+  const calculateStartingIndex = (currentSection: keyof GamePlan): number => {
+    if (!plan) return 0;
+    
+    let totalPlays = 0;
+    let foundSection = false;
+    
+    // Iterate through section groups to maintain the correct order
+    for (const group of sectionGroups) {
+      for (const section of group) {
+        if (section === currentSection) {
+          foundSection = true;
+          break;
+        }
+        
+        if (!sectionVisibility[section as keyof GamePlan]) continue; // Skip hidden sections
+        
+        const sectionPlays = plan[section as keyof GamePlan] || [];
+        const nonEmptyPlays = sectionPlays.filter(p => p.play);
+        
+        // For first/second combos, count each combo as 2 plays
+        if (section === 'firstSecondCombos') {
+          totalPlays += (nonEmptyPlays.length * 2);
+        } else {
+          totalPlays += nonEmptyPlays.length;
+        }
+      }
+      
+      if (foundSection) break;
+    }
+    
+    return totalPlays;
+  };
+
   const renderPrintableList = (
     title: string,
     plays: PlayCall[] | undefined,
@@ -2593,6 +2678,9 @@ export default function PlanPage() {
     maxLength: number = 0,
     section?: keyof GamePlan // Add section parameter
   ) => {
+    // Get the starting number for this section
+    const startingNumber = section ? getStartingNumber(section) : 1;
+
     // Check if plays is undefined and provide an empty array as fallback
     const safetyPlays = plays || [];
     
@@ -2603,6 +2691,8 @@ export default function PlanPage() {
     if (filledPlays.length === 0 && maxLength === 0) {
       return null;
     }
+
+
 
     // Get custom title for base packages
     const isBasePackage = section?.startsWith('basePackage');
@@ -2633,7 +2723,9 @@ export default function PlanPage() {
                       <tr className={`border-b ${firstPlayBgColor}`} style={{ borderTop: comboIndex > 0 ? '2px solid black' : '' }}>
                         <td className="py-0 px-0.5 border-r w-4">□</td>
                         <td className="py-0 px-0.5 border-r w-4">□</td>
-                        <td className="py-0 px-0.5 border-r w-12 font-bold">1st</td>
+                        <td className="py-0 px-0.5 border-r w-12 font-bold">
+                          {startingNumber + (comboIndex * 2)}
+                        </td>
                         <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
                           {firstPlay.play}
                         </td>
@@ -2644,7 +2736,9 @@ export default function PlanPage() {
                       <tr className={`border-b ${secondPlayBgColor}`} style={{ borderBottom: '2px solid black' }}>
                         <td className="py-0 px-0.5 border-r w-4">□</td>
                         <td className="py-0 px-0.5 border-r w-4">□</td>
-                        <td className="py-0 px-0.5 border-r w-12 font-bold">2nd</td>
+                        <td className="py-0 px-0.5 border-r w-12 font-bold">
+                          {startingNumber + (comboIndex * 2) + 1}
+                        </td>
                         <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
                           {secondPlay.play}
                         </td>
@@ -2659,13 +2753,13 @@ export default function PlanPage() {
                   <tr className="border-b" style={{ borderTop: idx === 0 && filledPlays.length > 0 ? '2px solid black' : '' }}>
                     <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
                     <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
-                    <td className="py-0 px-0.5 border-r w-12 font-bold">1st</td>
+                    <td className="py-0 px-0.5 border-r w-12 font-bold">{(section ? calculateStartingIndex(section) : 0) + (idx * 2) + 1}</td>
                     <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">&nbsp;</td>
                   </tr>
                   <tr className="border-b" style={{ borderBottom: '2px solid black' }}>
                     <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
                     <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
-                    <td className="py-0 px-0.5 border-r w-12 font-bold">2nd</td>
+                    <td className="py-0 px-0.5 border-r w-12 font-bold">{(section ? calculateStartingIndex(section) : 0) + (idx * 2) + 2}</td>
                     <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">&nbsp;</td>
                   </tr>
                 </React.Fragment>
@@ -2687,10 +2781,12 @@ export default function PlanPage() {
             {filledPlays.map((play, idx) => {
               const playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
               return (
-                <tr key={idx} className={`border-b ${playBgColor}`}>
+                                <tr key={idx} className={`border-b ${playBgColor}`}>
                   <td className="py-0 px-0.5 border-r w-4">□</td>
                   <td className="py-0 px-0.5 border-r w-4">□</td>
-                  <td className="py-0 px-0.5 border-r w-4">{idx + 1}</td>
+                  <td className="py-0 px-0.5 border-r w-4">
+                    {startingNumber + idx}
+                  </td>
                   <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
                     {play.play}
                   </td>
@@ -2767,7 +2863,8 @@ export default function PlanPage() {
         'thirdAndShort',
         'thirdAndMedium',
         'thirdAndLong',
-        'redZone',
+        'highRedZone',
+        'lowRedZone',
         'goalline',
         'backedUp',
         'screens',
@@ -3859,15 +3956,6 @@ export default function PlanPage() {
               
               <div className="print-grid">
                 {plan && (() => {
-                  const sectionGroups = [
-                    ['openingScript', 'basePackage1', 'basePackage2'],
-                    ['basePackage3', 'firstDowns', 'shortYardage'],
-                    ['thirdAndShort', 'thirdAndMedium', 'thirdAndLong'],
-                    ['highRedZone', 'lowRedZone', 'goalline'],
-                    ['backedUp', 'screens', 'playAction'],
-                    ['deepShots', 'twoMinuteDrill', 'twoPointPlays'],
-                    ['firstSecondCombos', 'coverage0Beaters']
-                  ];
 
                   const sectionDetails = {
                     openingScript: { title: 'Opening Script', bgColor: 'bg-white' },
