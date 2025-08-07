@@ -142,26 +142,42 @@ function formatPlayFromPool(play: ExtendedPlay): string {
   }
 
   // Fallback to old format method if neither exists
-  // Convert motion labels to team default labels
-  const getMotionLabel = (motion: string | undefined | null) => {
-    if (!motion) return '';
-    // Map full motion names to their default labels
-    const motionMap: Record<string, string> = {
-      'Move To Formation': 'Move',
-      'Jet To Formation': 'Jet',
-      'Orbit To Formation': 'Orbit',
-      'Shift To Formation': 'Shift'
-      // Add more mappings as needed
+  // Get default team terminology from master terminology
+  const getDefaultLabel = (concept: string | undefined | null, type: 'motion' | 'formation' | 'tag'): string => {
+    if (!concept) return '';
+    
+    // This should match your master terminology table structure
+    const masterTerminology: Record<string, Record<string, string>> = {
+      motion: {
+        'Move To Formation': 'Move',
+        'Jet To Formation': 'Jet',
+        'Orbit To Formation': 'Orbit',
+        'Shift To Formation': 'Shift'
+      },
+      formation: {
+        'All Backside WR Tighten': 'Nasty',
+        'All Backside WR Widen': 'Wide',
+        'All Field WR Tighten': 'Nasty',
+        'All Field WR Widen': 'Wide',
+        'Backside WR Tighten': 'Nasty',
+        'Backside WR Widen': 'Wide',
+        'Field WR Tighten': 'Nasty',
+        'Field WR Widen': 'Wide'
+      },
+      tag: {
+        // Add any tag mappings here if needed
+      }
     };
-    return motionMap[motion] || motion;
+
+    return masterTerminology[type][concept] || concept;
   };
 
   const parts = [
-    play.formations,
-    play.tag,
+    getDefaultLabel(play.formations, 'formation'),
+    getDefaultLabel(play.tag, 'tag'),
     play.strength,
-    getMotionLabel(play.to_motions),
-    getMotionLabel(play.from_motions),
+    getDefaultLabel(play.to_motions, 'motion'),
+    getDefaultLabel(play.from_motions, 'motion'),
     play.concept,
     play.run_concept,
     play.run_direction,
@@ -171,6 +187,70 @@ function formatPlayFromPool(play: ExtendedPlay): string {
 
   return parts.join(" ")
 }
+
+// Helper function to convert motion concepts to default labels
+const getDefaultMotionLabel = (motion: string): string => {
+  const motionMap: Record<string, string> = {
+    'Move To Formation': 'Move',
+    'Jet To Formation': 'Jet',
+    'Orbit To Formation': 'Orbit',
+    'Shift To Formation': 'Shift'
+  };
+  return motionMap[motion] || motion;
+};
+
+// Helper function to convert formation concepts to default labels
+const getDefaultFormationLabel = (formation: string): string => {
+  const formationMap: Record<string, string> = {
+    'All Backside WR Tighten': 'Nasty',
+    'All Backside WR Widen': 'Wide',
+    'All Field WR Tighten': 'Nasty',
+    'All Field WR Widen': 'Wide',
+    'Backside WR Tighten': 'Nasty',
+    'Backside WR Widen': 'Wide',
+    'Field WR Tighten': 'Nasty',
+    'Field WR Widen': 'Wide'
+    // Add more mappings as needed
+  };
+  return formationMap[formation] || formation;
+};
+
+// Function to update master play pool with default labels
+const updateMasterPlayPoolLabels = async () => {
+  try {
+    // First get all plays from master play pool
+    const { data: plays, error: fetchError } = await browserClient
+      .from('master_play_pool')
+      .select('*');
+
+    if (fetchError) throw fetchError;
+
+    // Update each play with default labels
+    for (const play of plays || []) {
+      const updatedPlay = {
+        ...play,
+        formations: getDefaultFormationLabel(play.formations),
+        to_motions: play.to_motions ? getDefaultMotionLabel(play.to_motions) : null,
+        from_motions: play.from_motions ? getDefaultMotionLabel(play.from_motions) : null
+      };
+
+      // Update the play in the database
+      const { error: updateError } = await browserClient
+        .from('master_play_pool')
+        .update(updatedPlay)
+        .eq('id', play.id);
+
+      if (updateError) {
+        console.error('Error updating play:', play.id, updateError);
+        continue;
+      }
+    }
+
+    console.log('Successfully updated master play pool labels');
+  } catch (error) {
+    console.error('Error updating master play pool:', error);
+  }
+};
 
 // Add categories for filtering
 const CATEGORIES = {
