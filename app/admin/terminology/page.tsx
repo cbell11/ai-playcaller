@@ -148,16 +148,13 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
 
   const deleteRow = async (term: TerminologyWithUI) => {
     try {
-      // If the term exists in the database, delete it
-      if (!term.id.includes('-')) { // Check if it's a UUID (new term) or database ID
-        const { error } = await supabase
-          .from('terminology')
-          .delete()
-          .eq('id', term.id)
-          .eq('team_id', DEFAULT_TEAM_ID)
+      const { error } = await supabase
+        .from('terminology')
+        .delete()
+        .eq('id', term.id)
+        .eq('team_id', DEFAULT_TEAM_ID)
 
-        if (error) throw error
-      }
+      if (error) throw error
 
       const updatedTerms = localTerms.filter(t => t.id !== term.id)
       setLocalTerms(updatedTerms)

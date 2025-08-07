@@ -942,7 +942,7 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       {formations.map(formation => (
-                        <SelectItem key={formation.id} value={formation.concept}>
+                        <SelectItem key={formation.id} value={formation.label || formation.concept}>
                           {formation.label || formation.concept}
                         </SelectItem>
                       ))}
@@ -962,7 +962,7 @@ export default function MasterPlayPoolPage() {
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
                       {tags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.concept}>
+                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
                           {tag.label || tag.concept}
                         </SelectItem>
                       ))}
@@ -1007,7 +1007,7 @@ export default function MasterPlayPoolPage() {
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
                       {toMotions.map(motion => (
-                        <SelectItem key={motion.id} value={motion.concept}>
+                        <SelectItem key={motion.id} value={motion.label || motion.concept}>
                           {motion.label || motion.concept}
                         </SelectItem>
                       ))}
@@ -1028,7 +1028,7 @@ export default function MasterPlayPoolPage() {
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
                       {fromMotions.map(motion => (
-                        <SelectItem key={motion.id} value={motion.concept}>
+                        <SelectItem key={motion.id} value={motion.label || motion.concept}>
                           {motion.label || motion.concept}
                         </SelectItem>
                       ))}
@@ -1077,7 +1077,7 @@ export default function MasterPlayPoolPage() {
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
                       {conceptTags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.concept}>
+                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
                           {tag.label || tag.concept}
                         </SelectItem>
                       ))}
@@ -1142,7 +1142,7 @@ export default function MasterPlayPoolPage() {
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
                       {rpoTags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.concept}>
+                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
                           {tag.label || tag.concept}
                         </SelectItem>
                       ))}
