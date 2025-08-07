@@ -142,11 +142,26 @@ function formatPlayFromPool(play: ExtendedPlay): string {
   }
 
   // Fallback to old format method if neither exists
+  // Convert motion labels to team default labels
+  const getMotionLabel = (motion: string | undefined | null) => {
+    if (!motion) return '';
+    // Map full motion names to their default labels
+    const motionMap: Record<string, string> = {
+      'Move To Formation': 'Move',
+      'Jet To Formation': 'Jet',
+      'Orbit To Formation': 'Orbit',
+      'Shift To Formation': 'Shift'
+      // Add more mappings as needed
+    };
+    return motionMap[motion] || motion;
+  };
+
   const parts = [
-    play.formation,
+    play.formations,
     play.tag,
     play.strength,
-    play.motion_shift,
+    getMotionLabel(play.to_motions),
+    getMotionLabel(play.from_motions),
     play.concept,
     play.run_concept,
     play.run_direction,
