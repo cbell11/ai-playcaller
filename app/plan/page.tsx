@@ -3392,6 +3392,10 @@ export default function PlanPage() {
           if (section === 'screens') {
             return p.category === 'screen_game';
           }
+          // For Opening Script, ensure a balanced mix of plays
+          if (section === 'openingScript') {
+            return ['run_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'].includes(p.category);
+          }
           // For Deep Shots section, only include shot_plays and dropback_game
           if (section === 'deepShots') {
             return p.category === 'shot_plays' || p.category === 'dropback_game';
