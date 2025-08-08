@@ -184,6 +184,13 @@ export async function getPlayPool(): Promise<Play[]> {
           hint: scoutingResponse.error.hint
         });
         
+        // If it's a 406 error, it might be a data format issue
+        if (scoutingResponse.status === 406) {
+          console.error('406 Error - This usually indicates malformed JSON in the database. Check scouting_reports table for invalid JSON in array columns.');
+          console.error('Try running this SQL to check for malformed data:');
+          console.error(`SELECT * FROM scouting_reports WHERE team_id = '${team_id}' AND opponent_id = '${opponent_id}';`);
+        }
+        
         return plays;
       }
 
@@ -197,6 +204,16 @@ export async function getPlayPool(): Promise<Play[]> {
         });
         return plays;
       }
+
+      // Log the actual scouting data we received
+      console.log('✅ Successfully retrieved scouting data:', {
+        fronts_count: scoutingData.fronts?.length || 0,
+        coverages_count: scoutingData.coverages?.length || 0,
+        fronts_names: scoutingData.fronts?.map(f => f.name) || [],
+        coverages_names: scoutingData.coverages?.map(c => c.name) || [],
+        fronts_pct: scoutingData.fronts_pct,
+        coverages_pct: scoutingData.coverages_pct
+      });
 
       // Log scouting data structure
       console.log('Scouting data structure:', {
@@ -413,6 +430,7 @@ export async function initializeDefaultPlayPool(existingPlayCounts: Record<strin
     const formations = terminology.filter(t => t.category === 'formations')
     const tags = terminology.filter(t => t.category === 'tags')
     const runConcepts = terminology.filter(t => t.category === 'run_game')
+    const rpoConcepts = terminology.filter(t => t.category === 'rpo_game')
     const quickGame = terminology.filter(t => t.category === 'quick_game')
     const dropback = terminology.filter(t => t.category === 'dropback')
     const shotPlays = terminology.filter(t => t.category === 'shot_plays')
@@ -607,7 +625,7 @@ export async function regeneratePlayPool(): Promise<void> {
     // Constants - special case for run plays
     const MAX_RUN_PLAYS = 15;
     const MAX_PLAYS_PER_CATEGORY = 20;
-    const categories = ['run_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'];
+    const categories = ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'];
     
     // First, get all locked plays
     const { data: lockedPlays, error: lockedError } = await supabase
@@ -829,6 +847,7 @@ export async function updatePlayPoolTerminology(): Promise<void> {
     const formations = terminology.filter(t => t.category === 'formations')
     const tags = terminology.filter(t => t.category === 'tags')
     const runConcepts = terminology.filter(t => t.category === 'run_game')
+    const rpoConcepts = terminology.filter(t => t.category === 'rpo_game')
     const quickGame = terminology.filter(t => t.category === 'quick_game')
     const dropback = terminology.filter(t => t.category === 'dropback')
     const shotPlays = terminology.filter(t => t.category === 'shot_plays')

@@ -366,6 +366,7 @@ export default function MasterPlayPoolPage() {
         // Combine all offensive concepts
         const allConcepts = [
           ...terminology.filter(t => t.category === 'run_game'),
+          ...terminology.filter(t => t.category === 'rpo_game'),
           ...terminology.filter(t => t.category === 'quick_game'),
           ...terminology.filter(t => t.category === 'dropback_game'),
           ...terminology.filter(t => t.category === 'screen_game'),

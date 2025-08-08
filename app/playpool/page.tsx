@@ -113,7 +113,8 @@ export default function PlayPoolPage() {
   const [error, setError] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [clearingLocks, setClearingLocks] = useState(false)
-  const [motionPercentage, setMotionPercentage] = useState<number>(() => load('motion_percentage', 25))
+  // State for total play count
+  const [totalPlays, setTotalPlays] = useState<number>(0)
   const [editingPlay, setEditingPlay] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<ExtendedPlay>>({})
   const [analysis, setAnalysis] = useState<string | null>(null)
@@ -134,20 +135,8 @@ export default function PlayPoolPage() {
   const [overallBlitzPct, setOverallBlitzPct] = useState<number>(0)
   const [isRebuilding, setIsRebuilding] = useState(false)
   const [showDebugInfo, setShowDebugInfo] = useState(false)
-  // Add state for showing max limit warnings
-  const [showMaxWarning, setShowMaxWarning] = useState<Record<string, boolean>>({})
   // Add state for notification
   const [notification, setNotification] = useState<{message: string, type: 'info' | 'warning'} | null>(null)
-
-  // Add state for play counts
-  const [playCounts, setPlayCounts] = useState(() => ({
-    run_game: load('play_counts_run_game', 15),
-    quick_game: load('play_counts_quick_game', 15),
-    rpo_game: load('play_counts_rpo_game', 5),
-    dropback_game: load('play_counts_dropback_game', 15),
-    shot_plays: load('play_counts_shot_plays', 15),
-    screen_game: load('play_counts_screen_game', 15)
-  }))
 
   // Create Supabase client
   const supabase = createBrowserClient(
@@ -365,9 +354,10 @@ export default function PlayPoolPage() {
     loadTeamAndOpponentInfo()
   }, [supabase])
 
+  // Update total plays count whenever plays change
   useEffect(() => {
-    save('motion_percentage', motionPercentage)
-  }, [motionPercentage])
+    setTotalPlays(plays.length)
+  }, [plays])
 
   // Add effect to check localStorage on mount
   useEffect(() => {
@@ -428,13 +418,23 @@ export default function PlayPoolPage() {
 
           if (scoutingError) {
             console.error('Error loading scouting data:', scoutingError);
+            console.error('Scouting error details:', scoutingError);
           } else if (scoutingData) {
-            // Update defensive info
+            console.log('✅ Successfully loaded scouting data from database:', {
+              fronts_count: scoutingData.fronts?.length || 0,
+              coverages_count: scoutingData.coverages?.length || 0,
+              fronts_names: scoutingData.fronts?.map(f => f.name) || [],
+              coverages_names: scoutingData.coverages?.map(c => c.name) || [],
+              has_fronts_pct: !!scoutingData.fronts_pct,
+              has_coverages_pct: !!scoutingData.coverages_pct
+            });
+            
+            // Update defensive info - use correct column names
             setFronts(scoutingData.fronts || []);
             setCoverages(scoutingData.coverages || []);
             setBlitzes(scoutingData.blitzes || []);
-            setFrontsPct(scoutingData.front_pct || {});
-            setCoveragesPct(scoutingData.coverage_pct || {});
+            setFrontsPct(scoutingData.fronts_pct || {}); // Fixed: was front_pct
+            setCoveragesPct(scoutingData.coverages_pct || {}); // Fixed: was coverage_pct  
             setBlitzPct(scoutingData.blitz_pct || {});
             setOverallBlitzPct(scoutingData.overall_blitz_pct || 0);
           }
@@ -475,12 +475,7 @@ export default function PlayPoolPage() {
     };
   }, []);
 
-  // Add effect to save play counts when they change
-  useEffect(() => {
-    Object.entries(playCounts).forEach(([category, count]) => {
-      save(`play_counts_${category}`, count)
-    })
-  }, [playCounts])
+
 
   const handleRebuildPlaypool = async () => {
     try {
@@ -497,6 +492,18 @@ export default function PlayPoolPage() {
         throw new Error('No opponent selected')
       }
 
+      // Log the local scouting data being used
+      console.log('🔍 LOCAL SCOUTING DATA BEING SENT TO ANALYSIS:', {
+        fronts_count: fronts.length,
+        coverages_count: coverages.length,
+        fronts_names: fronts.map(f => f.name),
+        coverages_names: coverages.map(c => c.name),
+        fronts_pct: frontsPct,
+        coverages_pct: coveragesPct,
+        team_id: selectedTeamId,
+        opponent_id: selectedOpponentId
+      });
+
       // Create scouting report object
       const scoutingReport = {
         team_id: selectedTeamId,
@@ -508,10 +515,10 @@ export default function PlayPoolPage() {
         coverages_pct: coveragesPct,
         blitz_pct: blitzPct,
         overall_blitz_pct: overallBlitzPct,
-        motion_percentage: motionPercentage,
+        motion_percentage: 100, // Always show all motion
         notes: '',
         keep_locked_plays: true,
-        play_counts: playCounts // Add play counts to scouting report
+        // No longer using play counts
       }
 
       // Call analyze and update function
@@ -575,23 +582,12 @@ export default function PlayPoolPage() {
   }
 
   const getPlaysByCategory = (category: string) => {
+    // Return all plays in the category, with locked plays first
     const categoryPlays = plays.filter(play => play.category === category);
-    const maxPlays = playCounts[category as keyof typeof playCounts];
-    
-      // First include all locked plays
-      const lockedPlays = categoryPlays.filter(play => play.is_locked);
-      
-    // If we have room for more, add unlocked plays until we hit the target
-    if (lockedPlays.length < maxPlays) {
-        const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
-      // Only take enough unlocked plays to reach the target
-      const unlockedPlaysToInclude = unlockedPlays.slice(0, maxPlays - lockedPlays.length);
-        return [...lockedPlays, ...unlockedPlaysToInclude];
-      }
-      
-    // If we have more locked plays than the target, just return up to the target number
-    return lockedPlays.slice(0, maxPlays);
-    }
+    const lockedPlays = categoryPlays.filter(play => play.is_locked);
+    const unlockedPlays = categoryPlays.filter(play => !play.is_locked);
+    return [...lockedPlays, ...unlockedPlays];
+  }
     
   // Add helper function to group plays by formation
   const groupPlaysByFormation = (plays: ExtendedPlay[]) => {
@@ -886,84 +882,16 @@ export default function PlayPoolPage() {
               </div>
             )}
 
-            {/* Motion Percentage Slider */}
-          <div className="space-y-2">
-            <Label>Motion Percentage</Label>
-            <div className="flex items-center gap-4">
-              <Slider
-                value={[motionPercentage]}
-                onValueChange={(value: number[]) => setMotionPercentage(value[0])}
-                max={100}
-                step={5}
-                className="flex-1"
-              />
-              <span className="w-12 text-right">{motionPercentage}%</span>
-            </div>
-            <p className="text-sm text-gray-500">
-              Percentage of plays that will include motion
-            </p>
+            {/* Total Plays Count */}
+            <div className="flex flex-col items-center justify-center py-6">
+              <div className="text-4xl font-bold text-[#0b2545]">{totalPlays}</div>
+              <div className="text-sm text-gray-500 mt-2">Total Plays in Playpool</div>
             </div>
 
-            {/* Play Count Settings */}
-            <div className="space-y-4">
-              <Label>Number of Plays per Category</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Object.entries(CATEGORIES).map(([category, title]) => (
-                  <div key={category} className="space-y-2">
-                    <Label className="text-sm">{title}</Label>
-                    <Input
-                      type="number"
-                      min={category === 'rpo_game' ? 5 : 0}
-                                    max={20}
-              value={playCounts[category as keyof typeof playCounts] || ''}
-                      onChange={(e) => {
-                        const inputValue = e.target.value === '' ? null : parseInt(e.target.value);
-                        let value: number | null;
-                        
-                        if (inputValue === null) {
-                          value = null;
-                        } else {
-                          // For RPO, enforce minimum of 5 if a number is entered
-                          if (category === 'rpo_game' && inputValue !== null) {
-                            value = Math.max(5, Math.min(20, inputValue as number));
-                          } else {
-                            value = Math.max(0, Math.min(20, inputValue as number));
-                          }
-                        }
-                        
-                        // Show warning if user tries to exceed maximum
-                        if (typeof inputValue === 'number' && inputValue > 20) {
-                          setShowMaxWarning(prev => ({
-                            ...prev,
-                            [category]: true
-                          }));
-                          // Clear warning after 3 seconds
-                          setTimeout(() => {
-                            setShowMaxWarning(prev => ({
-                              ...prev,
-                              [category]: false
-                            }));
-                          }, 3000);
-                        }
-
-                        setPlayCounts(prev => ({
-                          ...prev,
-                          [category]: value
-                        }));
-                      }}
-                      className="w-full"
-                    />
-                    {category === 'rpo_game' && (
-                      <p className="text-xs text-gray-500">Minimum of 5 plays required</p>
-                    )}
-                    {showMaxWarning[category] && (
-                      <p className="text-xs text-red-500">Maximum number of plays per category is 20</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <p className="text-sm text-gray-500">
-                Specify how many plays you want for each category (maximum 15). The AI will try to generate exactly this many plays, keeping any locked plays.
+            {/* Info about play selection */}
+            <div className="space-y-4 mt-4">
+              <p className="text-sm text-gray-500 text-center">
+                The AI has analyzed your opponent's defensive tendencies and included all plays that are effective against their defensive schemes.
               </p>
             </div>
           </div>

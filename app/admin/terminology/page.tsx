@@ -602,6 +602,8 @@ export default function AdminTerminologyPage() {
   const [toMotionsSet, setToMotionsSet] = useState<TerminologyWithUI[]>([])
   const [fromMotionsSet, setFromMotionsSet] = useState<TerminologyWithUI[]>([])
   const [runGameSet, setRunGameSet] = useState<TerminologyWithUI[]>([])
+  const [rpoGameSet, setRpoGameSet] = useState<TerminologyWithUI[]>([])
+  const [rpoTagsSet, setRpoTagsSet] = useState<TerminologyWithUI[]>([])
   const [passProtectionsSet, setPassProtectionsSet] = useState<TerminologyWithUI[]>([])
   const [quickGameSet, setQuickGameSet] = useState<TerminologyWithUI[]>([])
   const [dropbackGameSet, setDropbackGameSet] = useState<TerminologyWithUI[]>([])
@@ -673,6 +675,8 @@ export default function AdminTerminologyPage() {
         setToMotionsSet(data?.filter(term => term.category === 'to_motions') || [])
         setFromMotionsSet(data?.filter(term => term.category === 'from_motions') || [])
         setRunGameSet(data?.filter(term => term.category === 'run_game') || [])
+        setRpoGameSet(data?.filter(term => term.category === 'rpo_game') || [])
+        setRpoTagsSet(data?.filter(term => term.category === 'rpo_tag') || [])
         setPassProtectionsSet(data?.filter(term => term.category === 'pass_protections') || [])
         setQuickGameSet(data?.filter(term => term.category === 'quick_game') || [])
         setDropbackGameSet(data?.filter(term => term.category === 'dropback_game') || [])
@@ -695,6 +699,8 @@ export default function AdminTerminologyPage() {
   const handleUpdateToMotions = (updatedTerms: TerminologyWithUI[]) => setToMotionsSet(updatedTerms)
   const handleUpdateFromMotions = (updatedTerms: TerminologyWithUI[]) => setFromMotionsSet(updatedTerms)
   const handleUpdateRunGame = (updatedTerms: TerminologyWithUI[]) => setRunGameSet(updatedTerms)
+  const handleUpdateRpoGame = (updatedTerms: TerminologyWithUI[]) => setRpoGameSet(updatedTerms)
+  const handleUpdateRpoTags = (updatedTerms: TerminologyWithUI[]) => setRpoTagsSet(updatedTerms)
   const handleUpdatePassProtections = (updatedTerms: TerminologyWithUI[]) => setPassProtectionsSet(updatedTerms)
   const handleUpdateQuickGame = (updatedTerms: TerminologyWithUI[]) => setQuickGameSet(updatedTerms)
   const handleUpdateDropbackGame = (updatedTerms: TerminologyWithUI[]) => setDropbackGameSet(updatedTerms)
@@ -819,6 +825,26 @@ export default function AdminTerminologyPage() {
               terms={runGameSet}
               category="run_game"
               onUpdate={handleUpdateRunGame}
+              supabase={supabase}
+              setProfileInfo={() => {}}
+              setTeamCode={() => {}}
+              setTeamName={() => {}}
+            />
+            <TerminologySet
+              title="RPO Game"
+              terms={rpoGameSet}
+              category="rpo_game"
+              onUpdate={handleUpdateRpoGame}
+              supabase={supabase}
+              setProfileInfo={() => {}}
+              setTeamCode={() => {}}
+              setTeamName={() => {}}
+            />
+            <TerminologySet
+              title="RPO Tags"
+              terms={rpoTagsSet}
+              category="rpo_tag"
+              onUpdate={handleUpdateRpoTags}
               supabase={supabase}
               setProfileInfo={() => {}}
               setTeamCode={() => {}}

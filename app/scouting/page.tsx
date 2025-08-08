@@ -16,6 +16,7 @@ import {
   saveScoutingReport,
   getScoutingReport
 } from "../actions/scouting-reports"
+import { analyzeAndUpdatePlays } from "../actions/analyze-plays"
 
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
@@ -83,6 +84,11 @@ export default function ScoutingPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [savingError, setSavingError] = useState<string | null>(null)
+  const [isRegeneratingPlaypool, setIsRegeneratingPlaypool] = useState(false)
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error',
+    message: string
+  } | null>(null)
   
   // Master fronts state
   const [masterFronts, setMasterFronts] = useState<MasterFront[]>([])
@@ -819,6 +825,53 @@ export default function ScoutingPage() {
       if (result.success) {
         console.log('Successfully saved data to database');
         setLastSaved(new Date());
+
+        // After saving, trigger playpool regeneration
+        try {
+          setIsRegeneratingPlaypool(true);
+          console.log('Regenerating playpool based on new scouting data');
+          const regenerateResult = await analyzeAndUpdatePlays({
+            team_id: selectedTeamId,
+            opponent_id: selectedOpponentId,
+            fronts,
+            coverages,
+            blitzes,
+            fronts_pct: frontPct,
+            coverages_pct: coverPct,
+            blitz_pct: blitzPct,
+            overall_blitz_pct: overallBlitzPct,
+            motion_percentage: 25, // Default value
+            notes,
+            keep_locked_plays: true
+          });
+
+          if (regenerateResult.success) {
+            console.log('Successfully regenerated playpool');
+            setNotification({
+              type: 'success',
+              message: 'Scouting report saved and playpool updated successfully!'
+            });
+            // Clear notification after 3 seconds
+            setTimeout(() => {
+              setNotification(null);
+            }, 3000);
+          } else {
+            console.error('Failed to regenerate playpool:', regenerateResult.error);
+            setNotification({
+              type: 'error',
+              message: 'Scouting report saved but failed to update playpool: ' + (regenerateResult.error || 'Unknown error')
+            });
+          }
+        } catch (regenerateError) {
+          console.error('Error regenerating playpool:', regenerateError);
+          setNotification({
+            type: 'error',
+            message: 'Scouting report saved but failed to update playpool: ' + (regenerateError instanceof Error ? regenerateError.message : 'Unknown error')
+          });
+        } finally {
+          setIsRegeneratingPlaypool(false);
+        }
+
         return { success: true };
       } else {
         console.error('Failed to save data:', result.error);
@@ -1956,8 +2009,18 @@ export default function ScoutingPage() {
           <div className="text-center">
             <img src="/ball.gif" alt="Loading..." className="w-16 h-16 mx-auto" />
             <p className="mt-4 text-xl font-bold text-[#0B2545]">Loading your scouting information</p>
-                  </div>
-                </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-md shadow-lg ${
+          notification.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
+          'bg-red-50 text-red-800 border border-red-200'
+        }`}>
+          <p className="text-sm">{notification.message}</p>
+        </div>
       )}
 
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
@@ -1992,18 +2055,23 @@ export default function ScoutingPage() {
               variant="outline"
               className="gap-2 bg-[#2ecc71] hover:bg-[#27ae60] text-white border-[#2ecc71]"
               onClick={saveToDatabase}
-              disabled={isSaving}
+              disabled={isSaving || isRegeneratingPlaypool}
             >
               {isSaving ? (
                 <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Saving...
                 </>
-            ) : (
+              ) : isRegeneratingPlaypool ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Updating Playpool...
+                </>
+              ) : (
                 <>
                   Save Report Information
                 </>
-            )}
+              )}
           </Button>
             
             {/* Generate AI Report button */}
