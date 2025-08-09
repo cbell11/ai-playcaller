@@ -23,10 +23,7 @@ import { Input } from "@/components/ui/input"
 const isBrowser = typeof window !== 'undefined';
 
 // Create Supabase browser client
-const browserClient = createPagesBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const browserClient = createPagesBrowserClient();
 
 // Create Supabase client
 const supabase = createClient(
@@ -176,8 +173,7 @@ function formatPlayFromPool(play: ExtendedPlay): string {
     getDefaultLabel(play.formations, 'formation'),
     getDefaultLabel(play.tag, 'tag'),
     play.strength,
-    getDefaultLabel(play.to_motions, 'motion'),
-    getDefaultLabel(play.from_motions, 'motion'),
+    getDefaultLabel(play.motion_shift, 'motion'),
     play.concept,
     play.run_concept,
     play.run_direction,
@@ -270,7 +266,7 @@ function isPassPlayCategory(category: string): boolean {
 // Add a helper function to convert Play type to PlayCall for the formatter
 const playToPlayCall = (play: Play): PlayCall => {
   return {
-    formation: play.formation || '',
+    formation: play.formations || '',
     fieldAlignment: (play.strength as "+" | "-") || '+',
     motion: play.motion_shift || '',
     play: play.concept || play.pass_screen_concept || '',
@@ -287,9 +283,6 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'firstdowns': 'firstDowns',
   'secondandshort': 'secondAndShort',
   'secondandlong': 'secondAndLong',
-  'shortyardage': 'shortYardage',
-  'thirdandshort': 'thirdAndShort',
-  'thirdandmedium': 'thirdAndMedium',
   'shortyardage': 'shortYardage',
   'thirdandshort': 'thirdAndShort',
   'thirdandmedium': 'thirdAndMedium',
@@ -465,7 +458,7 @@ async function ensurePlayExists(play: ExtendedPlay): Promise<{ id: string | null
         play_id: play.play_id,
         team_id: play.team_id,
         category: play.category,
-        formation: play.formation,
+        formations: play.formations,
         tag: play.tag,
         strength: play.strength,
         motion_shift: play.motion_shift,
@@ -1142,7 +1135,7 @@ export default function PlanPage() {
   const wristcoachRef = useRef<HTMLDivElement>(null);
   
   const handlePrintWristcoach = useReactToPrint({
-    contentRef: wristcoachRef,
+    content: () => wristcoachRef.current,
     documentTitle: "Wristcoach",
     pageStyle: `
       @page {
@@ -1502,6 +1495,24 @@ export default function PlanPage() {
         console.log('Loading plays for new opponent...');
         const playData = await getPlayPool();
         console.log('Plays loaded:', playData.length);
+        
+        // Debug: Check categories in loaded plays
+        const categoryCounts = playData.reduce((acc, play) => {
+          acc[play.category] = (acc[play.category] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        console.log('Play categories loaded:', categoryCounts);
+        
+        const screenPlays = playData.filter(p => p.category === 'screen_game');
+        console.log('Screen plays loaded:', screenPlays.length);
+        if (screenPlays.length > 0) {
+          console.log('Sample screen plays:', screenPlays.slice(0, 3).map(p => ({
+            name: p.concept,
+            formation: p.formations,
+            category: p.category
+          })));
+        }
+        
         setPlayPool(playData);
         
         // Reset play pool related states
@@ -1535,7 +1546,7 @@ export default function PlanPage() {
     const uniqueFormationsMap = playPool.reduce((acc, play) => {
       console.log('Processing play for formations:', { 
         playId: play.id,
-        formation: play.formation,
+        formation: play.formations,
         category: play.category 
       });
       if (play.formations) {
@@ -2308,7 +2319,7 @@ export default function PlanPage() {
         section: playPoolSection,
         play: {
           id: play.id,
-          formation: play.formation,
+          formations: play.formations,
           strength: play.strength,
           motion_shift: play.motion_shift,
           concept: play.concept,
@@ -2318,7 +2329,7 @@ export default function PlanPage() {
       
       // Create a PlayCall object with the play details
       const newPlay: PlayCall = {
-        formation: play.formation || '',
+        formation: play.formations || '',
         fieldAlignment: (play.strength as "+" | "-") || '+',
         motion: play.motion_shift || '',
         play: formatPlayFromPool(play),
@@ -2446,7 +2457,7 @@ export default function PlanPage() {
       // Check if any part of the play matches all search terms
       return searchTerms.every(term => 
         formattedPlay.includes(term) ||
-        play.formation?.toLowerCase().includes(term) ||
+        play.formations?.toLowerCase().includes(term) ||
         play.tag?.toLowerCase().includes(term) ||
         play.strength?.toLowerCase().includes(term) ||
         play.motion_shift?.toLowerCase().includes(term) ||
@@ -2847,7 +2858,7 @@ export default function PlanPage() {
           
           return (
             <div key={pageIndex} className="w-[11in] h-[8.5in] flex flex-col items-center justify-center page-break-after-always">
-              <div className="grid grid-cols-3 divide-x divide-black border border-black" style={{ width: `${maxWidth}in` }}>
+              <div className="grid grid-cols-3 divide-x divide-black" style={{ width: `${maxWidth}in` }}>
                 {columns.map((column, colIndex) => (
                   <div key={colIndex} className="divide-y divide-black">
                     {column.map((play, index) => (
@@ -3419,6 +3430,11 @@ export default function PlanPage() {
         section,
         playCount: filteredPlays.length,
         screenPlays: filteredPlays.filter(p => p.category === 'screen_game').length,
+        allCategories: filteredPlays.reduce((acc, p) => {
+          acc[p.category] = (acc[p.category] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        samplePlays: filteredPlays.slice(0, 5),
         neededPlays
       });
 
@@ -3455,12 +3471,62 @@ export default function PlanPage() {
       
       // Helper function to find a play in the pool by its formatted name
       const findPlayByName = (name: string) => {
-        const play = playPool.find(p => formatPlayFromPool(p) === name);
+        // First try exact match
+        let play = playPool.find(p => formatPlayFromPool(p) === name);
+        
+        // If no exact match found, try fuzzy matching for common issues
         if (!play) {
-          console.log('Failed to find play:', {
-            searchName: name,
-            availableNames: playPool.map(p => formatPlayFromPool(p))
+          // Try matching with different direction indicators
+          const nameWithPlus = name + ' +';
+          const nameWithMinus = name + ' -';
+          
+          play = playPool.find(p => {
+            const formatted = formatPlayFromPool(p);
+            return formatted === nameWithPlus || formatted === nameWithMinus;
           });
+          
+          if (play) {
+            console.log('Found play with direction matching:', {
+              searchName: name,
+              foundName: formatPlayFromPool(play)
+            });
+          }
+        }
+        
+        // If still no match, try partial matching (without trailing direction)
+        if (!play) {
+          play = playPool.find(p => {
+            const formatted = formatPlayFromPool(p);
+            // Remove trailing + or - and extra spaces, then compare
+            const cleanFormatted = formatted.replace(/\s*[+-]\s*$/, '').trim();
+            const cleanSearch = name.trim();
+            return cleanFormatted === cleanSearch;
+          });
+          
+          if (play) {
+            console.log('Found play with partial matching:', {
+              searchName: name,
+              foundName: formatPlayFromPool(play)
+            });
+          }
+        }
+        
+        if (!play) {
+          console.log('Failed to find play after all matching attempts:', {
+            searchName: name,
+            availableNames: playPool.map(p => formatPlayFromPool(p)).slice(0, 5)
+          });
+          
+          // For screens section, provide additional debugging
+          if (section === 'screens') {
+            console.log('Screens debugging - no match found:');
+            console.log('Search name:', JSON.stringify(name));
+            const screenPlays = playPool.filter(p => p.category === 'screen_game');
+            screenPlays.slice(0, 3).forEach(p => {
+              const formatted = formatPlayFromPool(p);
+              console.log('Available screen play:', JSON.stringify(formatted));
+            });
+          }
         }
         return play;
       };
@@ -3487,6 +3553,14 @@ export default function PlanPage() {
         lockedPlays: lockedPlays?.length || 0
       });
 
+      if (plays.length === 0) {
+        setNotification({
+          message: 'AI returned no new plays for this section.',
+          type: 'error'
+        });
+        setTimeout(() => setNotification(null), 3000);
+      }
+      
       const insertData = [];
       const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
       let playIndex = 0;
@@ -3544,7 +3618,7 @@ export default function PlanPage() {
               const additionalPlays = additionalGamePlan[section] || [];
               
               // Process additional plays in pairs for firstSecondCombos
-              let currentPosition = insertData.length;
+              let currentPosition: number = insertData.length;
               
               // For firstSecondCombos, process plays in pairs
               if (section === 'firstSecondCombos') {
@@ -3638,82 +3712,11 @@ export default function PlanPage() {
           type: 'success'
         });
       } else {
-        // Try one more time if no valid plays were found
-        console.log('No valid plays found, attempting second try...');
-        
-        // Call our API route again
-        const secondResponse = await fetch('/api/generate-gameplan', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            playPool: filteredPlays,
-            sectionSizes: sectionSizeObj,
-            singleSection: true,
-            targetSection: section,
-            selectedConcept: selectedConcept
-          })
+        // This will now only trigger if no plays are returned at all
+        setNotification({
+          message: 'Sorry, we found no valid plays for this section. Try regenerating the section again',
+          type: 'error'
         });
-
-        if (!secondResponse.ok) {
-          const error = await secondResponse.json();
-          throw new Error(error.error || 'Failed to generate plays on second attempt');
-        }
-
-        const secondGamePlan = await secondResponse.json();
-        const secondPlays = secondGamePlan[section] || [];
-        
-        if (secondPlays.length > 0) {
-          // Process and insert the plays from second attempt
-          const secondInsertData = [];
-          let playIndex = 0;
-          
-          for (let i = 0; i < sectionSizes[section] && playIndex < secondPlays.length; i++) {
-            if (!lockedPositions.has(i)) {
-              const playName = secondPlays[playIndex];
-              const play = findPlayByName(playName);
-              if (play) {
-                secondInsertData.push({
-                  team_id,
-                  opponent_id,
-                  play_id: play.id,
-                  section: section.toLowerCase(),
-                  position: i,
-                  combined_call: formatPlayFromPool(play),
-                  customized_edit: play.customized_edit,
-                  is_locked: false
-                });
-                playIndex++;
-              }
-            }
-          }
-
-          if (secondInsertData.length > 0) {
-            const { error: insertError } = await browserClient
-              .from('game_plan')
-              .insert(secondInsertData);
-
-            if (insertError) {
-              throw new Error(`Failed to save plays on second attempt: ${insertError.message}`);
-            }
-
-            setNotification({
-              message: `${section} regenerated with ${secondInsertData.length} plays on second attempt`,
-              type: 'success'
-            });
-          } else {
-            setNotification({
-              message: 'Sorry, we found no valid plays for this section. Try regenerating the section again',
-              type: 'error'
-            });
-          }
-        } else {
-          setNotification({
-            message: 'Sorry, we found no valid plays for this section. Try regenerating the section again',
-            type: 'error'
-          });
-        }
       }
 
       // Optimized UI update - only fetch this section's data

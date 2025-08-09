@@ -87,8 +87,11 @@ export async function POST(req: Request) {
     let categoryRequirements: Record<string, number> | null = null;
 
     if (targetSection === 'screens') {
+      console.log('Processing screens section. Total plays received:', playPool.length);
+      console.log('Sample plays received:', playPool.slice(0, 5).map(p => ({ name: p.name, category: p.category })));
+      
       filteredPlayPool = playPool.filter(play => {
-        console.log('Filtering screen play:', play);
+        console.log('Filtering screen play:', { name: play.name, category: play.category });
         const isScreenPlay = play.category === 'screen_game';
         if (!isScreenPlay) {
           console.log('Rejected non-screen play:', play.name, play.category);
@@ -97,8 +100,17 @@ export async function POST(req: Request) {
       });
 
       console.log('Filtered screen plays:', filteredPlayPool.length);
+      if (filteredPlayPool.length > 0) {
+        console.log('Screen plays found:', filteredPlayPool.map(p => ({ name: p.name, category: p.category })));
+      }
 
       if (filteredPlayPool.length === 0) {
+        console.log('All plays by category:');
+        const categoryCounts = playPool.reduce((acc, play) => {
+          acc[play.category] = (acc[play.category] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        console.log(categoryCounts);
         return NextResponse.json({ error: 'No screen plays found in play pool' }, { status: 400 });
       }
     } else if (targetSection === 'goalline') {
@@ -167,18 +179,26 @@ export async function POST(req: Request) {
 
     // Add category distribution if applicable
     const distributionRequirement = categoryRequirements 
-      ? `\n- Target category distribution (try to get close to these numbers):\n${
+      ? `
+- Target category distribution (try to get close to these numbers):
+${
           Object.entries(categoryRequirements)
             .map(([category, percentage]) => 
-              `  • About ${Math.round(percentage * sectionCount)} plays from ${category}`
+              `  • About ${Math.round((percentage as number) * sectionCount)} plays from ${category}`
             ).join('\n')
-        }\n- It's okay if the distribution isn't exact, but try to include plays from all categories`
+        }
+- It's okay if the distribution isn't exact, but try to include plays from all categories`
       : '';
     
     // Format plays with their categories
     const formattedPlays = filteredPlayPool.map(p => `${p.name} [${p.category}]`).join('\n');
     
     const prompt = `Generate ${sectionCount} football plays for the "${targetSection}" section from this play pool:\n\n${filteredPlayPool.map(p => p.name).join('\n')}\n\nSection Requirements:${baseRequirements}${conceptRequirement}\n\nGeneral Rules:\n- Select up to ${sectionCount} plays (use all available plays if less than ${sectionCount} are available)\n- Ensure variety: select different formations, motions, and directions\n- NO DUPLICATES: Each play must be unique\n- Return only JSON format: {"${targetSection}": ["play1", "play2", ...]}\n- Use exact play names from the pool` as const;
+
+    console.log('Sending prompt to OpenAI for section:', targetSection);
+    if (targetSection === 'screens') {
+      console.log('Screen section prompt:', prompt);
+    }
 
     const completion = await openai.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
@@ -191,6 +211,12 @@ export async function POST(req: Request) {
 
     const result = JSON.parse(completion.choices[0].message.content || '{}');
 
+    console.log('OpenAI response for section:', targetSection, result);
+    if (targetSection === 'screens') {
+      console.log('Raw OpenAI response for screens:', completion.choices[0].message.content);
+      console.log('Parsed screens result:', result);
+    }
+
     // If we got fewer plays than requested, that's okay - use what we have
     if (result[targetSection] && result[targetSection].length < sectionCount) {
       console.log(`Warning: Only found ${result[targetSection].length} valid plays for ${targetSection} (requested ${sectionCount})`);
@@ -201,19 +227,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid response format from AI' }, { status: 500 });
     }
 
-    // For non-base package sections, enforce exact count
-    if (!targetSection.startsWith('basePackage') && result[targetSection].length !== sectionCount) {
-      return NextResponse.json({ 
-        error: `AI returned wrong number of plays. Expected ${sectionCount}, got ${result[targetSection].length}` 
-      }, { status: 500 });
-    }
-
-    // For base package sections, enforce minimum count
-    if (targetSection.startsWith('basePackage') && result[targetSection].length < sectionCount) {
-      return NextResponse.json({ 
-        error: `AI returned too few plays for base package. Expected at least ${sectionCount}, got ${result[targetSection].length}` 
-      }, { status: 500 });
-    }
+    // For base package sections, we no longer enforce a minimum count
+    // It's better to get some plays than none at all
 
     // Log category distribution if requirements exist, but don't enforce it
     if (categoryRequirements) {
@@ -233,7 +248,7 @@ export async function POST(req: Request) {
         section: targetSection,
         targetDistribution: Object.entries(categoryRequirements).map(([category, percentage]) => ({
           category,
-          targetCount: Math.round(percentage * sectionCount)
+          targetCount: Math.round((percentage as number) * sectionCount)
         })),
         actualDistribution: categoryCounts,
         plays: result[targetSection]

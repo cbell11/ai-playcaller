@@ -437,6 +437,22 @@ export async function initializeDefaultPlayPool(existingPlayCounts: Record<strin
     const screens = terminology.filter(t => t.category === 'screen_game')
     const motions = terminology.filter(t => t.category === 'motions')
 
+    console.log('Terminology counts:', {
+      formations: formations.length,
+      tags: tags.length,
+      runConcepts: runConcepts.length,
+      quickGame: quickGame.length,
+      dropback: dropback.length,
+      shotPlays: shotPlays.length,
+      screens: screens.length,
+      motions: motions.length
+    });
+
+    if (screens.length === 0) {
+      console.warn('No screen terminology found! This will prevent screen play generation.');
+      console.log('Sample screen concepts needed:', ['RB Screen', 'WR Screen', 'TE Screen', 'Tunnel Screen']);
+    }
+
     if (!formations.length || !tags.length || !runConcepts.length) {
       throw new Error('Missing required terminology categories')
     }
@@ -465,6 +481,15 @@ export async function initializeDefaultPlayPool(existingPlayCounts: Record<strin
     const dropbackGameCount = PLAYS_PER_CATEGORY - (existingPlayCounts['dropback_game'] || 0)
     const shotPlaysCount = PLAYS_PER_CATEGORY - (existingPlayCounts['shot_plays'] || 0)
     const screenGameCount = PLAYS_PER_CATEGORY - (existingPlayCounts['screen_game'] || 0)
+
+    console.log('Play generation counts:', {
+      runGameCount,
+      quickGameCount,
+      dropbackGameCount,
+      shotPlaysCount,
+      screenGameCount,
+      existingScreenPlays: existingPlayCounts['screen_game'] || 0
+    });
 
     // Generate run plays (adjusted count)
     const runPlays = Array.from({ length: Math.max(0, runGameCount) }, () => {
