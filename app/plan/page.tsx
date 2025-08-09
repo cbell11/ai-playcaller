@@ -417,7 +417,8 @@ async function savePlayToGamePlan(
         section: section.toLowerCase(),
         position: nextPosition,
         combined_call: formatPlayFromPool(play),
-        customized_edit: play.customized_edit
+        customized_edit: play.customized_edit,
+        category: play.category // Add the category here
       })
       .select()
       .single();
@@ -546,7 +547,12 @@ async function updatePlayPosition(
     // First, get the play at the old position
     const { data: play, error: fetchError } = await browserClient
       .from('game_plan')
-      .select('*')
+      .select(`
+        *,
+        play:play_id (
+          id
+        )
+      `)
       .eq('team_id', team_id)
       .eq('opponent_id', opponent_id)
       .eq('section', section.toLowerCase())
@@ -598,7 +604,7 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
       .select(`
         *,
         play:play_id (
-          category
+          id
         )
       `)
       .eq('team_id', team_id)
@@ -1642,7 +1648,12 @@ export default function PlanPage() {
           // First, get all plays in this section
           const { data: sectionPlays, error: fetchError } = await browserClient
             .from('game_plan')
-            .select('*')
+            .select(`
+              *,
+              play:play_id (
+                id
+              )
+            `)
             .eq('team_id', team_id)
             .eq('opponent_id', opponent_id)
             .eq('section', sectionId.toLowerCase())
@@ -3047,17 +3058,6 @@ export default function PlanPage() {
         throw new Error('Team or opponent not selected');
       }
 
-      // Delete all existing plays for this game plan
-      const { error: deleteError } = await browserClient
-        .from('game_plan')
-        .delete()
-        .eq('team_id', team_id)
-        .eq('opponent_id', opponent_id);
-
-      if (deleteError) {
-        throw new Error('Failed to clear existing game plan');
-      }
-
       // Define the order of sections to regenerate
       const sectionsToGenerate: (keyof GamePlan)[] = [
         'openingScript',
@@ -3579,7 +3579,8 @@ export default function PlanPage() {
               position: i,
               combined_call: formatPlayFromPool(play),
               customized_edit: play.customized_edit,
-              is_locked: false
+              is_locked: false,
+              category: play.category // Add the category here
             });
             playIndex++;
           }

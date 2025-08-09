@@ -663,6 +663,21 @@ export async function regeneratePlayPool(): Promise<void> {
       throw lockedError
     }
     
+    // Get all current plays from the playpool
+    const { data: allPlays, error: fetchAllError } = await supabase
+      .from('playpool')
+      .select('id, is_locked');
+
+    if (fetchAllError) {
+      console.error('Error fetching all plays:', fetchAllError);
+      throw fetchAllError;
+    }
+
+    // Identify unlocked plays to be disabled
+    const unlockedPlayIds = (allPlays || [])
+      .filter(p => !p.is_locked)
+      .map(p => p.id);
+
     // Delete all unlocked plays
     const { error: deleteError } = await supabase
       .from('playpool')
