@@ -113,14 +113,96 @@ export async function POST(req: Request) {
         console.log(categoryCounts);
         return NextResponse.json({ error: 'No screen plays found in play pool' }, { status: 400 });
       }
-    } else if (targetSection === 'goalline') {
-      filteredPlayPool = playPool.filter(play => {
-        return play.category !== 'shot_plays';
-      });
+    } else if (targetSection === 'thirdAndShort') {
+      // Filter plays where third_s is true
+      filteredPlayPool = playPool.filter(play => play.third_s === true);
 
       if (filteredPlayPool.length === 0) {
-        return NextResponse.json({ error: 'No valid plays found for goalline after filtering' }, { status: 400 });
+        return NextResponse.json({ error: 'No plays found marked for third and short situations' }, { status: 400 });
       }
+
+      // Randomly shuffle the filtered plays
+      const shuffled = [...filteredPlayPool].sort(() => Math.random() - 0.5);
+      
+      // Take only the number of plays we need
+      const selectedPlays = shuffled.slice(0, sectionSizes[targetSection] || 0);
+      
+      // Return the selected plays in the expected format
+      return NextResponse.json({
+        [targetSection]: selectedPlays.map(play => play.name)
+      });
+    } else if (targetSection === 'thirdAndMedium') {
+      // Filter plays where third_m is true
+      filteredPlayPool = playPool.filter(play => play.third_m === true);
+
+      if (filteredPlayPool.length === 0) {
+        return NextResponse.json({ error: 'No plays found marked for third and medium situations' }, { status: 400 });
+      }
+
+      // Randomly shuffle the filtered plays
+      const shuffled = [...filteredPlayPool].sort(() => Math.random() - 0.5);
+      
+      // Take only the number of plays we need
+      const selectedPlays = shuffled.slice(0, sectionSizes[targetSection] || 0);
+      
+      // Return the selected plays in the expected format
+      return NextResponse.json({
+        [targetSection]: selectedPlays.map(play => play.name)
+      });
+    } else if (targetSection === 'thirdAndLong') {
+      // Filter plays where third_l is true
+      filteredPlayPool = playPool.filter(play => play.third_l === true);
+
+      if (filteredPlayPool.length === 0) {
+        return NextResponse.json({ error: 'No plays found marked for third and long situations' }, { status: 400 });
+      }
+
+      // Randomly shuffle the filtered plays
+      const shuffled = [...filteredPlayPool].sort(() => Math.random() - 0.5);
+      
+      // Take only the number of plays we need
+      const selectedPlays = shuffled.slice(0, sectionSizes[targetSection] || 0);
+      
+      // Return the selected plays in the expected format
+      return NextResponse.json({
+        [targetSection]: selectedPlays.map(play => play.name)
+      });
+    } else if (targetSection === 'highRedZone' || targetSection === 'lowRedZone') {
+      // Filter plays where rz is true
+      filteredPlayPool = playPool.filter(play => play.rz === true);
+
+      if (filteredPlayPool.length === 0) {
+        return NextResponse.json({ error: 'No plays found marked for red zone situations' }, { status: 400 });
+      }
+
+      // Randomly shuffle the filtered plays
+      const shuffled = [...filteredPlayPool].sort(() => Math.random() - 0.5);
+      
+      // Take only the number of plays we need
+      const selectedPlays = shuffled.slice(0, sectionSizes[targetSection] || 0);
+      
+      // Return the selected plays in the expected format
+      return NextResponse.json({
+        [targetSection]: selectedPlays.map(play => play.name)
+      });
+    } else if (targetSection === 'goalline') {
+      // Filter plays where gl is true
+      filteredPlayPool = playPool.filter(play => play.gl === true);
+
+      if (filteredPlayPool.length === 0) {
+        return NextResponse.json({ error: 'No plays found marked for goalline situations' }, { status: 400 });
+      }
+
+      // Randomly shuffle the filtered plays
+      const shuffled = [...filteredPlayPool].sort(() => Math.random() - 0.5);
+      
+      // Take only the number of plays we need
+      const selectedPlays = shuffled.slice(0, sectionSizes[targetSection] || 0);
+      
+      // Return the selected plays in the expected format
+      return NextResponse.json({
+        [targetSection]: selectedPlays.map(play => play.name)
+      });
     } else if (targetSection === 'twoMinuteDrill') {
       filteredPlayPool = playPool.filter(play => {
         return !['run_game', 'rpo_game'].includes(play.category);
@@ -128,38 +210,6 @@ export async function POST(req: Request) {
 
       if (filteredPlayPool.length === 0) {
         return NextResponse.json({ error: 'No valid plays found for two minute drill after filtering' }, { status: 400 });
-      }
-    } else if (targetSection === 'thirdAndShort') {
-      filteredPlayPool = playPool.filter(play => {
-        return play.category !== 'shot_plays';
-      });
-
-      if (filteredPlayPool.length === 0) {
-        return NextResponse.json({ error: 'No valid plays found for third and short after filtering' }, { status: 400 });
-      }
-    } else if (targetSection === 'thirdAndMedium') {
-      filteredPlayPool = playPool.filter(play => {
-        return play.category !== 'shot_plays';
-      });
-
-      if (filteredPlayPool.length === 0) {
-        return NextResponse.json({ error: 'No valid plays found for third and medium after filtering' }, { status: 400 });
-      }
-    } else if (targetSection === 'highRedZone') {
-      filteredPlayPool = playPool.filter(play => {
-        return play.category !== 'shot_plays';
-      });
-
-      if (filteredPlayPool.length === 0) {
-        return NextResponse.json({ error: 'No valid plays found for high red zone after filtering' }, { status: 400 });
-      }
-    } else if (targetSection === 'lowRedZone') {
-      filteredPlayPool = playPool.filter(play => {
-        return !['shot_plays', 'screen_game'].includes(play.category);
-      });
-
-      if (filteredPlayPool.length === 0) {
-        return NextResponse.json({ error: 'No valid plays found for low red zone after filtering' }, { status: 400 });
       }
     }
 

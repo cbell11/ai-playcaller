@@ -18,6 +18,7 @@ import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { createClient } from '@supabase/supabase-js'
 import React from "react"
 import { Input } from "@/components/ui/input"
+import { toast } from "react-toastify"
 
 // Add this helper function near the top of the file
 const isBrowser = typeof window !== 'undefined';
@@ -127,9 +128,32 @@ interface GamePlan {
   coverage0Beaters: PlayCall[]
 }
 
-interface ExtendedPlay extends Play {
-  combined_call?: string;
+interface Play {
+  id: string;
+  play_id: string;
+  formations: string;
+  to_motions: string | null;
+  concept: string;
+  category: string;
+  coverage_beaters: string | null;
+  customized_edit: string | null;
+  third_s: boolean;
+  third_m: boolean;
+  third_l: boolean;
+  rz: boolean;
+  gl: boolean;
 }
+
+interface ExtendedPlay extends Omit<Play, 'customized_edit'> {
+  combined_call?: string;
+  customized_edit?: string;
+}
+
+// Helper function to convert Play to ExtendedPlay
+const convertPlayToExtended = (play: Play): ExtendedPlay => ({
+  ...play,
+  customized_edit: play.customized_edit || undefined
+});
 
 // Add new utility function to format a play from the play pool
 function formatPlayFromPool(play: ExtendedPlay): string {
@@ -269,7 +293,7 @@ function isPassPlayCategory(category: string): boolean {
 }
 
 // Add a helper function to convert Play type to PlayCall for the formatter
-const playToPlayCall = (play: Play): PlayCall => {
+const playToPlayCall = (play: ExtendedPlay): PlayCall => {
   return {
     formation: play.formations || '',
     fieldAlignment: (play.strength as "+" | "-") || '+',
@@ -1225,7 +1249,11 @@ export default function PlanPage() {
         customized_edit: fav.customized_edit,
         combined_call: fav.combined_call,
         created_at: fav.created_at,
-        updated_at: fav.updated_at
+        updated_at: fav.updated_at,
+        third_s: fav.third_s,
+        third_m: fav.third_m,
+        third_l: fav.third_l,
+        rz: fav.rz
       })) || [];
 
       setFavorites(favoritePlays);
@@ -1498,7 +1526,7 @@ export default function PlanPage() {
         console.log('Loading initial plays...');
         const playData = await getPlayPool();
         console.log('Initial plays loaded:', playData.length);
-        setPlayPool(playData);
+        setPlayPool(playData.map(convertPlayToExtended));
         
         // Reset play pool related states
         setShowPlayPool(false);
@@ -1588,7 +1616,7 @@ export default function PlanPage() {
         console.log('Loading plays for new opponent...');
         const playData = await getPlayPool();
         console.log('Plays loaded:', playData.length);
-        setPlayPool(playData);
+        setPlayPool(playData.map(convertPlayToExtended));
         
         // Reset play pool related states
         setShowPlayPool(false);
@@ -1649,7 +1677,7 @@ export default function PlanPage() {
         console.log('Loading plays for new opponent...');
         const playData = await getPlayPool();
         console.log('Plays loaded:', playData.length);
-        setPlayPool(playData);
+        setPlayPool(playData.map(convertPlayToExtended));
         
         // Reset play pool related states
         setShowPlayPool(false);
@@ -1746,7 +1774,7 @@ export default function PlanPage() {
           })));
         }
         
-        setPlayPool(playData);
+        setPlayPool(playData.map(convertPlayToExtended));
         
         // Reset play pool related states
         setShowPlayPool(false);
@@ -3588,32 +3616,8 @@ export default function PlanPage() {
 
       // Add this function after handleColorChange
     const handleRegenerateSection = async (section: keyof GamePlan) => {
-    if (!selectedOpponent || !playPool.length) {
-      setNotification({
-        message: 'Please select an opponent and ensure plays are loaded first',
-        type: 'error'
-      });
-      return;
-    }
-
-    // Check if all plays in the section are locked
-    if (plan && plan[section]) {
-      const playsInSection = plan[section].filter(play => play.play); // Only consider non-empty plays
-      if (playsInSection.length > 0) { // Only check if there are actual plays
-        const allPlaysLocked = playsInSection.every(play => play.is_locked);
-        
-        if (allPlaysLocked) {
-          setNotification({
-            message: 'Unable to use AI as all plays are already locked',
-            type: 'error'
-          });
-          setTimeout(() => setNotification(null), 3000);
-          return;
-        }
-      }
-    }
-
     setGeneratingSection(section);
+    
     try {
       // Get team and opponent IDs
       const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
@@ -3623,22 +3627,88 @@ export default function PlanPage() {
         throw new Error('Team or opponent not selected');
       }
 
-      // Step 1: Save all locked plays and their positions
-      const { data: lockedPlays, error: lockedError } = await browserClient
-        .from('game_plan')
-        .select('*')
-        .eq('team_id', team_id)
-        .eq('opponent_id', opponent_id)
-        .eq('section', section.toLowerCase())
-        .eq('is_locked', true);
+      // Special handling for third down, red zone, and goalline situations - no AI needed
+      if (section === 'thirdAndShort' || section === 'thirdAndMedium' || section === 'thirdAndLong' ||
+          section === 'highRedZone' || section === 'lowRedZone' || section === 'goalline') {
+        const count = sectionSizes[section];
+        let selectedPlays: ExtendedPlay[] = [];
 
-      if (lockedError) throw lockedError;
+        // Select plays based on the section
+        if (section === 'thirdAndShort') {
+          selectedPlays = playPool.filter(p => p.third_s === true);
+        } else if (section === 'thirdAndMedium') {
+          selectedPlays = playPool.filter(p => p.third_m === true);
+        } else if (section === 'thirdAndLong') {
+          selectedPlays = playPool.filter(p => p.third_l === true);
+        } else if (section === 'highRedZone' || section === 'lowRedZone') {
+          selectedPlays = playPool.filter(p => p.rz === true);
+        } else if (section === 'goalline') {
+          selectedPlays = playPool.filter(p => p.gl === true);
+        }
 
-      // Calculate how many new plays we need (section size minus locked plays)
-      const neededPlays = sectionSizes[section] - (lockedPlays?.length || 0);
+        // Randomly shuffle and select the needed number of plays
+        const shuffled = [...selectedPlays].sort(() => Math.random() - 0.5);
+        selectedPlays = shuffled.slice(0, count);
+        
+        if (selectedPlays.length === 0) {
+          setNotification({
+            message: `No plays found marked for ${section} situations`,
+            type: 'error'
+          });
+          return;
+        }
 
-      // Format plays for the API - use only plays that match this section's typical category
-      // and selected concept if it's a base package
+        // Delete existing unlocked plays for this section
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section)
+          .eq('is_locked', false);
+
+        if (deleteError) {
+          throw new Error('Failed to clear unlocked plays');
+        }
+
+        // Insert new plays
+        const insertData = selectedPlays.map((play, index) => ({
+          team_id,
+          opponent_id,
+          play_id: play.play_id,
+          section,
+          position: index,
+          combined_call: formatPlayFromPool(play),
+          customized_edit: play.customized_edit,
+          is_locked: false,
+          category: play.category
+        }));
+
+        const { error: insertError } = await browserClient
+          .from('game_plan')
+          .insert(insertData);
+
+        if (insertError) {
+          throw new Error(`Failed to save plays: ${insertError.message}`);
+        }
+
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+
+        setNotification({
+          message: `Updated ${section} with ${selectedPlays.length} plays`,
+          type: 'success'
+        });
+        return;
+      }
+
+      // For other sections, continue with existing AI-based logic
       const isBasePackage = section.startsWith('basePackage');
       const selectedConcept = isBasePackage ? basePackageConcepts[section] : null;
       const selectedFormation = isBasePackage ? basePackageFormations[section] : null;
@@ -3669,9 +3739,9 @@ export default function PlanPage() {
           if (section === 'deepShots') {
             return p.category === 'shot_plays' || p.category === 'dropback_game';
           }
-          // For Third and Short, exclude shot plays
+          // For Third and Short, use third_s column
           if (section === 'thirdAndShort') {
-            return p.category !== 'shot_plays';
+            return p.third_s === true;
           }
           // For Third and Medium, exclude shot plays
           if (section === 'thirdAndMedium') {
@@ -3693,12 +3763,12 @@ export default function PlanPage() {
           return acc;
         }, {} as Record<string, number>),
         samplePlays: filteredPlays.slice(0, 5),
-        neededPlays
+        neededPlays: sectionSizes[section]
       });
 
       // Create a minimal section-specific size object for faster processing
       const sectionSizeObj = {
-        [section]: neededPlays
+        [section]: sectionSizes[section]
       };
 
       // Call our API route with optimized parameters for single section
@@ -3807,7 +3877,7 @@ export default function PlanPage() {
       console.log('Preparing to insert plays:', {
         section,
         receivedPlays: plays.length,
-        neededPlays: neededPlays,
+        neededPlays: sectionSizes[section],
         lockedPlays: lockedPlays?.length || 0
       });
 
@@ -4269,6 +4339,13 @@ export default function PlanPage() {
       });
       setTimeout(() => setNotification(null), 3000);
     }
+  };
+
+  // Helper function to randomly select plays
+  const getRandomPlaysForThirdAndShort = (plays: ExtendedPlay[], count: number): ExtendedPlay[] => {
+    const thirdAndShortPlays = plays.filter(p => p.third_s === true);
+    const shuffled = [...thirdAndShortPlays].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
   };
 
   return (
