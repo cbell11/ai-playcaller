@@ -407,7 +407,9 @@ async function savePlayToGamePlan(
     console.log('Saving play to game plan:', {
       team_id,
       opponent_id,
-      play_id: play.id,
+      play_object: play, // Log the entire play object
+      play_id_from_play: play.play_id, // Use play.play_id instead of play.id
+      play_uuid_from_play: play.id, // Show the UUID for comparison
       section: section.toLowerCase(),
       position: nextPosition,
       combined_call: formatPlayFromPool(play),
@@ -420,7 +422,7 @@ async function savePlayToGamePlan(
       .insert({
         team_id,
         opponent_id,
-        play_id: play.id,
+        play_id: play.play_id, // Use play.play_id instead of play.id
         section: section.toLowerCase(),
         position: nextPosition,
         combined_call: formatPlayFromPool(play),
@@ -638,12 +640,7 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
     // Fetch all plays for this team and opponent
     const { data: gamePlanData, error } = await browserClient
       .from('game_plan')
-      .select(`
-        *,
-        play:play_id (
-          id
-        )
-      `)
+      .select('*') // Remove the join since play_id is now just text
       .eq('team_id', team_id)
       .eq('opponent_id', opponent_id)
       .order('position', { ascending: true });
@@ -685,7 +682,7 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
           motion: '',
           play: entry.customized_edit || entry.combined_call || '',
           runDirection: '+',
-          category: entry.play?.category || entry.category,
+          category: entry.category, // Use category directly since no join
           is_locked: entry.is_locked || false, // Add this line to include lock state
           is_favorite: isFavorite, // Use the favorites table data
           // Add database fields needed for favorites
@@ -1087,7 +1084,10 @@ export default function PlanPage() {
         index,
         currentPlay,
         newFavoriteState,
-        team_id
+        team_id,
+        play_id_value: currentPlay.play_id,
+        combined_call_value: currentPlay.combined_call,
+        play_value: currentPlay.play
       });
       
       if (newFavoriteState) {
@@ -2941,12 +2941,12 @@ export default function PlanPage() {
             
             {/* Play list area - only show for favorites mode */}
               {playPoolFilterType === 'favorites' && (
-              <div className="w-full pl-1 flex-1 min-h-0">
-                <div className="mb-2 text-sm font-medium text-center text-yellow-600">
+              <div className="w-full pl-1 flex-1 min-h-0 flex flex-col">
+                <div className="mb-2 text-sm font-medium text-center text-yellow-600 flex-shrink-0">
                   <Star className="inline-block h-4 w-4 mr-1 fill-yellow-400" />
                   Favorite Plays
                 </div>
-              <div className="h-full overflow-y-auto space-y-1 pr-1">
+              <div className="flex-1 overflow-y-auto space-y-1 pr-1" style={{ maxHeight: 'calc(100vh - 300px)' }}>
                 {filteredPlays.length > 0 ? (
                   filteredPlays.map((play, index) => {
                     const alreadyInSection = isPlayInSection(play, plan[playPoolSection]);
@@ -2963,24 +2963,33 @@ export default function PlanPage() {
                           )}
                           {formatPlayFromPool(play)}
                         </div>
-                        {alreadyInSection ? (
-                          <div className="text-xs text-gray-500 ml-1 px-2 py-0.5 border border-gray-300 rounded flex-shrink-0">
-                            In Script
-                          </div>
-                        ) : (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {alreadyInSection ? (
+                            <div className="text-xs text-gray-500 ml-1 px-2 py-0.5 border border-gray-300 rounded">
+                              In Script
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleAddPlayToSection(play)}
+                              className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded cursor-pointer"
+                            >
+                              + Add
+                            </button>
+                          )}
                           <button
-                            onClick={() => handleAddPlayToSection(play)}
-                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0 cursor-pointer"
+                            onClick={() => handleRemoveFromFavorites(play)}
+                            className="text-xs bg-red-500 hover:bg-red-600 text-white p-1 rounded flex items-center cursor-pointer"
+                            title="Remove from favorites"
                           >
-                            + Add
+                            <Trash2 className="h-3 w-3" />
                           </button>
-                        )}
+                        </div>
                       </div>
                     );
                   })
                 ) : (
                   <p className="text-gray-500 italic text-xs text-center p-4">
-                      No favorite plays yet. Star plays in the Play Pool page.
+                      No favorite plays yet. Star plays in your game plan to add them to favorites.
                   </p>
                 )}
               </div>
@@ -3484,6 +3493,7 @@ export default function PlanPage() {
       // Convert to PlayCall format
       const playCallsArray = selectedPlays.map(play => ({
         id: play.id, // Preserve the UUID from playpool
+        play_id: play.play_id, // Preserve the text play_id from playpool
         formation: play.formations || '',
         fieldAlignment: '+',
         motion: play.to_motions || '',
@@ -3534,7 +3544,7 @@ export default function PlanPage() {
       const insertData = newPlays.map((play, index) => ({
         team_id,
         opponent_id,
-        play_id: play.id, // Use the actual UUID from the playpool
+        play_id: play.play_id, // Use play.play_id instead of play.id
         section: 'coverage0beaters',
         position: index,
         combined_call: play.play,
@@ -3822,7 +3832,7 @@ export default function PlanPage() {
             insertData.push({
               team_id,
               opponent_id,
-              play_id: play.id,
+              play_id: play.play_id, // Use play.play_id instead of play.id
               section: section.toLowerCase(),
               position: i,
               combined_call: formatPlayFromPool(play),
@@ -3886,7 +3896,7 @@ export default function PlanPage() {
                     insertData.push({
                       team_id,
                       opponent_id,
-                      play_id: firstPlay.id,
+                      play_id: firstPlay.play_id, // Use play.play_id instead of play.id
                       section: section.toLowerCase(),
                       position: currentPosition,
                       combined_call: formatPlayFromPool(firstPlay),
@@ -3898,7 +3908,7 @@ export default function PlanPage() {
                     insertData.push({
                       team_id,
                       opponent_id,
-                      play_id: secondPlay.id,
+                      play_id: secondPlay.play_id, // Use play.play_id instead of play.id
                       section: section.toLowerCase(),
                       position: currentPosition + 1,
                       combined_call: formatPlayFromPool(secondPlay),
@@ -3919,7 +3929,7 @@ export default function PlanPage() {
                     insertData.push({
                       team_id,
                       opponent_id,
-                      play_id: play.id,
+                      play_id: play.play_id, // Use play.play_id instead of play.id
                       section: section.toLowerCase(),
                       position: currentPosition,
                       combined_call: formatPlayFromPool(play),
@@ -4215,7 +4225,51 @@ export default function PlanPage() {
     }
   };
 
-
+  // Add function to remove a play from favorites
+  const handleRemoveFromFavorites = async (play: ExtendedPlay) => {
+    try {
+      const team_id = localStorage.getItem('selectedTeam');
+      
+      if (!team_id) {
+        throw new Error('Team not selected');
+      }
+      
+      console.log('Removing from favorites:', {
+        team_id,
+        play_id: play.play_id,
+        combined_call: play.combined_call
+      });
+      
+      const { error } = await browserClient
+        .from('favorites')
+        .delete()
+        .eq('team_id', team_id)
+        .eq('play_id', play.play_id)
+        .eq('combined_call', play.combined_call);
+        
+      if (error) {
+        console.error('Error removing favorite:', error);
+        throw error;
+      }
+      
+      // Reload favorites to update the list
+      await loadFavorites();
+      
+      setNotification({
+        message: 'Play removed from favorites',
+        type: 'success'
+      });
+      setTimeout(() => setNotification(null), 3000);
+      
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+      setNotification({
+        message: 'Failed to remove from favorites',
+        type: 'error'
+      });
+      setTimeout(() => setNotification(null), 3000);
+    }
+  };
 
   return (
     <>
