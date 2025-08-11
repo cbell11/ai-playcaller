@@ -85,7 +85,12 @@ interface PlayCall {
   runDirection?: "+" | "-"  // + for field, - for boundary (only for run plays)
   category?: string  // Add this line
   is_locked?: boolean  // Add this line for tracking lock state
+  is_favorite?: boolean  // Add this line for tracking favorite state
   customized_edit?: string  // Add this line for custom edits
+  // Add database fields needed for favorites
+  game_plan_id?: string  // ID from game_plan table
+  play_id?: string  // Original play ID
+  combined_call?: string  // Combined call from database
 }
 
 // Add new types for the cascading dropdowns - currently unused but may be used in future versions
@@ -334,7 +339,9 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     motion: '',
     play: '',
     runDirection: '+',
-    category: ''  // Add this line
+    category: '',  // Add this line
+    is_locked: false,
+    is_favorite: false
   };
 
   return {
@@ -418,7 +425,8 @@ async function savePlayToGamePlan(
         position: nextPosition,
         combined_call: formatPlayFromPool(play),
         customized_edit: play.customized_edit,
-        category: play.category // Add the category here
+        category: play.category, // Add the category here
+        is_favorite: false // Default to not favorite
       })
       .select()
       .single();
@@ -585,6 +593,32 @@ async function updatePlayPosition(
   }
 }
 
+// Add function to load favorites for a team
+async function loadFavoritesForTeam(team_id: string): Promise<Map<string, boolean>> {
+  try {
+    const { data: favorites, error } = await browserClient
+      .from('favorites')
+      .select('play_id, combined_call')
+      .eq('team_id', team_id);
+
+    if (error) {
+      console.error('Error loading favorites:', error);
+      return new Map();
+    }
+
+    const favoritesMap = new Map<string, boolean>();
+    favorites?.forEach(fav => {
+      const key = `${fav.play_id}_${fav.combined_call}`;
+      favoritesMap.set(key, true);
+    });
+
+    return favoritesMap;
+  } catch (error) {
+    console.error('Error in loadFavoritesForTeam:', error);
+    return new Map();
+  }
+}
+
 // Add this function after the other async functions
 async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GamePlan, number>): Promise<GamePlan | null> {
   try {
@@ -597,6 +631,9 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
     }
 
     console.log('Fetching game plan for:', { team_id, opponent_id });
+
+    // Load favorites for this team
+    const favoritesMap = await loadFavoritesForTeam(team_id);
 
     // Fetch all plays for this team and opponent
     const { data: gamePlanData, error } = await browserClient
@@ -637,6 +674,10 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
           return;
         }
 
+        // Check if this play is in favorites
+        const favoriteKey = `${entry.play_id}_${entry.combined_call}`;
+        const isFavorite = favoritesMap.has(favoriteKey);
+
         // Create PlayCall object from the entry data
         const playCall: PlayCall = {
           formation: '',
@@ -645,7 +686,13 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
           play: entry.customized_edit || entry.combined_call || '',
           runDirection: '+',
           category: entry.play?.category || entry.category,
-          is_locked: entry.is_locked || false // Add this line to include lock state
+          is_locked: entry.is_locked || false, // Add this line to include lock state
+          is_favorite: isFavorite, // Use the favorites table data
+          // Add database fields needed for favorites
+          game_plan_id: entry.id,
+          play_id: entry.play_id,
+          combined_call: entry.combined_call,
+          customized_edit: entry.customized_edit
         };
 
       // Add the play to its section array
@@ -667,7 +714,9 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
         motion: '',
         play: '',
         runDirection: '+',
-        category: ''  // Add this line
+        category: '',  // Add this line
+        is_locked: false,
+        is_favorite: false
       });
 
       // Update the plan with filled plays followed by empty slots
@@ -788,6 +837,7 @@ export default function PlanPage() {
   const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'favorites' | 'search'>('category')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ExtendedPlay[]>([])
+  const [favorites, setFavorites] = useState<ExtendedPlay[]>([])
   const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape')
   const [showPrintDialog, setShowPrintDialog] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -1014,6 +1064,173 @@ export default function PlanPage() {
         type: 'error'
       });
       setTimeout(() => setNotification(null), 3000);
+    }
+  };
+
+  const handleToggleFavorite = async (section: keyof GamePlan, index: number) => {
+    if (!plan) return;
+    
+    const currentPlay = plan[section][index];
+    if (!currentPlay || !currentPlay.play) return; // Don't toggle empty slots
+    
+    const newFavoriteState = !currentPlay.is_favorite;
+    
+    try {
+      const team_id = localStorage.getItem('selectedTeam');
+      
+      if (!team_id) {
+        throw new Error('Team not selected');
+      }
+      
+      console.log('Toggling favorite for play:', {
+        section,
+        index,
+        currentPlay,
+        newFavoriteState,
+        team_id
+      });
+      
+      if (newFavoriteState) {
+        // Adding to favorites - insert into favorites table
+        const insertData = {
+          team_id,
+          play_id: currentPlay.play_id || 'unknown',
+          combined_call: currentPlay.combined_call || currentPlay.play,
+          customized_edit: currentPlay.customized_edit,
+          category: currentPlay.category || 'unknown'
+        };
+        
+        console.log('Inserting favorite:', insertData);
+        
+        const { error, data } = await browserClient
+          .from('favorites')
+          .insert(insertData)
+          .select();
+          
+        if (error) {
+          console.error('Supabase insert error:', error);
+          throw error;
+        }
+        
+        console.log('Insert successful:', data);
+        
+        setNotification({
+          message: 'Play added to favorites',
+          type: 'success'
+        });
+      } else {
+        // Removing from favorites - delete from favorites table
+        const deleteQuery = {
+          team_id,
+          play_id: currentPlay.play_id || 'unknown',
+          combined_call: currentPlay.combined_call || currentPlay.play
+        };
+        
+        console.log('Deleting favorite:', deleteQuery);
+        
+        const { error, data } = await browserClient
+          .from('favorites')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('play_id', currentPlay.play_id || 'unknown')
+          .eq('combined_call', currentPlay.combined_call || currentPlay.play)
+          .select();
+          
+        if (error) {
+          console.error('Supabase delete error:', error);
+          throw error;
+        }
+        
+        console.log('Delete successful:', data);
+        
+        setNotification({
+          message: 'Play removed from favorites',
+          type: 'success'
+        });
+      }
+      
+      // Update the game_plan table to reflect the favorite state
+      const opponent_id = localStorage.getItem('selectedOpponent');
+      if (opponent_id) {
+        await browserClient
+          .from('game_plan')
+          .update({ is_favorite: newFavoriteState })
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toLowerCase())
+          .eq('position', index);
+      }
+      
+      // Update local state
+      const updatedPlan = { ...plan };
+      updatedPlan[section][index] = {
+        ...currentPlay,
+        is_favorite: newFavoriteState
+      };
+      setPlan(updatedPlan);
+      
+      // Reload favorites to update the favorites list
+      await loadFavorites();
+
+      setTimeout(() => setNotification(null), 3000);
+      
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      setNotification({
+        message: 'Failed to toggle favorite state',
+        type: 'error'
+      });
+      setTimeout(() => setNotification(null), 3000);
+    }
+  };
+
+  // Add function to load favorites
+  const loadFavorites = async () => {
+    try {
+      const team_id = localStorage.getItem('selectedTeam');
+      if (!team_id) return;
+
+      const { data: favoritesData, error } = await browserClient
+        .from('favorites')
+        .select('*')
+        .eq('team_id', team_id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading favorites:', error);
+        return;
+      }
+
+      // Convert favorites data to ExtendedPlay format
+      const favoritePlays: ExtendedPlay[] = favoritesData?.map(fav => ({
+        id: fav.id,
+        play_id: fav.play_id,
+        team_id: fav.team_id,
+        category: fav.category,
+        formations: '',
+        tag: '',
+        strength: '',
+        motion_shift: '',
+        concept: '',
+        run_concept: '',
+        run_direction: '',
+        pass_screen_concept: '',
+        screen_direction: '',
+        front_beaters: '',
+        coverage_beaters: '',
+        blitz_beaters: '',
+        is_enabled: true,
+        is_locked: false,
+        is_favorite: true,
+        customized_edit: fav.customized_edit,
+        combined_call: fav.combined_call,
+        created_at: fav.created_at,
+        updated_at: fav.updated_at
+      })) || [];
+
+      setFavorites(favoritePlays);
+    } catch (error) {
+      console.error('Error in loadFavorites:', error);
     }
   };
 
@@ -1391,6 +1608,16 @@ export default function PlanPage() {
       window.removeEventListener('opponentChanged', handleOpponentChange);
     };
   }, [handleOpponentChange]);
+
+  // Load favorites when component mounts or team changes
+  useEffect(() => {
+    if (isBrowser) {
+      const team_id = localStorage.getItem('selectedTeam');
+      if (team_id) {
+        loadFavorites();
+      }
+    }
+  }, []);
 
   // Update the storage change handler
   const handleStorageChange = useCallback(async (e: StorageEvent) => {
@@ -2228,32 +2455,48 @@ export default function PlanPage() {
                               <GripVertical className="h-4 w-4 text-gray-400" />
                             </div>
                             <span className="w-8 text-slate-500 text-xs">{startingNumber + index}.</span>
-                            <span className="text-sm">{play.customized_edit || play.play}</span>
+                            <span className="text-xs">{play.customized_edit || play.play}</span>
                           </div>
                           
                           {hasContent && (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                onClick={() => handleToggleFavorite(section, index)}
+                                className="p-0.5 hover:bg-gray-100 rounded"
+                                title={play.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                              >
+                                <Star 
+                                  className={`h-3.5 w-3.5 ${
+                                    play.is_favorite 
+                                      ? 'text-yellow-500 fill-yellow-500' 
+                                      : 'text-gray-400'
+                                  }`} 
+                                />
+                              </button>
                               <button
                                 onClick={() => handleToggleLock(section, index)}
-                                className="p-1 hover:bg-gray-100 rounded"
+                                className="p-0.5 hover:bg-gray-100 rounded"
+                                title={play.is_locked ? "Unlock play" : "Lock play"}
                               >
                                 {play.is_locked ? (
-                                  <Lock className="h-4 w-4 text-blue-500" />
+                                  <Lock className="h-3.5 w-3.5 text-blue-500" />
                                 ) : (
-                                  <LockOpen className="h-4 w-4 text-gray-400" />
+                                  <LockOpen className="h-3.5 w-3.5 text-gray-400" />
                                 )}
                               </button>
                               <button
                                 onClick={() => handleEditPlay(section, index)}
-                                className="p-1 hover:bg-gray-100 rounded"
+                                className="p-0.5 hover:bg-gray-100 rounded"
+                                title="Edit play"
                               >
-                                <Pencil className="h-4 w-4 text-gray-400" />
+                                <Pencil className="h-3.5 w-3.5 text-gray-400" />
                               </button>
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
-                                className="h-6 w-6 text-gray-500"
+                                className="h-5 w-5 p-0.5 text-gray-500"
                                 onClick={() => handleDeletePlay(section, index)}
+                                title="Delete play"
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>
@@ -2289,7 +2532,10 @@ export default function PlanPage() {
       fieldAlignment: '+',
       motion: '',
       play: '',
-      runDirection: '+'
+      runDirection: '+',
+      category: '',
+      is_locked: false,
+      is_favorite: false
     };
     updatedPlan[section] = updatedPlays;
     
@@ -2345,7 +2591,9 @@ export default function PlanPage() {
         motion: play.motion_shift || '',
         play: formatPlayFromPool(play),
         runDirection: (play.run_direction as "+" | "-") || '+',
-        category: play.category || '' // Add the category
+        category: play.category || '', // Add the category
+        is_locked: false,
+        is_favorite: false
       };
       
       // Make a copy of the current plan
@@ -2489,9 +2737,9 @@ export default function PlanPage() {
     let filteredPlays = playPool;
     
       if (playPoolFilterType === 'favorites') {
-        // Filter by favorited plays
-      filteredPlays = playPool.filter(play => play.is_favorite === true);
-    } else if (playPoolFilterType === 'category') {
+        // Use favorites data instead of filtering playPool
+        filteredPlays = favorites;
+      } else if (playPoolFilterType === 'category') {
         // Filter by category (existing logic)
       filteredPlays = playPool.filter(play => {
         if (playPoolCategory === 'run_game') {
@@ -3966,6 +4214,8 @@ export default function PlanPage() {
       console.error('Error locking section:', error);
     }
   };
+
+
 
   return (
     <>
