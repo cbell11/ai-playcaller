@@ -104,7 +104,7 @@ interface ConceptOption {
 }
 
 interface GamePlan {
-  openingScript: PlayCall[]; // Now can hold up to 10 plays
+  openingScript: PlayCall[];
   basePackage1: PlayCall[]
   basePackage2: PlayCall[]
   basePackage3: PlayCall[]
@@ -125,7 +125,6 @@ interface GamePlan {
   twoMinuteDrill: PlayCall[]
   twoPointPlays: PlayCall[]
   firstSecondCombos: PlayCall[]
-  coverage0Beaters: PlayCall[]
 }
 
 interface Play {
@@ -304,7 +303,7 @@ const playToPlayCall = (play: ExtendedPlay): PlayCall => {
 };
 
 // Add a mapping of database section names to GamePlan keys
-const sectionMapping: Record<string, keyof GamePlan> = {
+const sectionMap: Record<string, keyof GamePlan> = {
   'openingscript': 'openingScript',
   'basepackage1': 'basePackage1',
   'basepackage2': 'basePackage2',
@@ -325,47 +324,41 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'deepshots': 'deepShots',
   'twominutedrill': 'twoMinuteDrill',
   'twopointplays': 'twoPointPlays',
-  'firstsecondcombos': 'firstSecondCombos',
-  'coverage0beaters': 'coverage0Beaters'
+  'firstsecondcombos': 'firstSecondCombos'
 };
 
-// Add initial section sizes configuration
+// Update section sizes
 const initialSectionSizes: Record<keyof GamePlan, number> = {
   openingScript: 10,
-  basePackage1: 8,
-  basePackage2: 8,
-  basePackage3: 8,
-  firstDowns: 8,
-  secondAndShort: 5,
-  secondAndLong: 5,
-  shortYardage: 5,
-  thirdAndShort: 5,
-  thirdAndMedium: 5,
-  thirdAndLong: 5,
-  highRedZone: 5,
-  lowRedZone: 5,
-  goalline: 5,
-  backedUp: 5,
-  screens: 5,
-  playAction: 5,
-  deepShots: 5,
+  basePackage1: 10,
+  basePackage2: 10,
+  basePackage3: 10,
+  firstDowns: 10,
+  secondAndShort: 10,
+  secondAndLong: 10,
+  shortYardage: 10,
+  thirdAndShort: 10,
+  thirdAndMedium: 10,
+  thirdAndLong: 10,
+  highRedZone: 10,
+  lowRedZone: 10,
+  goalline: 10,
+  backedUp: 10,
+  screens: 10,
+  playAction: 10,
+  deepShots: 10,
   twoMinuteDrill: 10,
-  twoPointPlays: 4,
-  firstSecondCombos: 4,
-  coverage0Beaters: 5
+  twoPointPlays: 10,
+  firstSecondCombos: 20
 };
 
-// Add helper function to create empty plans
+// Update createEmptyPlan function
 const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
-  const emptySlot = {
+  const emptySlot: PlayCall = {
     formation: '',
     fieldAlignment: '+',
-    motion: '',
     play: '',
-    runDirection: '+',
-    category: '',  // Add this line
-    is_locked: false,
-    is_favorite: false
+    runDirection: '+'
   };
 
   return {
@@ -389,8 +382,7 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     deepShots: Array(sizes.deepShots).fill(emptySlot),
     twoMinuteDrill: Array(sizes.twoMinuteDrill).fill(emptySlot),
     twoPointPlays: Array(sizes.twoPointPlays).fill(emptySlot),
-    firstSecondCombos: Array(sizes.firstSecondCombos * 2).fill(emptySlot), // 8 combos = 16 individual plays
-    coverage0Beaters: Array(sizes.coverage0Beaters).fill(emptySlot)
+    firstSecondCombos: Array(sizes.firstSecondCombos).fill(emptySlot)
   };
 };
 
@@ -688,7 +680,7 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
     // Group plays by section
     gamePlanData?.forEach((entry) => {
         const dbSection = entry.section.toLowerCase();
-        const section = sectionMapping[dbSection];
+        const section = sectionMap[dbSection];
       
         if (!section) {
           console.warn(`No mapping found for database section "${dbSection}"`);
@@ -834,8 +826,7 @@ const sectionGroups = [
   ['deepShots'],
   ['twoMinuteDrill'],
   ['twoPointPlays'],
-  ['firstSecondCombos'],
-  ['coverage0Beaters']
+  ['firstSecondCombos']
 ] as const;
 
 export default function PlanPage() {
@@ -1603,7 +1594,7 @@ export default function PlanPage() {
         }
 
         // Load game plan
-      const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+      const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
         if (updatedPlan) {
           console.log('Updating plan from opponent change');
           setPlan(updatedPlan);
@@ -1664,7 +1655,7 @@ export default function PlanPage() {
         }
 
         // Load game plan
-        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
         if (updatedPlan) {
           console.log('Updating plan from storage change');
           setPlan(updatedPlan);
@@ -1720,7 +1711,7 @@ export default function PlanPage() {
           async (payload) => {
             console.log('Received database change:', payload);
             try {
-              const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+              const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
               if (updatedPlan) {
                 console.log('Updating plan from real-time change');
                 setPlan(updatedPlan);
@@ -3363,8 +3354,7 @@ export default function PlanPage() {
         'deepShots',
         'twoMinuteDrill',
         'twoPointPlays',
-        'firstSecondCombos',
-        'coverage0Beaters'
+        'firstSecondCombos'
       ];
 
       // Filter sections based on visibility
@@ -3415,7 +3405,7 @@ export default function PlanPage() {
 
   // Modify handleBuildManually function
   const handleBuildManually = () => {
-    const emptyPlan = createEmptyPlan(sectionSizes);
+    const emptyPlan = createEmptyPlan(initialSectionSizes);
     setPlan(emptyPlan);
     save('plan', emptyPlan);
     setIsManualBuildMode(true);
@@ -3450,7 +3440,7 @@ export default function PlanPage() {
       }
 
       // Reset the plan state to empty using current section sizes
-      const emptyPlan = createEmptyPlan(sectionSizes);
+      const emptyPlan = createEmptyPlan(initialSectionSizes);
       setPlan(emptyPlan);
       if (isBrowser) {
       save('plan', emptyPlan);
@@ -3590,7 +3580,7 @@ export default function PlanPage() {
       }
 
       // Update local state
-      const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+      const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
       if (updatedPlan) {
         setPlan(updatedPlan);
         if (isBrowser) {
@@ -3704,7 +3694,7 @@ export default function PlanPage() {
         }
 
         // Update local state
-        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
         if (updatedPlan) {
           setPlan(updatedPlan);
           if (isBrowser) {
@@ -4060,7 +4050,7 @@ export default function PlanPage() {
       }
 
       // Optimized UI update - only fetch this section's data
-      const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+      const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
       if (updatedPlan) {
         setPlan(updatedPlan);
         if (isBrowser) {
@@ -4571,8 +4561,7 @@ export default function PlanPage() {
                     deepShots: { title: 'Deep Shots', bgColor: 'bg-white' },
                     twoMinuteDrill: { title: 'Two Minute Drill', bgColor: 'bg-white' },
                     twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' },
-                    firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' },
-                    coverage0Beaters: { title: 'Cover 0 Beaters', bgColor: 'bg-white' }
+                    firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' }
                   };
 
                   return sectionGroups.map(group => {
@@ -4906,16 +4895,6 @@ export default function PlanPage() {
                           }
                         />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="coverage0-beaters">Cover 0 Beaters</Label>
-                        <Switch
-                          id="coverage0-beaters"
-                          checked={sectionVisibility.coverage0Beaters}
-                          onCheckedChange={(checked) => 
-                            setSectionVisibility(prev => ({ ...prev, coverage0Beaters: checked }))
-                          }
-                        />
-                      </div>
                     </div>
                   </div>
                   <DialogFooter>
@@ -5019,8 +4998,7 @@ export default function PlanPage() {
                 { key: 'deepShots', title: 'Deep Shots', bgColor: 'bg-purple-100' },
                 { key: 'twoMinuteDrill', title: 'Two Minute Drill', bgColor: 'bg-pink-100' },
                 { key: 'twoPointPlays', title: 'Two Point Plays', bgColor: 'bg-pink-100' },
-                { key: 'firstSecondCombos', title: '1st and 2nd Combos', bgColor: 'bg-indigo-100' },
-                { key: 'coverage0Beaters', title: 'Cover 0 Beaters', bgColor: 'bg-yellow-100' }
+                { key: 'firstSecondCombos', title: '1st and 2nd Combos', bgColor: 'bg-indigo-100' }
               ].filter(item => sectionVisibility[item.key as keyof GamePlan]).map(item => (
                 <div key={item.key} className="col-span-1">
                   <div className="relative">
