@@ -3627,6 +3627,17 @@ export default function PlanPage() {
         throw new Error('Team or opponent not selected');
       }
 
+      // Get locked plays for this section
+      const { data: lockedPlays, error: lockedError } = await browserClient
+        .from('game_plan')
+        .select('*')
+        .eq('team_id', team_id)
+        .eq('opponent_id', opponent_id)
+        .eq('section', section)
+        .eq('is_locked', true);
+
+      if (lockedError) throw lockedError;
+
       // Special handling for third down, red zone, and goalline situations - no AI needed
       if (section === 'thirdAndShort' || section === 'thirdAndMedium' || section === 'thirdAndLong' ||
           section === 'highRedZone' || section === 'lowRedZone' || section === 'goalline') {
