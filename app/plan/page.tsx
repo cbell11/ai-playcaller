@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef, MouseEventHandler, useCallback } from "react"
+import { useState, useEffect, useRef, MouseEventHandler, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search, Eye, Settings, Lock, LockOpen, Pencil, Shield } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
-import { getPlayPool, Play } from "@/lib/playpool"
+import { getPlayPool, Play as PlayFromPool } from "@/lib/playpool"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -18,7 +18,6 @@ import { createPagesBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { createClient } from '@supabase/supabase-js'
 import React from "react"
 import { Input } from "@/components/ui/input"
-import { toast } from "react-toastify"
 import { getScoutingReport } from "@/lib/scouting"
 
 // Add this helper function near the top of the file
@@ -34,7 +33,7 @@ const supabase = createClient(
 );
 
 // Helper component for displaying a dragging item - currently unused but may be needed in future
-function DragItem({ play }: { play: Play, snapshot: any }) {
+function DragItem({ play }: { play: PlayFromPool, snapshot: any }) {
   return (
     <div
       className={`p-2 rounded text-sm font-mono bg-blue-100 shadow-md border border-blue-300`}
@@ -126,6 +125,8 @@ interface GamePlan {
   twoMinuteDrill: PlayCall[]
   twoPointPlays: PlayCall[]
   firstSecondCombos: PlayCall[]
+  // Dynamic front beater sections will be added at runtime
+  [key: string]: PlayCall[]
 }
 
 interface Play {
@@ -283,8 +284,8 @@ const CATEGORIES = {
   rpo_game: 'RPO Game',
   quick_game: 'Quick Game',
   dropback_game: 'Dropback Game',
-  shot_plays: 'Shot Plays',
-  screen_game: 'Screen Game'
+  screen_game: 'Screen Game',
+  shot_plays: 'Shot Plays'
 } as const
 
 // Helper function to determine if a category is a pass play category
@@ -326,6 +327,7 @@ const sectionMapping: Record<string, keyof GamePlan> = {
   'twominutedrill': 'twoMinuteDrill',
   'twopointplays': 'twoPointPlays',
   'firstsecondcombos': 'firstSecondCombos'
+  // Dynamic sections will be added at runtime based on defensive fronts
 };
 
 // Add initial section sizes configuration
@@ -366,7 +368,8 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     is_favorite: false
   };
 
-  return {
+  // Create base sections
+  const plan: GamePlan = {
     openingScript: Array(sizes.openingScript).fill(emptySlot),
     basePackage1: Array(sizes.basePackage1).fill(emptySlot),
     basePackage2: Array(sizes.basePackage2).fill(emptySlot),
@@ -389,6 +392,15 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     twoPointPlays: Array(sizes.twoPointPlays).fill(emptySlot),
     firstSecondCombos: Array(sizes.firstSecondCombos * 2).fill(emptySlot), // 8 combos = 16 individual plays
   };
+
+  // Add any dynamic sections from the sizes object
+  Object.keys(sizes).forEach(key => {
+    if (!(key in plan)) {
+      plan[key] = Array(sizes[key as keyof GamePlan]).fill(emptySlot);
+    }
+  });
+
+  return plan;
 };
 
 // Modify savePlayToGamePlan function to handle sequential positions
@@ -685,13 +697,24 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
     // Group plays by section
     gamePlanData?.forEach((entry) => {
         const dbSection = entry.section.toLowerCase();
-        const section = sectionMapping[dbSection];
-      
+        let section = sectionMapping[dbSection];
+        
+        // If no static mapping found, check if it's a dynamic section
         if (!section) {
-          console.warn(`No mapping found for database section "${dbSection}"`);
-          return;
+          // Check if this is a dynamic front beater section
+          const sectionKeys = Object.keys(currentSectionSizes);
+          const matchingSection = sectionKeys.find(key => 
+            key.toLowerCase() === dbSection
+          );
+          
+          if (matchingSection) {
+            section = matchingSection as keyof GamePlan;
+          } else {
+            console.warn(`No mapping found for database section "${dbSection}"`);
+            return;
+          }
         }
-
+      
         // Check if this play is in favorites
         const favoriteKey = `${entry.play_id}_${entry.combined_call}`;
         const isFavorite = favoritesMap.has(favoriteKey);
@@ -816,33 +839,6 @@ interface MasterPlay {
   coverage_beaters: string | null;
 }
 
-// Define section groups at the component level - this is the single source of truth for section order
-const sectionGroups = [
-  ['openingScript'],
-  ['basePackage1', 'basePackage2', 'basePackage3'],
-  ['firstDowns'],
-  ['secondAndShort', 'secondAndLong'],
-  ['shortYardage'],
-  ['thirdAndShort', 'thirdAndMedium', 'thirdAndLong'],
-  ['highRedZone', 'lowRedZone', 'goalline'],
-  ['backedUp'],
-  ['screens'],
-  ['playAction'],
-  ['deepShots'],
-  ['twoMinuteDrill'],
-  ['twoPointPlays'],
-  ['firstSecondCombos']
-] as const;
-
-// Add interface for scouting options
-interface ScoutingOption {
-  id?: string;
-  name: string;
-  fieldArea?: string;
-  dominateDown?: string;
-  notes?: string;
-}
-
 export default function PlanPage() {
   const router = useRouter()
   const [plan, setPlan] = useState<GamePlan | null>(() => load('plan', null))
@@ -851,31 +847,46 @@ export default function PlanPage() {
   const [selectedOpponent, setSelectedOpponent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
-  const [selectedSection, setSelectedSection] = useState<keyof GamePlan | null>(null)
-  const [draggingPlay, setDraggingPlay] = useState<ExtendedPlay | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [isManualBuildMode, setIsManualBuildMode] = useState(false)
-  const [playPool, setPlayPool] = useState<ExtendedPlay[]>([])
-  const [showPlayPool, setShowPlayPool] = useState(false)
-  const [playPoolCategory, setPlayPoolCategory] = useState<'run_game' | 'rpo_game' | 'quick_game' | 'dropback_game' | 'shot_plays' | 'screen_game'>('run_game')
-  const [playPoolSection, setPlayPoolSection] = useState<keyof GamePlan | null>(null)
-  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null)
-  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'favorites' | 'search'>('category')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<ExtendedPlay[]>([])
-  const [favorites, setFavorites] = useState<ExtendedPlay[]>([])
-  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('landscape')
-  const [showPrintDialog, setShowPrintDialog] = useState(false)
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [playPool, setPlayPool] = useState<ExtendedPlay[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showPlayPool, setShowPlayPool] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const [formationFilter, setFormationFilter] = useState<string>('')
+  const [conceptFilter, setConceptFilter] = useState<string>('')
+  const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>('')
+  const [editingPlay, setEditingPlay] = useState<{ section: keyof GamePlan; index: number; originalPlay: PlayCall } | null>(null)
+  const [editValue, setEditValue] = useState('')
   const [sectionSizes, setSectionSizes] = useState<Record<keyof GamePlan, number>>(initialSectionSizes)
-  const [selectedOpponentName, setSelectedOpponentName] = useState<string | null>(null)
+  const [favorites, setFavorites] = useState<Map<string, boolean>>(new Map())
   const [sectionVisibility, setSectionVisibility] = useState<Record<keyof GamePlan, boolean>>(() => {
-    const initialVisibility: Record<keyof GamePlan, boolean> = {} as Record<keyof GamePlan, boolean>
-    Object.keys(initialSectionSizes).forEach((key) => {
-      initialVisibility[key as keyof GamePlan] = true
-    })
-    return initialVisibility
+    const defaultVisibility: Record<keyof GamePlan, boolean> = {
+      openingScript: true,
+      basePackage1: true,
+      basePackage2: true,
+      basePackage3: true,
+      firstDowns: true,
+      secondAndShort: false,
+      secondAndLong: false,
+      shortYardage: true,
+      thirdAndShort: true,
+      thirdAndMedium: true,
+      thirdAndLong: true,
+      highRedZone: true,
+      lowRedZone: true,
+      goalline: true,
+      backedUp: false,
+      screens: true,
+      playAction: true,
+      deepShots: true,
+      twoMinuteDrill: true,
+      twoPointPlays: false,
+      firstSecondCombos: false
+    }
+    return isBrowser ? { ...defaultVisibility, ...load('sectionVisibility', {}) } : defaultVisibility
   })
+  const [generatingSection, setGeneratingSection] = useState<keyof GamePlan | null>(null)
   const [showVisibilitySettings, setShowVisibilitySettings] = useState(false)
   const [showColorSettings, setShowColorSettings] = useState(false)
   
@@ -888,26 +899,45 @@ export default function PlanPage() {
   const [blitzPct, setBlitzPct] = useState<Record<string, number>>({})
   const [overallBlitzPct, setOverallBlitzPct] = useState<number>(0)
   const [showScoutingInfo, setShowScoutingInfo] = useState(false)
-  const [categoryColors, setCategoryColors] = useState<CategoryColors>(() => {
-    if (!isBrowser) return {
-      run_game: 'bg-green-100',
-      rpo_game: 'bg-red-100',
-      quick_game: 'bg-blue-100',
-      dropback_game: 'bg-orange-100',
-      screen_game: 'bg-purple-100',
-      shot_plays: 'bg-yellow-200'
-    };
+  
+  // Dynamic front beater sections
+  const [dynamicFrontSections, setDynamicFrontSections] = useState<string[]>([])
+  
+  // Create dynamic section groups based on static sections + dynamic front sections
+  const sectionGroups = useMemo(() => {
+    const baseSectionGroups = [
+      ['openingScript'],
+      ['basePackage1', 'basePackage2', 'basePackage3'],
+      ['firstDowns'],
+      ['secondAndShort', 'secondAndLong'],
+      ['shortYardage'],
+      ['thirdAndShort', 'thirdAndMedium', 'thirdAndLong'],
+      ['highRedZone', 'lowRedZone', 'goalline'],
+      ['backedUp'],
+      ['screens'],
+      ['playAction'],
+      ['deepShots'],
+      ['twoMinuteDrill'],
+      ['twoPointPlays'],
+      ['firstSecondCombos']
+    ];
     
-    const savedColors = localStorage.getItem('categoryColors');
-    return savedColors ? JSON.parse(savedColors) : {
-      run_game: 'bg-green-100',
-      rpo_game: 'bg-red-100',
-      quick_game: 'bg-blue-100',
-      dropback_game: 'bg-orange-100',
-      screen_game: 'bg-purple-100',
-      shot_plays: 'bg-yellow-200'
-    };
-  })
+    // Add dynamic front beater sections as individual groups
+    if (dynamicFrontSections.length > 0) {
+      return [...baseSectionGroups, ...dynamicFrontSections.map(section => [section])];
+    }
+    
+    return baseSectionGroups;
+  }, [dynamicFrontSections]);
+
+  // Add interface for scouting options
+  interface ScoutingOption {
+    id?: string;
+    name: string;
+    fieldArea?: string;
+    dominateDown?: string;
+    notes?: string;
+  }
 
   // Add this near other state declarations
   const [customSectionNames, setCustomSectionNames] = useState<Record<string, string>>(() => {
@@ -941,7 +971,6 @@ export default function PlanPage() {
 
   // Add new state for edit dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingPlay, setEditingPlay] = useState<{ section: keyof GamePlan; index: number; text: string } | null>(null);
 
   // Replace handleEditPlay with this new version
   const handleEditPlay = (section: keyof GamePlan, index: number) => {
@@ -953,7 +982,7 @@ export default function PlanPage() {
     setEditingPlay({
       section,
       index,
-      text: currentPlay.customized_edit || currentPlay.play
+      originalPlay: currentPlay
     });
     setEditDialogOpen(true);
   };
@@ -969,12 +998,12 @@ export default function PlanPage() {
         throw new Error('Team or opponent not selected');
       }
       
-      const { section, index, text } = editingPlay;
+      const { section, index, originalPlay } = editingPlay;
       
       // Update the customized_edit in the database
       const { error } = await browserClient
         .from('game_plan')
-        .update({ customized_edit: text })
+        .update({ customized_edit: editValue })
         .eq('team_id', team_id)
         .eq('opponent_id', opponent_id)
         .eq('section', section.toLowerCase())
@@ -986,7 +1015,7 @@ export default function PlanPage() {
       const updatedPlan = { ...plan };
       updatedPlan[section][index] = {
         ...updatedPlan[section][index],
-        customized_edit: text
+        customized_edit: editValue
       };
       setPlan(updatedPlan);
       
@@ -1344,11 +1373,41 @@ export default function PlanPage() {
   const componentRef = useRef<HTMLDivElement>(null)
   const printRef = useRef<HTMLDivElement>(null)
 
-  // Add section-specific loading state
-  const [generatingSection, setGeneratingSection] = useState<keyof GamePlan | null>(null)
-
   // Add state for dialog open state
   const [dialogOpen, setDialogOpen] = useState<Record<string, boolean>>({});
+  
+  // Add missing state variables
+  const [playPoolSection, setPlayPoolSection] = useState<keyof GamePlan | null>(null)
+  const [playPoolCategory, setPlayPoolCategory] = useState<string>('run_game')
+  const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'favorites' | 'search'>('category')
+  const [searchResults, setSearchResults] = useState<ExtendedPlay[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const [draggingPlay, setDraggingPlay] = useState<ExtendedPlay | null>(null)
+  const [isManualBuildMode, setIsManualBuildMode] = useState(false)
+  const [showPrintDialog, setShowPrintDialog] = useState(false)
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait')
+  const [categoryColors, setCategoryColors] = useState<CategoryColors>(() => {
+    if (isBrowser) {
+      const saved = localStorage.getItem('categoryColors');
+      return saved ? JSON.parse(saved) : {
+        run_game: 'bg-green-100',
+        rpo_game: 'bg-blue-100', 
+        quick_game: 'bg-yellow-100',
+        dropback_game: 'bg-purple-100',
+        screen_game: 'bg-pink-100',
+        shot_plays: 'bg-red-100'
+      };
+    }
+    return {
+      run_game: 'bg-green-100',
+      rpo_game: 'bg-blue-100',
+      quick_game: 'bg-yellow-100', 
+      dropback_game: 'bg-purple-100',
+      screen_game: 'bg-pink-100',
+      shot_plays: 'bg-red-100'
+    };
+  })
+
 
   // Add this near other state declarations
   const handleDialogOpenChange = (section: string, open: boolean) => {
@@ -1690,10 +1749,36 @@ export default function PlanPage() {
         setBlitzPct(reportData.blitz_pct || {});
         setOverallBlitzPct(reportData.overall_blitz_pct || 0);
 
+        // Create dynamic front beater sections
+        const frontNames = (reportData.fronts || []).map(front => front.name);
+        const dynamicSections = frontNames.map(frontName => 
+          `${frontName.toLowerCase().replace(/\s+/g, '')}Beaters`
+        );
+        setDynamicFrontSections(dynamicSections);
+
+        // Update section sizes to include dynamic sections
+        const newSectionSizes = { ...sectionSizes };
+        dynamicSections.forEach(section => {
+          if (!newSectionSizes[section]) {
+            newSectionSizes[section] = 5; // Default size for front beater sections
+          }
+        });
+        setSectionSizes(newSectionSizes);
+
+        // Update section visibility to include dynamic sections
+        const newSectionVisibility = { ...sectionVisibility };
+        dynamicSections.forEach(section => {
+          if (newSectionVisibility[section] === undefined) {
+            newSectionVisibility[section] = true; // Default to visible for new sections
+          }
+        });
+        setSectionVisibility(newSectionVisibility);
+
         console.log('Loaded scouting data:', {
           fronts_count: reportData.fronts?.length || 0,
           coverages_count: reportData.coverages?.length || 0,
-          blitzes_count: reportData.blitzes?.length || 0
+          blitzes_count: reportData.blitzes?.length || 0,
+          dynamic_sections: dynamicSections
         });
       } else {
         console.error('Failed to load scouting report:', scoutingReportResult.error);
@@ -1705,6 +1790,7 @@ export default function PlanPage() {
         setCoveragesPct({});
         setBlitzPct({});
         setOverallBlitzPct(0);
+        setDynamicFrontSections([]); // Clear dynamic sections
       }
     } catch (error) {
       console.error('Error loading scouting data:', error);
@@ -1716,6 +1802,7 @@ export default function PlanPage() {
       setCoveragesPct({});
       setBlitzPct({});
       setOverallBlitzPct(0);
+      setDynamicFrontSections([]); // Clear dynamic sections on error
     }
   };
 
@@ -2331,11 +2418,7 @@ export default function PlanPage() {
               variant="ghost" 
               size="sm" 
               onClick={() => {
-                if (section === 'coverage0Beaters') {
-                  handleRefreshCoverage0Beaters();
-                } else {
-                  handleRegenerateSection(section);
-                }
+                handleRegenerateSection(section);
               }}
               className="flex items-center gap-1 hover:bg-transparent"
               disabled={generating}
@@ -3682,8 +3765,44 @@ export default function PlanPage() {
       const selectedConcept = isBasePackage ? basePackageConcepts[section] : null;
       const selectedFormation = isBasePackage ? basePackageFormations[section] : null;
       
+      // Check if this is a dynamic front beater section
+      const isFrontBeaterSection = typeof section === 'string' && section.endsWith('Beaters');
+      let frontName = '';
+      
+      if (isFrontBeaterSection) {
+        // Extract the front name from the section key
+        const sectionStr = section as string;
+        const frontKey = sectionStr.replace('Beaters', '');
+        // Find the corresponding front name from the fronts array
+        const front = fronts.find(f => 
+          f.name.toLowerCase().replace(/\s+/g, '') === frontKey.toLowerCase().replace(/\s+/g, '')
+        );
+        frontName = front?.name || '';
+        console.log('Front beater section detected:', {
+          section: sectionStr,
+          frontKey,
+          frontName,
+          availableFronts: fronts.map(f => f.name)
+        });
+      }
+      
       const filteredPlays = playPool
         .filter(p => {
+          // Handle dynamic front beater sections
+          if (isFrontBeaterSection && frontName) {
+            // Only include run_game and rpo_game plays
+            if (!(['run_game', 'rpo_game'].includes(p.category))) {
+              return false;
+            }
+            // Check if this play is a front beater for the specific front
+            if (p.front_beaters) {
+              const frontBeaters = p.front_beaters.toLowerCase();
+              const targetFront = frontName.toLowerCase();
+              return frontBeaters.includes(targetFront);
+            }
+            return false;
+          }
+          
           // For First and Second Combos, include all plays (no filtering)
           if (section === 'firstSecondCombos') {
             return true; // Allow all play types
@@ -4530,7 +4649,15 @@ export default function PlanPage() {
                     deepShots: { title: 'Deep Shots', bgColor: 'bg-white' },
                     twoMinuteDrill: { title: 'Two Minute Drill', bgColor: 'bg-white' },
                     twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' },
-                    firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' }
+                    firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' },
+                    // Add dynamic front beater sections
+                    ...Object.fromEntries(
+                      dynamicFrontSections.map(sectionKey => {
+                        const frontName = sectionKey.replace('Beaters', '').replace(/([A-Z])/g, ' $1').trim();
+                        const displayName = fronts.find(f => f.name.toLowerCase().replace(/\s+/g, '') === frontName.toLowerCase().replace(/\s+/g, ''))?.name || frontName;
+                        return [sectionKey, { title: `${displayName} Beaters`, bgColor: 'bg-white' }];
+                      })
+                    )
                   };
 
                   return sectionGroups.map(group => {
@@ -5107,7 +5234,18 @@ export default function PlanPage() {
                 { key: 'deepShots', title: 'Deep Shots', bgColor: 'bg-purple-100' },
                 { key: 'twoMinuteDrill', title: 'Two Minute Drill', bgColor: 'bg-pink-100' },
                 { key: 'twoPointPlays', title: 'Two Point Plays', bgColor: 'bg-pink-100' },
-                { key: 'firstSecondCombos', title: '1st and 2nd Combos', bgColor: 'bg-indigo-100' }
+                { key: 'firstSecondCombos', title: '1st and 2nd Combos', bgColor: 'bg-indigo-100' },
+                // Add dynamic front beater sections
+                ...dynamicFrontSections.map(sectionKey => {
+                  // Extract the front name from the section key (remove 'Beaters' and convert back)
+                  const frontName = sectionKey.replace('Beaters', '').replace(/([A-Z])/g, ' $1').trim();
+                  const displayName = fronts.find(f => f.name.toLowerCase().replace(/\s+/g, '') === frontName.toLowerCase().replace(/\s+/g, ''))?.name || frontName;
+                  return {
+                    key: sectionKey,
+                    title: `${displayName} Beaters`,
+                    bgColor: 'bg-orange-100'
+                  };
+                })
               ].filter(item => sectionVisibility[item.key as keyof GamePlan]).map(item => (
                 <div key={item.key} className="col-span-1">
                   <div className="relative">
