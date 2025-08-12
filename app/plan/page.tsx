@@ -698,7 +698,7 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
     gamePlanData?.forEach((entry) => {
         const dbSection = entry.section.toLowerCase();
         let section = sectionMapping[dbSection];
-        
+      
         // If no static mapping found, check if it's a dynamic section
         if (!section) {
           // Check if this is a dynamic front beater section
@@ -710,11 +710,11 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
           if (matchingSection) {
             section = matchingSection as keyof GamePlan;
           } else {
-            console.warn(`No mapping found for database section "${dbSection}"`);
-            return;
+          console.warn(`No mapping found for database section "${dbSection}"`);
+          return;
           }
         }
-      
+
         // Check if this play is in favorites
         const favoriteKey = `${entry.play_id}_${entry.combined_call}`;
         const isFavorite = favoritesMap.has(favoriteKey);
@@ -902,6 +902,9 @@ export default function PlanPage() {
   
   // Dynamic front beater sections
   const [dynamicFrontSections, setDynamicFrontSections] = useState<string[]>([])
+  
+  // Play clock setting for Clock Runoff Matrix
+  const [playClockSeconds, setPlayClockSeconds] = useState<number>(40)
   
   // Create dynamic section groups based on static sections + dynamic front sections
   const sectionGroups = useMemo(() => {
@@ -2436,7 +2439,7 @@ export default function PlanPage() {
               variant="ghost" 
               size="sm" 
               onClick={() => {
-                handleRegenerateSection(section);
+                  handleRegenerateSection(section);
               }}
               className="flex items-center gap-1 hover:bg-transparent"
               disabled={generating}
@@ -3369,8 +3372,6 @@ export default function PlanPage() {
       return null;
     }
 
-
-
     // Get custom title for base packages
     const isBasePackage = section?.startsWith('basePackage');
     const displayTitle = isBasePackage && section ? customSectionNames[section] || title : title;
@@ -3380,7 +3381,7 @@ export default function PlanPage() {
     // Special handling for First and Second Combos
     if (section === 'firstSecondCombos') {
       return (
-        <div className="break-inside-avoid h-full border border-black">
+        <div className="break-inside-avoid print-section h-full border border-black">
           <div className="bg-white p-0.5 font-bold border-b text-xxs flex items-center">
             <span className="text-black">{displayTitle}</span>
           </div>
@@ -3449,20 +3450,20 @@ export default function PlanPage() {
     
     // Regular section rendering
     return (
-      <div className="break-inside-avoid h-full border border-black">
-        <div className="bg-white p-0.5 font-bold border-b text-xxs flex items-center">
+      <div className={`break-inside-avoid print-section h-full border border-black`}>
+        <div className={`${bgColor} p-0.5 font-bold border-b text-xxs flex items-center`}>
           <span className="text-black">{displayTitle}</span>
         </div>
         <table className="w-full border-collapse text-xxs">
           <tbody>
-            {filledPlays.map((play, idx) => {
+            {filledPlays.map((play, index) => {
               const playBgColor = play.category ? categoryColors[play.category as keyof CategoryColors] : '';
               return (
-                                <tr key={idx} className={`border-b ${playBgColor}`}>
+                <tr key={index} className={`border-b ${playBgColor}`}>
                   <td className="py-0 px-0.5 border-r w-4">□</td>
                   <td className="py-0 px-0.5 border-r w-4">□</td>
-                  <td className="py-0 px-0.5 border-r w-4">
-                    {startingNumber + idx}
+                  <td className="py-0 px-0.5 border-r w-12 font-bold">
+                    {startingNumber + index}
                   </td>
                   <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">
                     {play.play}
@@ -3470,11 +3471,12 @@ export default function PlanPage() {
                 </tr>
               );
             })}
+            {/* Add empty rows if needed */}
             {Array.from({ length: emptyRowsCount }).map((_, idx) => (
               <tr key={`empty-${idx}`} className="border-b">
                 <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
                 <td className="py-0 px-0.5 border-r w-4" style={{ color: 'transparent' }}>□</td>
-                <td className="py-0 px-0.5 border-r w-4">&nbsp;</td>
+                <td className="py-0 px-0.5 border-r w-12 font-bold">{startingNumber + filledPlays.length + idx}</td>
                 <td className="py-0 px-0.5 font-mono text-xxs whitespace-nowrap overflow-hidden text-ellipsis">&nbsp;</td>
               </tr>
             ))}
@@ -3544,13 +3546,13 @@ export default function PlanPage() {
       // Filter sections based on visibility
       const visibleSections = sectionsToGenerate.filter(section => sectionVisibility[section]);
 
-          // Regenerate each section sequentially
-    for (const section of visibleSections) {
-      try {
-        await handleRegenerateSection(section);
-        
-        // Add a small delay between sections for better UX
-        await new Promise(resolve => setTimeout(resolve, 500));
+      // Regenerate each section sequentially
+      for (const section of visibleSections) {
+        try {
+            await handleRegenerateSection(section);
+          
+          // Add a small delay between sections for better UX
+          await new Promise(resolve => setTimeout(resolve, 500));
         } catch (sectionError) {
           console.error(`Error regenerating ${section}:`, sectionError);
           // Continue with other sections even if one fails
@@ -3735,27 +3737,27 @@ export default function PlanPage() {
           
           if (currentPosition < count) {
             insertData.push({
-              team_id,
-              opponent_id,
-              play_id: play.play_id,
+          team_id,
+          opponent_id,
+          play_id: play.play_id,
               section: section.toLowerCase(),
               position: currentPosition,
-              combined_call: formatPlayFromPool(play),
-              customized_edit: play.customized_edit,
-              is_locked: false,
-              category: play.category
+          combined_call: formatPlayFromPool(play),
+          customized_edit: play.customized_edit,
+          is_locked: false,
+          category: play.category
             });
             currentPosition++;
           }
         }
 
         if (insertData.length > 0) {
-          const { error: insertError } = await browserClient
-            .from('game_plan')
-            .insert(insertData);
+        const { error: insertError } = await browserClient
+          .from('game_plan')
+          .insert(insertData);
 
-          if (insertError) {
-            throw new Error(`Failed to save plays: ${insertError.message}`);
+        if (insertError) {
+          throw new Error(`Failed to save plays: ${insertError.message}`);
           }
         }
 
@@ -4553,9 +4555,48 @@ export default function PlanPage() {
                   @page {
                     size: ${printOrientation};
                     margin: 3mm;
+                    /* Add margin at bottom for situational aids */
+                    margin-bottom: 5mm;
                   }
                   
                   @media print {
+                    /* Fixed footer for situational aids */
+                    .situational-aids-footer {
+                      position: fixed;
+                      bottom: 3mm;
+                      left: 3mm;
+                      right: 3mm;
+                      height: 18mm;  /* Reduced height */
+                      background-color: white;
+                      z-index: 9999;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      page-break-inside: avoid;
+                      page-break-before: avoid;
+                    }
+                    
+                    /* Ensure content above footer is not cut off */
+                    .print-grid {
+                      margin-bottom: 20mm;  /* Slightly more than footer height */
+                      display: grid;
+                      grid-template-columns: repeat(3, 1fr);
+                      gap: 0.5mm;
+                      max-height: calc(100% - 22mm); /* Account for footer */
+                    }
+
+                    /* Force each section to break to new page if it would overlap footer */
+                    .print-section {
+                      break-inside: avoid;
+                      page-break-inside: avoid;
+                      margin-bottom: 1mm;
+                    }
+
+                    /* If a section would overflow into footer, force it to next page */
+                    .print-section:has(+ .print-section:nth-last-child(-n+3)) {
+                      page-break-after: always;
+                    }
+
                     body {
                       -webkit-print-color-adjust: exact !important;
                       print-color-adjust: exact !important;
@@ -4775,6 +4816,110 @@ export default function PlanPage() {
                     });
                   });
                 })()}
+              </div>
+
+              {/* Situational Aids Footer */}
+              <div className="situational-aids-footer">
+                
+                                  <div className="bg-gray-50 p-0.5 rounded border text-[6pt] leading-none">
+                    <div className="grid grid-cols-2 gap-1">
+                      {/* Go-for-2 Decision Chart */}
+                      <div>
+                        <h3 className="font-semibold text-center mb-0.5">Go-for-2</h3>
+                        <div className="flex justify-center gap-1">
+                          {/* Ahead By Table */}
+                          <div className="bg-white border rounded px-0.5">
+                            <h4 className="font-bold text-center text-green-700 text-[6pt]">AHEAD</h4>
+                            <table className="text-center w-full">
+                              <tbody className="text-[6pt]">
+                                {[1, 4, 5, 11, 12, 19].map(points => (
+                                  <tr key={points} className="leading-[0.9]">
+                                    <td className="px-0.5 font-mono">{points}</td>
+                                    <td className="px-0.5 text-green-600 font-bold">✓</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Behind By Table */}
+                          <div className="bg-white border rounded px-0.5">
+                            <h4 className="font-bold text-center text-red-700 text-[6pt]">BEHIND</h4>
+                            <table className="text-center w-full">
+                              <tbody className="text-[6pt]">
+                                {[2, 5, 10, 13, 16, 17, 18, 21].map(points => (
+                                  <tr key={points} className="leading-[0.9]">
+                                    <td className="px-0.5 font-mono">{points}</td>
+                                    <td className="px-0.5 text-red-600 font-bold">✓</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Clock Runoff Matrix */}
+                      <div>
+                        <h3 className="font-semibold text-center mb-0.5">Clock ({playClockSeconds}s)</h3>
+                        <div className="bg-white border rounded px-0.5">
+                          <table className="text-center w-full">
+                            <thead>
+                              <tr className="border-b border-gray-300 text-[6pt]">
+                                <th className="px-0.5 font-bold">Dn</th>
+                                <th className="px-0.5 font-bold">0</th>
+                                <th className="px-0.5 font-bold">1</th>
+                                <th className="px-0.5 font-bold">2</th>
+                                <th className="px-0.5 font-bold">3</th>
+                              </tr>
+                            </thead>
+                            <tbody className="text-[6pt]">
+                                                             {(() => {
+                                 const runClockDownTo = 2; // run clock down to 2 seconds
+                                 const kneelPlayTime = 2; // kneel takes 2 seconds
+                                 
+                                 const calculateRunoff = (down: number, timeouts: number) => {
+                                   let totalTime = 0;
+                                   let currentDown = down;
+                                   let remainingTimeouts = timeouts;
+                                   
+                                   while (currentDown <= 4) {
+                                     if (currentDown === 4) {
+                                       // 4th down: Just the kneel (2 seconds)
+                                       totalTime += kneelPlayTime;
+                                     } else if (remainingTimeouts > 0) {
+                                       remainingTimeouts--;
+                                     } else {
+                                       // Run clock down to 2s, then kneel for 2s = full play clock used
+                                       totalTime += playClockSeconds;
+                                     }
+                                     currentDown++;
+                                   }
+                                   
+                                   const minutes = Math.floor(totalTime / 60);
+                                   const seconds = totalTime % 60;
+                                   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                                 };
+                                
+                                return [1, 2, 3, 4].map(down => (
+                                  <tr key={down} className="leading-[0.9]">
+                                    <td className="px-0.5 font-bold text-[6pt]">{down}</td>
+                                    <td className="px-0.5 font-mono text-[6pt]">{calculateRunoff(down, 0)}</td>
+                                    <td className="px-0.5 font-mono text-[6pt]">{calculateRunoff(down, 1)}</td>
+                                    <td className="px-0.5 font-mono text-[6pt]">{calculateRunoff(down, 2)}</td>
+                                    <td className="px-0.5 font-mono text-[6pt]">{calculateRunoff(down, 3)}</td>
+                                  </tr>
+                                ));
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[5pt] text-gray-500 text-center mt-0.5 italic leading-none">
+                      2024 analytics
+                    </p>
+                  </div>
               </div>
             </div>
           </div>
@@ -5415,6 +5560,145 @@ export default function PlanPage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Situational Aids Section */}
+            <div className="mt-8">
+              <Card className="max-w-4xl mx-auto">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-xl font-bold text-center">Situational Aids</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Go-for-2 Decision Chart */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 text-center">Go-for-2 Decision Chart</h3>
+                      <div className="flex justify-center gap-4">
+                        {/* Ahead By Table */}
+                        <div className="bg-white p-3 rounded border">
+                          <h4 className="font-bold text-center mb-2 text-green-700 text-sm">AHEAD BY</h4>
+                          <table className="min-w-0 text-center">
+                            <thead>
+                              <tr className="border-b-2 border-gray-300">
+                                <th className="px-2 py-1 font-bold text-xs">Points</th>
+                                <th className="px-2 py-1 font-bold text-xs">Go</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[1, 4, 5, 11, 12, 19].map(points => (
+                                <tr key={points} className="border-b border-gray-200">
+                                  <td className="px-2 py-1 font-mono text-xs">{points}</td>
+                                  <td className="px-2 py-1 text-green-600 font-bold text-xs">✓</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Behind By Table */}
+                        <div className="bg-white p-3 rounded border">
+                          <h4 className="font-bold text-center mb-2 text-red-700 text-sm">BEHIND BY</h4>
+                          <table className="min-w-0 text-center">
+                            <thead>
+                              <tr className="border-b-2 border-gray-300">
+                                <th className="px-2 py-1 font-bold text-xs">Points</th>
+                                <th className="px-2 py-1 font-bold text-xs">Go</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[2, 5, 10, 13, 16, 17, 18, 21].map(points => (
+                                <tr key={points} className="border-b border-gray-200">
+                                  <td className="px-2 py-1 font-mono text-xs">{points}</td>
+                                  <td className="px-2 py-1 text-red-600 font-bold text-xs">✓</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 text-center mt-3 italic">
+                        Based on win probability analytics – 2024 season data
+                      </p>
+                    </div>
+
+                    {/* Clock Runoff Matrix */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 text-center">Clock Runoff Matrix</h3>
+                      <div className="mb-3 flex items-center justify-center gap-2">
+                        <label className="text-sm font-medium">Play Clock:</label>
+                        <input 
+                          type="number" 
+                          value={playClockSeconds}
+                          min={20}
+                          max={60}
+                          className="w-16 px-2 py-1 border rounded text-sm text-center"
+                          onChange={(e) => {
+                            const newPlayClock = parseInt(e.target.value) || 40;
+                            setPlayClockSeconds(newPlayClock);
+                          }}
+                        />
+                        <span className="text-sm">seconds</span>
+                      </div>
+                      <div className="bg-white p-3 rounded border">
+                        <table className="w-full text-center text-sm">
+                          <thead>
+                            <tr className="border-b-2 border-gray-300">
+                              <th className="px-2 py-1 font-bold">Down</th>
+                              <th className="px-2 py-1 font-bold text-xs">0 TOs</th>
+                              <th className="px-2 py-1 font-bold text-xs">1 TO</th>
+                              <th className="px-2 py-1 font-bold text-xs">2 TOs</th>
+                              <th className="px-2 py-1 font-bold text-xs">3 TOs</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              const runClockDownTo = 2; // seconds (run clock down to 2 seconds)
+                              const kneelPlayTime = 2; // seconds (kneel takes 2 seconds)
+                              
+                              const calculateRunoff = (down: number, timeouts: number) => {
+                                let totalTime = 0;
+                                let currentDown = down;
+                                let remainingTimeouts = timeouts;
+                                
+                                while (currentDown <= 4) {
+                                  if (currentDown === 4) {
+                                    // 4th down: Just the kneel (2 seconds)
+                                    totalTime += kneelPlayTime;
+                                  } else if (remainingTimeouts > 0) {
+                                    // Opponent uses timeout, no time runs off this down
+                                    remainingTimeouts--;
+                                  } else {
+                                    // Run clock down to 2s, then kneel for 2s = full play clock used
+                                    totalTime += playClockSeconds;
+                                  }
+                                  currentDown++;
+                                }
+                                
+                                const minutes = Math.floor(totalTime / 60);
+                                const seconds = totalTime % 60;
+                                return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                              };
+                              
+                              return [1, 2, 3, 4].map(down => (
+                                <tr key={down} className="border-b border-gray-200">
+                                  <td className="px-2 py-1 font-bold">{down}</td>
+                                  <td className="px-2 py-1 font-mono text-xs">{calculateRunoff(down, 0)}</td>
+                                  <td className="px-2 py-1 font-mono text-xs">{calculateRunoff(down, 1)}</td>
+                                  <td className="px-2 py-1 font-mono text-xs">{calculateRunoff(down, 2)}</td>
+                                  <td className="px-2 py-1 font-mono text-xs">{calculateRunoff(down, 3)}</td>
+                                </tr>
+                              ));
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-gray-500 text-center mt-3 italic">
+                        Assumes 2 second kneel play length and a snap at 2 seconds remaining on playclock
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
