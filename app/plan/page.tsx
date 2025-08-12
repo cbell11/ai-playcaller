@@ -1822,6 +1822,13 @@ export default function PlanPage() {
     loadScoutingData();
   }, [selectedOpponent]);
 
+  // Save section visibility to localStorage when it changes
+  useEffect(() => {
+    if (isBrowser) {
+      save('sectionVisibility', sectionVisibility);
+    }
+  }, [sectionVisibility]);
+
   // Update the storage change handler
   const handleStorageChange = useCallback(async (e: StorageEvent) => {
     if (!isBrowser) return;
@@ -4857,7 +4864,7 @@ export default function PlanPage() {
                       Toggle which sections are visible in your game plan.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4 max-h-[70vh] overflow-y-auto pr-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 py-4 max-h-[70vh] overflow-y-auto pr-4">
                     {/* Column 1: Base Packages */}
                     <div className="space-y-4">
                       <h3 className="font-semibold text-sm border-b pb-2">Base Packages</h3>
@@ -5034,7 +5041,7 @@ export default function PlanPage() {
                     </div>
 
                     {/* Column 4: Play Types */}
-                    <div className="space-y-4 md:col-span-3 lg:col-span-1">
+                    <div className="space-y-4">
                       <h3 className="font-semibold text-sm border-b pb-2">Play Types</h3>
                       <div className="flex items-center justify-between">
                         <Label htmlFor="screens">Screens</Label>
@@ -5067,6 +5074,79 @@ export default function PlanPage() {
                         />
                       </div>
                     </div>
+
+                    {/* Column 5: Opponent-Specific (Dynamic Sections) */}
+                    {dynamicFrontSections.length > 0 && (
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-sm border-b pb-2">Opponent-Specific</h3>
+                        {dynamicFrontSections.map(sectionKey => {
+                          // Determine if this is a front beater or coverage beater
+                          const nameKey = sectionKey.replace('Beaters', '');
+                          
+                          // Try to find matching front first
+                          const front = fronts.find(f => 
+                            f.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
+                          );
+                          
+                          let displayName = '';
+                          let sectionType = '';
+                          
+                          if (front) {
+                            displayName = `${front.name} Beaters`;
+                            sectionType = 'front';
+                          } else {
+                            // Check if this is a coverage beater
+                            const coverage = coverages.find(c => 
+                              c.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
+                            );
+                            
+                            if (coverage) {
+                              displayName = `${coverage.name} Beaters`;
+                              sectionType = 'coverage';
+                            } else {
+                              // Fallback
+                              displayName = `${nameKey} Beaters`;
+                              sectionType = 'unknown';
+                            }
+                          }
+
+                          return (
+                            <div key={sectionKey} className="flex items-center justify-between">
+                              <Label 
+                                htmlFor={`dynamic-${sectionKey}`}
+                                className="flex items-center gap-2"
+                              >
+                                <span className={`w-2 h-2 rounded-full ${
+                                  sectionType === 'front' ? 'bg-orange-400' : 
+                                  sectionType === 'coverage' ? 'bg-cyan-400' : 
+                                  'bg-gray-400'
+                                }`} />
+                                {displayName}
+                              </Label>
+                              <Switch
+                                id={`dynamic-${sectionKey}`}
+                                checked={sectionVisibility[sectionKey as keyof GamePlan] || false}
+                                onCheckedChange={(checked) => 
+                                  setSectionVisibility(prev => ({ ...prev, [sectionKey]: checked }))
+                                }
+                              />
+                            </div>
+                          );
+                        })}
+                        {dynamicFrontSections.length > 0 && (
+                          <div className="text-xs text-gray-500 mt-2">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="w-2 h-2 rounded-full bg-orange-400" />
+                              <span>Front Beaters (Run/RPO)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                              <span>Coverage Beaters (Quick/Dropback)</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button onClick={() => setShowVisibilitySettings(false)}>Done</Button>
