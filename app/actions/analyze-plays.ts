@@ -244,6 +244,20 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       }
     });
 
+    // Debug: Log all run game plays from master pool
+    const allRunPlays = allMasterPlays.filter(p => p.category === 'run_game');
+    console.log('\n=== ALL RUN GAME PLAYS FROM MASTER POOL ===');
+    allRunPlays.forEach(play => {
+      console.log({
+        play_id: play.play_id,
+        concept: play.concept,
+        front_beaters: play.front_beaters,
+        has_front_beaters: !!play.front_beaters
+      });
+    });
+    console.log(`Total run game plays in master pool: ${allRunPlays.length}`);
+    console.log('=== END RUN GAME PLAYS LIST ===\n');
+
     // Log all RPO plays before any filtering
     const allRpoPlays = allMasterPlays.filter(p => p.category === 'rpo_game');
     console.log('\n=== ALL RPO PLAYS BEFORE FILTERING ===');
@@ -336,6 +350,19 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       screen_game: availableMasterPlays.filter(p => p.category === 'screen_game').length
     });
 
+    // Debug: Log run game plays after terminology filtering
+    const runPlaysAfterTerminology = availableMasterPlays.filter(p => p.category === 'run_game');
+    console.log('\n=== RUN GAME PLAYS AFTER TERMINOLOGY FILTERING ===');
+    console.log(`Run game plays remaining: ${runPlaysAfterTerminology.length}`);
+    runPlaysAfterTerminology.forEach(play => {
+      console.log({
+        play_id: play.play_id,
+        concept: play.concept,
+        front_beaters: play.front_beaters
+      });
+    });
+    console.log('=== END RUN GAME PLAYS AFTER TERMINOLOGY ===\n');
+
     // Filter plays based on defensive matchups
     availableMasterPlays = availableMasterPlays.filter(play => {
       const isPassPlay = isPassPlayCategory(play.category);
@@ -353,6 +380,18 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         isRunPlay,
         isRPO
       });
+
+      // Additional debugging for run game categorization
+      if (play.category === 'run_game') {
+        console.log('🔍 DETAILED RUN GAME CATEGORIZATION:', {
+          category: play.category,
+          isPassPlay_result: isPassPlay,
+          isPassPlay_calculation: isPassPlayCategory(play.category),
+          category_not_rpo: play.category !== 'rpo_game',
+          final_isRunPlay: isRunPlay,
+          should_enter_run_block: isRunPlay
+        });
+      }
       
       // For RPO plays, check both front_beaters AND coverage_beaters
       if (isRPO) {
@@ -396,10 +435,12 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
           }
           
           for (const beater of frontBeatersList) {
-            if (availableFronts.includes(beater)) {
-              console.log(`✓ RPO Play ${play.concept} INCLUDED - matches front: ${beater}`);
-              hasMatchingBeater = true;
-              return true;
+            for (const availableFront of availableFronts) {
+              if (normalizeName(beater) === normalizeName(availableFront)) {
+                console.log(`✓ RPO Play ${play.concept} INCLUDED - matches front: "${beater}" === "${availableFront}" (normalized)`);
+                hasMatchingBeater = true;
+                return true;
+              }
             }
           }
         }
@@ -415,10 +456,12 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
           });
           
           for (const beater of coverageBeatersList) {
-            if (availableCoverages.includes(beater)) {
-              console.log(`✓ RPO Play ${play.concept} INCLUDED - matches coverage: ${beater}`);
-              hasMatchingBeater = true;
-              return true;
+            for (const availableCoverage of availableCoverages) {
+              if (normalizeName(beater) === normalizeName(availableCoverage)) {
+                console.log(`✓ RPO Play ${play.concept} INCLUDED - matches coverage: "${beater}" === "${availableCoverage}" (normalized)`);
+                hasMatchingBeater = true;
+                return true;
+              }
             }
           }
         }
@@ -448,9 +491,11 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         });
         
         for (const beater of beatersList) {
-          if (availableCoverages.includes(beater)) {
-            console.log(`✓ Pass Play ${play.concept} INCLUDED - matches coverage: ${beater}`);
-            return true;
+          for (const availableCoverage of availableCoverages) {
+            if (normalizeName(beater) === normalizeName(availableCoverage)) {
+              console.log(`✓ Pass Play ${play.concept} INCLUDED - matches coverage: "${beater}" === "${availableCoverage}" (normalized)`);
+              return true;
+            }
           }
         }
         
@@ -460,27 +505,45 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       
       // For run plays, check front_beaters
       if (isRunPlay) {
+        console.log(`🏃 ANALYZING RUN PLAY: ${play.concept} (category: ${play.category})`);
+        console.log('Run play details:', {
+          play_id: play.play_id,
+          concept: play.concept,
+          category: play.category,
+          front_beaters: play.front_beaters,
+          has_front_beaters: !!play.front_beaters
+        });
+        
         if (!play.front_beaters) {
-          console.log(`✗ Run Play ${play.concept} EXCLUDED - no front_beaters specified`);
-          return false;
+          console.log(`⚠️  Run Play ${play.concept} has no front_beaters - including anyway to debug`);
+          // For now, include run plays without front_beaters to help debug the issue
+          return true;
         }
         
         const beatersList = play.front_beaters.split(',').map((f: string) => f.trim());
         const availableFronts = scoutingReport.fronts.map((f: any) => f.name);
         
         console.log('Run Front check:', {
+          play_concept: play.concept,
           front_beaters: beatersList,
           available_fronts: availableFronts
         });
         
+        // Use case-insensitive matching for fronts
         for (const beater of beatersList) {
-          if (availableFronts.includes(beater)) {
-            console.log(`✓ Run Play ${play.concept} INCLUDED - matches front: ${beater}`);
-            return true;
+          for (const availableFront of availableFronts) {
+            if (normalizeName(beater) === normalizeName(availableFront)) {
+              console.log(`✓ Run Play ${play.concept} INCLUDED - matches front: "${beater}" === "${availableFront}" (normalized)`);
+              return true;
+            }
           }
         }
         
         console.log(`✗ Run Play ${play.concept} EXCLUDED - no matching front beaters`);
+        console.log('  Available fronts:', availableFronts);
+        console.log('  Available fronts (normalized):', availableFronts.map(normalizeName));
+        console.log('  Play front beaters:', beatersList);
+        console.log('  Play front beaters (normalized):', beatersList.map(normalizeName));
         return false;
       }
       
