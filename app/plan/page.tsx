@@ -303,7 +303,7 @@ const playToPlayCall = (play: ExtendedPlay): PlayCall => {
 };
 
 // Add a mapping of database section names to GamePlan keys
-const sectionMap: Record<string, keyof GamePlan> = {
+const sectionMapping: Record<string, keyof GamePlan> = {
   'openingscript': 'openingScript',
   'basepackage1': 'basePackage1',
   'basepackage2': 'basePackage2',
@@ -327,38 +327,42 @@ const sectionMap: Record<string, keyof GamePlan> = {
   'firstsecondcombos': 'firstSecondCombos'
 };
 
-// Update section sizes
+// Add initial section sizes configuration
 const initialSectionSizes: Record<keyof GamePlan, number> = {
   openingScript: 10,
-  basePackage1: 10,
-  basePackage2: 10,
-  basePackage3: 10,
-  firstDowns: 10,
-  secondAndShort: 10,
-  secondAndLong: 10,
-  shortYardage: 10,
-  thirdAndShort: 10,
-  thirdAndMedium: 10,
-  thirdAndLong: 10,
-  highRedZone: 10,
-  lowRedZone: 10,
-  goalline: 10,
-  backedUp: 10,
-  screens: 10,
-  playAction: 10,
-  deepShots: 10,
+  basePackage1: 8,
+  basePackage2: 8,
+  basePackage3: 8,
+  firstDowns: 8,
+  secondAndShort: 5,
+  secondAndLong: 5,
+  shortYardage: 5,
+  thirdAndShort: 5,
+  thirdAndMedium: 5,
+  thirdAndLong: 5,
+  highRedZone: 5,
+  lowRedZone: 5,
+  goalline: 5,
+  backedUp: 5,
+  screens: 5,
+  playAction: 5,
+  deepShots: 5,
   twoMinuteDrill: 10,
-  twoPointPlays: 10,
-  firstSecondCombos: 20
+  twoPointPlays: 4,
+  firstSecondCombos: 4
 };
 
-// Update createEmptyPlan function
+// Add helper function to create empty plans
 const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
-  const emptySlot: PlayCall = {
+  const emptySlot = {
     formation: '',
     fieldAlignment: '+',
+    motion: '',
     play: '',
-    runDirection: '+'
+    runDirection: '+',
+    category: '',  // Add this line
+    is_locked: false,
+    is_favorite: false
   };
 
   return {
@@ -382,7 +386,7 @@ const createEmptyPlan = (sizes: Record<keyof GamePlan, number>): GamePlan => {
     deepShots: Array(sizes.deepShots).fill(emptySlot),
     twoMinuteDrill: Array(sizes.twoMinuteDrill).fill(emptySlot),
     twoPointPlays: Array(sizes.twoPointPlays).fill(emptySlot),
-    firstSecondCombos: Array(sizes.firstSecondCombos).fill(emptySlot)
+    firstSecondCombos: Array(sizes.firstSecondCombos * 2).fill(emptySlot), // 8 combos = 16 individual plays
   };
 };
 
@@ -680,7 +684,7 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
     // Group plays by section
     gamePlanData?.forEach((entry) => {
         const dbSection = entry.section.toLowerCase();
-        const section = sectionMap[dbSection];
+        const section = sectionMapping[dbSection];
       
         if (!section) {
           console.warn(`No mapping found for database section "${dbSection}"`);
@@ -1594,7 +1598,7 @@ export default function PlanPage() {
         }
 
         // Load game plan
-      const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
+      const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
         if (updatedPlan) {
           console.log('Updating plan from opponent change');
           setPlan(updatedPlan);
@@ -1655,7 +1659,7 @@ export default function PlanPage() {
         }
 
         // Load game plan
-        const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
         if (updatedPlan) {
           console.log('Updating plan from storage change');
           setPlan(updatedPlan);
@@ -1711,7 +1715,7 @@ export default function PlanPage() {
           async (payload) => {
             console.log('Received database change:', payload);
             try {
-              const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
+              const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
               if (updatedPlan) {
                 console.log('Updating plan from real-time change');
                 setPlan(updatedPlan);
@@ -3360,17 +3364,13 @@ export default function PlanPage() {
       // Filter sections based on visibility
       const visibleSections = sectionsToGenerate.filter(section => sectionVisibility[section]);
 
-      // Regenerate each section sequentially
-      for (const section of visibleSections) {
-        try {
-          if (section === 'coverage0Beaters') {
-            await handleRefreshCoverage0Beaters();
-          } else {
-            await handleRegenerateSection(section);
-          }
-          
-          // Add a small delay between sections for better UX
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Regenerate each section sequentially
+    for (const section of visibleSections) {
+      try {
+        await handleRegenerateSection(section);
+        
+        // Add a small delay between sections for better UX
+        await new Promise(resolve => setTimeout(resolve, 500));
         } catch (sectionError) {
           console.error(`Error regenerating ${section}:`, sectionError);
           // Continue with other sections even if one fails
@@ -3405,7 +3405,7 @@ export default function PlanPage() {
 
   // Modify handleBuildManually function
   const handleBuildManually = () => {
-    const emptyPlan = createEmptyPlan(initialSectionSizes);
+    const emptyPlan = createEmptyPlan(sectionSizes);
     setPlan(emptyPlan);
     save('plan', emptyPlan);
     setIsManualBuildMode(true);
@@ -3440,7 +3440,7 @@ export default function PlanPage() {
       }
 
       // Reset the plan state to empty using current section sizes
-      const emptyPlan = createEmptyPlan(initialSectionSizes);
+      const emptyPlan = createEmptyPlan(sectionSizes);
       setPlan(emptyPlan);
       if (isBrowser) {
       save('plan', emptyPlan);
@@ -3470,139 +3470,8 @@ export default function PlanPage() {
     localStorage.setItem('categoryColors', JSON.stringify(newColors));
   };
 
-  // Add function to load Cover 0 Beaters from master_play_pool
-  const loadCoverage0Beaters = async (count: number = 5) => {
-    console.log('Starting Cover 0 Beaters query...');
-    try {
-      // Get plays that have '0' in coverage_beaters from playpool
-      const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
-      const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
-
-      if (!team_id || !opponent_id) {
-        throw new Error('Team or opponent not selected for Cover 0 Beaters');
-      }
-
-      // Get plays from playpool that have '0' in coverage_beaters
-      const { data: plays, error } = await supabase
-        .from('playpool')
-        .select('*')
-        .eq('team_id', team_id)
-        .eq('opponent_id', opponent_id)
-        .not('coverage_beaters', 'is', null)
-        .ilike('coverage_beaters', '%0%');
-
-      console.log('Query result:', { playsCount: plays?.length, error });
-
-      if (error) {
-        console.error('Error fetching plays:', error);
-        throw error;
-      }
-
-      if (!plays || plays.length === 0) {
-        throw new Error('No Cover 0 Beaters found in play pool for this opponent');
-      }
-
-      console.log('Found Cover 0 plays:', plays.length);
-
-      // Take random plays up to the count
-      const shuffled = plays.sort(() => 0.5 - Math.random());
-      const selectedPlays = shuffled.slice(0, Math.min(count, shuffled.length));
-
-      // Convert to PlayCall format
-      const playCallsArray = selectedPlays.map(play => ({
-        id: play.id, // Preserve the UUID from playpool
-        play_id: play.play_id, // Preserve the text play_id from playpool
-        formation: play.formations || '',
-        fieldAlignment: '+',
-        motion: play.to_motions || '',
-        play: play.combined_call || play.concept || '',
-        runDirection: '+',
-        category: play.category || ''
-      }));
-
-      console.log('Final plays returned:', playCallsArray);
-      return playCallsArray;
-    } catch (error) {
-      console.error('Error loading Cover 0 Beaters:', error);
-      throw error;
-    }
-  };
-
   // Add handler for refreshing Cover 0 Beaters
-  const handleRefreshCoverage0Beaters = async () => {
-    const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
-    const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
 
-    if (!team_id || !opponent_id) {
-      setNotification({
-        message: 'Please select a team and opponent first',
-        type: 'error'
-      });
-      return;
-    }
-
-    setGeneratingSection('coverage0Beaters');
-    try {
-      // Clear existing plays for this section
-      const { error: deleteError } = await browserClient
-        .from('game_plan')
-        .delete()
-        .eq('team_id', team_id)
-        .eq('opponent_id', opponent_id)
-        .eq('section', 'coverage0beaters');
-
-      if (deleteError) {
-        throw new Error('Failed to clear section');
-      }
-
-      // Load new random Cover 0 Beaters
-      const newPlays = await loadCoverage0Beaters(sectionSizes.coverage0Beaters);
-
-      // Save new plays to database
-      const insertData = newPlays.map((play, index) => ({
-        team_id,
-        opponent_id,
-        play_id: play.play_id, // Use play.play_id instead of play.id
-        section: 'coverage0beaters',
-        position: index,
-        combined_call: play.play,
-        customized_edit: null
-      }));
-
-      if (insertData.length > 0) {
-        const { error: insertError } = await browserClient
-          .from('game_plan')
-          .insert(insertData);
-
-        if (insertError) {
-          throw new Error(`Failed to save plays: ${insertError.message}`);
-        }
-      }
-
-      // Update local state
-      const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
-      if (updatedPlan) {
-        setPlan(updatedPlan);
-        if (isBrowser) {
-          save('plan', updatedPlan);
-        }
-      }
-
-      setNotification({
-        message: 'Cover 0 Beaters refreshed successfully!',
-        type: 'success'
-      });
-
-    } catch (error) {
-      console.error('Error refreshing Cover 0 Beaters:', error);
-      setNotification({
-        message: error instanceof Error ? error.message : 'Failed to refresh Cover 0 Beaters',
-        type: 'error'
-      });
-    } finally {
-      setGeneratingSection(null);
-    }
-  };
 
       // Add this function after handleColorChange
     const handleRegenerateSection = async (section: keyof GamePlan) => {
@@ -3617,13 +3486,13 @@ export default function PlanPage() {
         throw new Error('Team or opponent not selected');
       }
 
-      // Get locked plays for this section
+      // Get locked plays for this section first - we'll need this throughout the function
       const { data: lockedPlays, error: lockedError } = await browserClient
         .from('game_plan')
         .select('*')
         .eq('team_id', team_id)
         .eq('opponent_id', opponent_id)
-        .eq('section', section)
+        .eq('section', section.toLowerCase())
         .eq('is_locked', true);
 
       if (lockedError) throw lockedError;
@@ -3665,36 +3534,53 @@ export default function PlanPage() {
           .delete()
           .eq('team_id', team_id)
           .eq('opponent_id', opponent_id)
-          .eq('section', section)
+          .eq('section', section.toLowerCase())
           .eq('is_locked', false);
 
         if (deleteError) {
           throw new Error('Failed to clear unlocked plays');
         }
 
-        // Insert new plays
-        const insertData = selectedPlays.map((play, index) => ({
-          team_id,
-          opponent_id,
-          play_id: play.play_id,
-          section,
-          position: index,
-          combined_call: formatPlayFromPool(play),
-          customized_edit: play.customized_edit,
-          is_locked: false,
-          category: play.category
-        }));
+        // Calculate available positions after locked plays
+        const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+        let currentPosition = 0;
+        const insertData = [];
 
-        const { error: insertError } = await browserClient
-          .from('game_plan')
-          .insert(insertData);
+        // Insert new plays into available positions
+        for (const play of selectedPlays) {
+          // Find next available position
+          while (currentPosition < count && lockedPositions.has(currentPosition)) {
+            currentPosition++;
+          }
+          
+          if (currentPosition < count) {
+            insertData.push({
+              team_id,
+              opponent_id,
+              play_id: play.play_id,
+              section: section.toLowerCase(),
+              position: currentPosition,
+              combined_call: formatPlayFromPool(play),
+              customized_edit: play.customized_edit,
+              is_locked: false,
+              category: play.category
+            });
+            currentPosition++;
+          }
+        }
 
-        if (insertError) {
-          throw new Error(`Failed to save plays: ${insertError.message}`);
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
         }
 
         // Update local state
-        const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
         if (updatedPlan) {
           setPlan(updatedPlan);
           if (isBrowser) {
@@ -3703,7 +3589,7 @@ export default function PlanPage() {
         }
 
         setNotification({
-          message: `Updated ${section} with ${selectedPlays.length} plays`,
+          message: `Updated ${section} with ${insertData.length} plays`,
           type: 'success'
         });
         return;
@@ -3764,7 +3650,8 @@ export default function PlanPage() {
           return acc;
         }, {} as Record<string, number>),
         samplePlays: filteredPlays.slice(0, 5),
-        neededPlays: sectionSizes[section]
+        neededPlays: sectionSizes[section],
+        lockedPlays: lockedPlays?.length || 0
       });
 
       // Create a minimal section-specific size object for faster processing
@@ -4050,7 +3937,7 @@ export default function PlanPage() {
       }
 
       // Optimized UI update - only fetch this section's data
-      const updatedPlan = await fetchGamePlanFromDatabase(initialSectionSizes);
+      const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
       if (updatedPlan) {
         setPlan(updatedPlan);
         if (isBrowser) {
