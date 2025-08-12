@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, MouseEventHandler, useCallback } from "rea
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search, Eye, Settings, Lock, LockOpen, Pencil } from "lucide-react"
+import { Download, ArrowLeft, Trash2, GripVertical, Plus, Star, Check, Printer, Wand2, RefreshCw, Loader2, Search, Eye, Settings, Lock, LockOpen, Pencil, Shield } from "lucide-react"
 import { useReactToPrint } from "react-to-print"
 import { load, save } from "@/lib/local"
 import { getPlayPool, Play } from "@/lib/playpool"
@@ -19,6 +19,7 @@ import { createClient } from '@supabase/supabase-js'
 import React from "react"
 import { Input } from "@/components/ui/input"
 import { toast } from "react-toastify"
+import { getScoutingReport } from "@/lib/scouting"
 
 // Add this helper function near the top of the file
 const isBrowser = typeof window !== 'undefined';
@@ -833,6 +834,15 @@ const sectionGroups = [
   ['firstSecondCombos']
 ] as const;
 
+// Add interface for scouting options
+interface ScoutingOption {
+  id?: string;
+  name: string;
+  fieldArea?: string;
+  dominateDown?: string;
+  notes?: string;
+}
+
 export default function PlanPage() {
   const router = useRouter()
   const [plan, setPlan] = useState<GamePlan | null>(() => load('plan', null))
@@ -868,6 +878,16 @@ export default function PlanPage() {
   })
   const [showVisibilitySettings, setShowVisibilitySettings] = useState(false)
   const [showColorSettings, setShowColorSettings] = useState(false)
+  
+  // Add scouting data state
+  const [fronts, setFronts] = useState<ScoutingOption[]>([])
+  const [coverages, setCoverages] = useState<ScoutingOption[]>([])
+  const [blitzes, setBlitzes] = useState<ScoutingOption[]>([])
+  const [frontsPct, setFrontsPct] = useState<Record<string, number>>({})
+  const [coveragesPct, setCoveragesPct] = useState<Record<string, number>>({})
+  const [blitzPct, setBlitzPct] = useState<Record<string, number>>({})
+  const [overallBlitzPct, setOverallBlitzPct] = useState<number>(0)
+  const [showScoutingInfo, setShowScoutingInfo] = useState(false)
   const [categoryColors, setCategoryColors] = useState<CategoryColors>(() => {
     if (!isBrowser) return {
       run_game: 'bg-green-100',
@@ -1641,6 +1661,68 @@ export default function PlanPage() {
       }
     }
   }, []);
+
+  // Load scouting data for the current opponent
+  const loadScoutingData = async () => {
+    try {
+      const team_id = isBrowser ? localStorage.getItem('selectedTeam') : null;
+      const opponent_id = isBrowser ? localStorage.getItem('selectedOpponent') : null;
+
+      if (!team_id || !opponent_id) {
+        console.log('No team or opponent selected for scouting data');
+        return;
+      }
+
+      console.log('Loading scouting data for:', { team_id, opponent_id });
+
+      // Load scouting report data using the same method as playpool page
+      const scoutingReportResult = await getScoutingReport(team_id, opponent_id);
+
+      if (scoutingReportResult.success && scoutingReportResult.data) {
+        const reportData = scoutingReportResult.data;
+        
+        // Set the scouting data state
+        setFronts(reportData.fronts || []);
+        setCoverages(reportData.coverages || []);
+        setBlitzes(reportData.blitzes || []);
+        setFrontsPct(reportData.fronts_pct || {});
+        setCoveragesPct(reportData.coverages_pct || {});
+        setBlitzPct(reportData.blitz_pct || {});
+        setOverallBlitzPct(reportData.overall_blitz_pct || 0);
+
+        console.log('Loaded scouting data:', {
+          fronts_count: reportData.fronts?.length || 0,
+          coverages_count: reportData.coverages?.length || 0,
+          blitzes_count: reportData.blitzes?.length || 0
+        });
+      } else {
+        console.error('Failed to load scouting report:', scoutingReportResult.error);
+        // Initialize with empty data
+        setFronts([]);
+        setCoverages([]);
+        setBlitzes([]);
+        setFrontsPct({});
+        setCoveragesPct({});
+        setBlitzPct({});
+        setOverallBlitzPct(0);
+      }
+    } catch (error) {
+      console.error('Error loading scouting data:', error);
+      // Initialize with empty data on error
+      setFronts([]);
+      setCoverages([]);
+      setBlitzes([]);
+      setFrontsPct({});
+      setCoveragesPct({});
+      setBlitzPct({});
+      setOverallBlitzPct(0);
+    }
+  };
+
+  // Load scouting data when component mounts or opponent changes
+  useEffect(() => {
+    loadScoutingData();
+  }, [selectedOpponent]);
 
   // Update the storage change handler
   const handleStorageChange = useCallback(async (e: StorageEvent) => {
@@ -4803,6 +4885,146 @@ export default function PlanPage() {
                 <Printer className="h-4 w-4" />
                 Print Wristcoach
               </Button>
+              
+              {/* Scouting Info Dialog */}
+              <Dialog open={showScoutingInfo} onOpenChange={setShowScoutingInfo}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Shield className="h-4 w-4" />
+                    Scouting Info
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                  <DialogHeader className="flex-shrink-0">
+                    <DialogTitle>Defensive Scouting Information</DialogTitle>
+                    <DialogDescription>
+                      Opponent defensive tendencies for {selectedOpponentName || 'current opponent'}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4 overflow-y-auto flex-1 min-h-0">
+                    {/* Fronts Column */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-lg border-b pb-2">Defensive Fronts</h3>
+                      {fronts.length > 0 ? (
+                        <div className="space-y-3">
+                          {fronts.map((front, index) => (
+                            <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">{front.name}</span>
+                                {frontsPct[front.name] && (
+                                  <span className="text-sm text-gray-600">
+                                    {Math.round(frontsPct[front.name])}%
+                                  </span>
+                                )}
+                              </div>
+                              {front.fieldArea && (
+                                <div className="text-sm text-gray-600 mt-1">
+                                  Field Area: {front.fieldArea}
+                                </div>
+                              )}
+                              {front.dominateDown && (
+                                <div className="text-sm text-gray-600">
+                                  Dominate Down: {front.dominateDown}
+                                </div>
+                              )}
+                              {front.notes && (
+                                <div className="text-sm text-gray-600 mt-1">
+                                  Notes: {front.notes}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-gray-500 text-center py-8">
+                          No defensive fronts data available
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Coverages Column */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-lg border-b pb-2">Coverage Schemes</h3>
+                      {coverages.length > 0 ? (
+                        <div className="space-y-3">
+                          {coverages.map((coverage, index) => (
+                            <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">{coverage.name}</span>
+                                {coveragesPct[coverage.name] && (
+                                  <span className="text-sm text-gray-600">
+                                    {Math.round(coveragesPct[coverage.name])}%
+                                  </span>
+                                )}
+                              </div>
+                              {coverage.fieldArea && (
+                                <div className="text-sm text-gray-600 mt-1">
+                                  Field Area: {coverage.fieldArea}
+                                </div>
+                              )}
+                              {coverage.dominateDown && (
+                                <div className="text-sm text-gray-600">
+                                  Dominate Down: {coverage.dominateDown}
+                                </div>
+                              )}
+                              {coverage.notes && (
+                                <div className="text-sm text-gray-600 mt-1">
+                                  Notes: {coverage.notes}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-gray-500 text-center py-8">
+                          No coverage schemes data available
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Blitz Information */}
+                  {(blitzes.length > 0 || overallBlitzPct > 0) && (
+                    <div className="border-t pt-4">
+                      <h3 className="font-semibold text-lg mb-3">Blitz Tendencies</h3>
+                      {overallBlitzPct > 0 && (
+                        <div className="bg-blue-50 p-3 rounded-lg mb-3">
+                          <span className="font-medium">Overall Blitz Percentage: </span>
+                          <span className="text-blue-700 font-bold">{Math.round(overallBlitzPct)}%</span>
+                        </div>
+                      )}
+                      {blitzes.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {blitzes.map((blitz, index) => (
+                            <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">{blitz.name}</span>
+                                {blitzPct[blitz.name] && (
+                                  <span className="text-sm text-gray-600">
+                                    {Math.round(blitzPct[blitz.name])}%
+                                  </span>
+                                )}
+                              </div>
+                              {blitz.notes && (
+                                <div className="text-sm text-gray-600 mt-1">
+                                  {blitz.notes}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <DialogFooter className="flex-shrink-0">
+                    <Button onClick={() => setShowScoutingInfo(false)}>Close</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
 
