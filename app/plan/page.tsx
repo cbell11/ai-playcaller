@@ -4580,9 +4580,17 @@ export default function PlanPage() {
                     .print-grid {
                       margin-bottom: 20mm;  /* Slightly more than footer height */
                       display: grid;
-                      grid-template-columns: repeat(3, 1fr);
                       gap: 0.5mm;
                       max-height: calc(100% - 22mm); /* Account for footer */
+                    }
+
+                    /* Different grid layouts for portrait vs landscape */
+                    .portrait .print-grid {
+                      grid-template-columns: repeat(3, 1fr);
+                    }
+
+                    .landscape .print-grid {
+                      grid-template-columns: repeat(4, 1fr);
                     }
 
                     /* Force each section to break to new page if it would overlap footer */
