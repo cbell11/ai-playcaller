@@ -1751,23 +1751,32 @@ export default function PlanPage() {
 
         // Create dynamic front beater sections
         const frontNames = (reportData.fronts || []).map(front => front.name);
-        const dynamicSections = frontNames.map(frontName => 
+        const dynamicFrontSections = frontNames.map(frontName => 
           `${frontName.toLowerCase().replace(/\s+/g, '')}Beaters`
         );
-        setDynamicFrontSections(dynamicSections);
+        
+        // Create dynamic coverage beater sections
+        const coverageNames = (reportData.coverages || []).map(coverage => coverage.name);
+        const dynamicCoverageSections = coverageNames.map(coverageName => 
+          `${coverageName.toLowerCase().replace(/\s+/g, '')}Beaters`
+        );
+        
+        // Combine both types of dynamic sections
+        const allDynamicSections = [...dynamicFrontSections, ...dynamicCoverageSections];
+        setDynamicFrontSections(allDynamicSections);
 
         // Update section sizes to include dynamic sections
         const newSectionSizes = { ...sectionSizes };
-        dynamicSections.forEach(section => {
+        allDynamicSections.forEach(section => {
           if (!newSectionSizes[section]) {
-            newSectionSizes[section] = 5; // Default size for front beater sections
+            newSectionSizes[section] = 5; // Default size for beater sections
           }
         });
         setSectionSizes(newSectionSizes);
 
         // Update section visibility to include dynamic sections
         const newSectionVisibility = { ...sectionVisibility };
-        dynamicSections.forEach(section => {
+        allDynamicSections.forEach(section => {
           if (newSectionVisibility[section] === undefined) {
             newSectionVisibility[section] = true; // Default to visible for new sections
           }
@@ -1778,7 +1787,9 @@ export default function PlanPage() {
           fronts_count: reportData.fronts?.length || 0,
           coverages_count: reportData.coverages?.length || 0,
           blitzes_count: reportData.blitzes?.length || 0,
-          dynamic_sections: dynamicSections
+          dynamic_front_sections: dynamicFrontSections,
+          dynamic_coverage_sections: dynamicCoverageSections,
+          total_dynamic_sections: allDynamicSections.length
         });
       } else {
         console.error('Failed to load scouting report:', scoutingReportResult.error);
@@ -3768,22 +3779,44 @@ export default function PlanPage() {
       // Check if this is a dynamic front beater section
       const isFrontBeaterSection = typeof section === 'string' && section.endsWith('Beaters');
       let frontName = '';
+      let coverageName = '';
+      let isCoverageBeaterSection = false;
       
       if (isFrontBeaterSection) {
-        // Extract the front name from the section key
+        // Extract the name from the section key
         const sectionStr = section as string;
-        const frontKey = sectionStr.replace('Beaters', '');
-        // Find the corresponding front name from the fronts array
+        const nameKey = sectionStr.replace('Beaters', '');
+        
+        // Check if this matches a front first
         const front = fronts.find(f => 
-          f.name.toLowerCase().replace(/\s+/g, '') === frontKey.toLowerCase().replace(/\s+/g, '')
+          f.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
         );
-        frontName = front?.name || '';
-        console.log('Front beater section detected:', {
-          section: sectionStr,
-          frontKey,
-          frontName,
-          availableFronts: fronts.map(f => f.name)
-        });
+        
+        if (front) {
+          frontName = front.name;
+          console.log('Front beater section detected:', {
+            section: sectionStr,
+            nameKey,
+            frontName,
+            availableFronts: fronts.map(f => f.name)
+          });
+        } else {
+          // Check if this matches a coverage
+          const coverage = coverages.find(c => 
+            c.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
+          );
+          
+          if (coverage) {
+            coverageName = coverage.name;
+            isCoverageBeaterSection = true;
+            console.log('Coverage beater section detected:', {
+              section: sectionStr,
+              nameKey,
+              coverageName,
+              availableCoverages: coverages.map(c => c.name)
+            });
+          }
+        }
       }
       
       const filteredPlays = playPool
@@ -3799,6 +3832,21 @@ export default function PlanPage() {
               const frontBeaters = p.front_beaters.toLowerCase();
               const targetFront = frontName.toLowerCase();
               return frontBeaters.includes(targetFront);
+            }
+            return false;
+          }
+          
+          // Handle dynamic coverage beater sections
+          if (isCoverageBeaterSection && coverageName) {
+            // Only include quick_game and dropback_game plays
+            if (!(['quick_game', 'dropback_game'].includes(p.category))) {
+              return false;
+            }
+            // Check if this play is a coverage beater for the specific coverage
+            if (p.coverage_beaters) {
+              const coverageBeaters = p.coverage_beaters.toLowerCase();
+              const targetCoverage = coverageName.toLowerCase();
+              return coverageBeaters.includes(targetCoverage);
             }
             return false;
           }
@@ -4651,13 +4699,45 @@ export default function PlanPage() {
                     twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' },
                     firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' },
                     // Add dynamic front beater sections
-                    ...Object.fromEntries(
-                      dynamicFrontSections.map(sectionKey => {
-                        const frontName = sectionKey.replace('Beaters', '').replace(/([A-Z])/g, ' $1').trim();
-                        const displayName = fronts.find(f => f.name.toLowerCase().replace(/\s+/g, '') === frontName.toLowerCase().replace(/\s+/g, ''))?.name || frontName;
-                        return [sectionKey, { title: `${displayName} Beaters`, bgColor: 'bg-white' }];
-                      })
-                    )
+                    ...dynamicFrontSections.map(sectionKey => {
+                      // Check if this is a front beater or coverage beater
+                      const nameKey = sectionKey.replace('Beaters', '');
+                      
+                      // Try to find matching front first
+                      const front = fronts.find(f => 
+                        f.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
+                      );
+                      
+                      if (front) {
+                        // This is a front beater section (run/RPO plays)
+                        return {
+                          key: sectionKey,
+                          title: `${front.name} Beaters`,
+                          bgColor: 'bg-orange-100'
+                        };
+                      } else {
+                        // Check if this is a coverage beater
+                        const coverage = coverages.find(c => 
+                          c.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
+                        );
+                        
+                        if (coverage) {
+                          // This is a coverage beater section (quick/dropback plays)
+                          return {
+                            key: sectionKey,
+                            title: `${coverage.name} Beaters`,
+                            bgColor: 'bg-cyan-100'
+                          };
+                        }
+                      }
+                      
+                      // Fallback if no match found
+                      return {
+                        key: sectionKey,
+                        title: `${nameKey} Beaters`,
+                        bgColor: 'bg-gray-100'
+                      };
+                    })
                   };
 
                   return sectionGroups.map(group => {
