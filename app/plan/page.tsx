@@ -1460,7 +1460,7 @@ export default function PlanPage() {
   const wristcoachRef = useRef<HTMLDivElement>(null);
   
   const handlePrintWristcoach = useReactToPrint({
-    content: () => wristcoachRef.current,
+    contentRef: wristcoachRef,
     documentTitle: "Wristcoach",
     pageStyle: `
       @page {
@@ -3218,7 +3218,7 @@ export default function PlanPage() {
         if (!sectionVisibility[section as keyof GamePlan]) continue; // Skip hidden sections
         
         const sectionPlays = plan[section as keyof GamePlan]?.filter(p => p.play) || [];
-        const playCount = section === 'firstSecondCombos' ? sectionPlays.length * 2 : sectionPlays.length;
+        const playCount = sectionPlays.length;
         
         total += playCount;
       }
@@ -3278,12 +3278,9 @@ export default function PlanPage() {
         
         if (section === 'firstSecondCombos') {
           plays.forEach(play => {
-            // Only add plays that have content
-            if (play.play) {
-              allPlays.push({ number: currentNumber++, text: play.play });
-            }
-            if (play.customized_edit) {
-              allPlays.push({ number: currentNumber++, text: play.customized_edit });
+            const playText = play.customized_edit || play.play;
+            if (playText) {
+              allPlays.push({ number: currentNumber++, text: playText });
             }
           });
         } else {
@@ -4532,7 +4529,7 @@ export default function PlanPage() {
                   <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={() => printHandler()} className="flex items-center gap-2">
+                  <Button onClick={printHandler} className="flex items-center gap-2">
                     <Printer className="h-4 w-4" />
                     Print
                   </Button>
@@ -4697,48 +4694,46 @@ export default function PlanPage() {
                     deepShots: { title: 'Deep Shots', bgColor: 'bg-white' },
                     twoMinuteDrill: { title: 'Two Minute Drill', bgColor: 'bg-white' },
                     twoPointPlays: { title: 'Two Point Plays', bgColor: 'bg-white' },
-                    firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' },
-                    // Add dynamic front beater sections
-                    ...dynamicFrontSections.map(sectionKey => {
-                      // Check if this is a front beater or coverage beater
-                      const nameKey = sectionKey.replace('Beaters', '');
-                      
-                      // Try to find matching front first
-                      const front = fronts.find(f => 
-                        f.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
+                    firstSecondCombos: { title: '1st and 2nd Combos', bgColor: 'bg-white' }
+                  };
+
+                  // Add dynamic front and coverage beater sections
+                  dynamicFrontSections.forEach(sectionKey => {
+                    // Check if this is a front beater or coverage beater
+                    const nameKey = sectionKey.replace('Beaters', '');
+                    
+                    // Try to find matching front first
+                    const front = fronts.find(f => 
+                      f.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
+                    );
+                    
+                    if (front) {
+                      // This is a front beater section (run/RPO plays)
+                      sectionDetails[sectionKey as keyof typeof sectionDetails] = {
+                        title: `${front.name} Beaters`,
+                        bgColor: 'bg-white'  // Use white for print
+                      };
+                    } else {
+                      // Check if this is a coverage beater
+                      const coverage = coverages.find(c => 
+                        c.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
                       );
                       
-                      if (front) {
-                        // This is a front beater section (run/RPO plays)
-                        return {
-                          key: sectionKey,
-                          title: `${front.name} Beaters`,
-                          bgColor: 'bg-orange-100'
+                      if (coverage) {
+                        // This is a coverage beater section (quick/dropback plays)
+                        sectionDetails[sectionKey as keyof typeof sectionDetails] = {
+                          title: `${coverage.name} Beaters`,
+                          bgColor: 'bg-white'  // Use white for print
                         };
                       } else {
-                        // Check if this is a coverage beater
-                        const coverage = coverages.find(c => 
-                          c.name.toLowerCase().replace(/\s+/g, '') === nameKey.toLowerCase().replace(/\s+/g, '')
-                        );
-                        
-                        if (coverage) {
-                          // This is a coverage beater section (quick/dropback plays)
-                          return {
-                            key: sectionKey,
-                            title: `${coverage.name} Beaters`,
-                            bgColor: 'bg-cyan-100'
-                          };
-                        }
+                        // Fallback if no match found
+                        sectionDetails[sectionKey as keyof typeof sectionDetails] = {
+                          title: `${nameKey} Beaters`,
+                          bgColor: 'bg-white'
+                        };
                       }
-                      
-                      // Fallback if no match found
-                      return {
-                        key: sectionKey,
-                        title: `${nameKey} Beaters`,
-                        bgColor: 'bg-gray-100'
-                      };
-                    })
-                  };
+                    }
+                  });
 
                   return sectionGroups.map(group => {
                     const visibleKeysInGroup = group.filter(key => sectionVisibility[key as keyof GamePlan]);
