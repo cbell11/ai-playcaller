@@ -113,6 +113,9 @@ export default function PlayPoolPage() {
   const [error, setError] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [clearingLocks, setClearingLocks] = useState(false)
+  // State for admin access check
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [adminCheckComplete, setAdminCheckComplete] = useState(false)
   // State for total play count
   const [totalPlays, setTotalPlays] = useState<number>(0)
   const [editingPlay, setEditingPlay] = useState<string | null>(null)
@@ -166,8 +169,44 @@ export default function PlayPoolPage() {
     }
   }
 
+  // Check admin access first
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/auth')
+          return
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+
+        if (profile?.role !== 'admin') {
+          router.push('/')
+          return
+        }
+
+        setIsAdmin(true)
+        setAdminCheckComplete(true)
+      } catch (err) {
+        console.error('Failed to check admin access:', err)
+        setError('Failed to check admin access')
+        setAdminCheckComplete(true)
+      }
+    }
+
+    checkAdminAccess()
+  }, [router])
+
   // Add effect to load team and opponent info
   useEffect(() => {
+    // Only run if admin check is complete and user is admin
+    if (!adminCheckComplete || !isAdmin) return
+
     const loadTeamAndOpponentInfo = async () => {
       try {
         console.log('Starting to load team and opponent info...')
@@ -352,7 +391,7 @@ export default function PlayPoolPage() {
     }
     
     loadTeamAndOpponentInfo()
-  }, [supabase])
+  }, [supabase, adminCheckComplete, isAdmin])
 
   // Update total plays count whenever plays change
   useEffect(() => {
@@ -748,6 +787,28 @@ export default function PlayPoolPage() {
           >
             <Trash2 className="h-4 w-4" />
           </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Show loading while checking admin access
+  if (!adminCheckComplete) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    )
+  }
+
+  // Show access denied for non-admin users
+  if (!isAdmin) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
+          <p className="text-gray-600 mb-4">You need admin privileges to access the Play Pool.</p>
+          <Button onClick={() => router.push('/')}>Return to Home</Button>
         </div>
       </div>
     )

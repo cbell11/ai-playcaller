@@ -12,7 +12,7 @@ const navigation = [
   { name: "Admin", href: "/admin", icon: UserCog, adminOnly: true },
   { name: "Setup", href: "/setup" },
   { name: "Scouting", href: "/scouting" },
-  { name: "Play Pool", href: "/playpool" },
+  { name: "Play Pool", href: "/playpool", adminOnly: true },
   { name: "Game Plan", href: "/plan" },
 ]
 
