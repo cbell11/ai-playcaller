@@ -881,8 +881,8 @@ export default function MasterPlayPoolPage() {
             setNewPlay(defaultNewPlay)
           }
         }}>
-          <DialogContent className="max-w-[95%] md:max-w-[85%] lg:max-w-[75%] xl:max-w-[65%] max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="pb-2 flex flex-row items-center justify-between">
+          <DialogContent className="w-[90vw] max-w-[1200px] h-[85vh] flex flex-col">
+            <DialogHeader className="pb-2 flex flex-row items-center justify-between flex-shrink-0">
               <DialogTitle>Add New Play to Master Pool</DialogTitle>
               <Button
                 type="submit"
@@ -901,14 +901,14 @@ export default function MasterPlayPoolPage() {
               </Button>
             </DialogHeader>
             {notification && notification.type === 'error' && (
-              <div className="bg-red-50 text-red-700 border border-red-200 rounded-md p-2 mb-2">
+              <div className="bg-red-50 text-red-700 border border-red-200 rounded-md p-2 mb-2 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4" />
                   {notification.message}
                 </div>
               </div>
             )}
-            <div className="grid gap-3 py-2">
+            <div className="grid gap-3 py-2 overflow-y-auto flex-grow">{/* Rest of the content */}
               {/* Main Play Information - 3 columns */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {/* Category Selection */}
