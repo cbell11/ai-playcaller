@@ -796,6 +796,7 @@ export default function MasterPlayPoolPage() {
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
                     <SelectItem value="run_game">Run Game</SelectItem>
+                    <SelectItem value="rpo_game">RPO Game</SelectItem>
                     <SelectItem value="quick_game">Quick Game</SelectItem>
                     <SelectItem value="dropback_game">Dropback Game</SelectItem>
                     <SelectItem value="screen_game">Screen Game</SelectItem>
@@ -923,6 +924,7 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="run_game">Run Game</SelectItem>
+                      <SelectItem value="rpo_game">RPO Game</SelectItem>
                       <SelectItem value="quick_game">Quick Game</SelectItem>
                       <SelectItem value="dropback_game">Dropback Game</SelectItem>
                       <SelectItem value="screen_game">Screen Game</SelectItem>
