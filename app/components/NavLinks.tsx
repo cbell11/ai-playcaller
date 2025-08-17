@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { OpponentSelect } from "./OpponentSelect"
 import { createBrowserClient } from '@supabase/ssr'
-import { UserCog, HelpCircle, Wrench, Binoculars, ClipboardList } from 'lucide-react'
+import { UserCog, HelpCircle, Wrench, Binoculars, ClipboardList, Timer } from 'lucide-react'
 
 const navigation = [
   { name: "Admin", href: "/admin", icon: UserCog, adminOnly: true },
@@ -14,6 +14,7 @@ const navigation = [
   { name: "Scouting", href: "/scouting", icon: Binoculars },
   { name: "Play Pool", href: "/playpool", adminOnly: true },
   { name: "Game Plan", href: "/plan", icon: ClipboardList },
+  { name: "Practice", href: "/practice", icon: Timer, beta: true },
 ]
 
 export function NavLinks() {
@@ -92,7 +93,14 @@ export function NavLinks() {
             )}
           >
             {item.icon && <item.icon className="h-4 w-4" />}
-            {item.name}
+            <span className="flex items-center gap-2">
+              {item.name}
+              {item.beta && (
+                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-white bg-opacity-20 rounded">
+                  BETA
+                </span>
+              )}
+            </span>
           </Link>
         )
       })}
