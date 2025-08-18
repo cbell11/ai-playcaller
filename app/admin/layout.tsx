@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
-import { Loader2, UserCog, Book, PlayCircle, Shield } from 'lucide-react'
+import { Loader2, UserCog, Book, PlayCircle, Shield, Image } from 'lucide-react'
 import { cn } from "@/lib/utils"
 
 const adminTabs = [
@@ -27,6 +27,11 @@ const adminTabs = [
     name: "Scouting Terminology",
     href: "/admin/scouting-terminology",
     icon: Shield
+  },
+  {
+    name: "Scout Cards",
+    href: "/admin/scout-cards",
+    icon: Image
   }
 ]
 

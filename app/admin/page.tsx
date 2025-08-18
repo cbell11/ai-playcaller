@@ -19,7 +19,9 @@ interface Profile {
   role: string
   team_id: string | null
   created_at: string
-  team?: Team
+  team?: {
+    name: string
+  }
 }
 
 export default function AdminPage() {
@@ -74,7 +76,6 @@ export default function AdminPage() {
       setSearching(true)
       setError(null)
 
-      // Search in profiles table by email
       const { data: profiles, error } = await supabase
         .from('profiles')
         .select(`
@@ -94,10 +95,9 @@ export default function AdminPage() {
         throw error
       }
 
-      // Transform the results to match our Profile interface
       const formattedResults = profiles?.map(profile => ({
         ...profile,
-        team: profile.team ? { name: profile.team.name } : undefined
+        team: profile.team && Array.isArray(profile.team) && profile.team[0] ? { name: profile.team[0].name } : undefined
       })) || []
 
       setSearchResults(formattedResults)
@@ -123,7 +123,6 @@ export default function AdminPage() {
         throw error
       }
 
-      // Update the user in the search results
       setSearchResults(prevResults =>
         prevResults.map(user =>
           user.id === userId ? { ...user, role: newRole } : user
@@ -149,95 +148,95 @@ export default function AdminPage() {
 
   return (
     <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserCog className="h-6 w-6" />
-            User Management
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {/* Search Section */}
-            <div className="space-y-2">
-              <Label>Search Users</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Search by email..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value)
-                    setError(null)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      searchUsers()
-                    }
-                  }}
-                  className="flex-1"
-                />
-                <Button 
-                  onClick={searchUsers}
-                  disabled={searching}
-                >
-                  {searching ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4" />
-                  )}
-                  <span className="ml-2">Search</span>
-                </Button>
-              </div>
-              <p className="text-sm text-gray-500">
-                Search for users by their email address
-              </p>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <UserCog className="h-6 w-6" />
+          User Management
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          {/* Search Section */}
+          <div className="space-y-2">
+            <Label>Search Users</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Search by email..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setError(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    searchUsers()
+                  }
+                }}
+                className="flex-1"
+              />
+              <Button 
+                onClick={searchUsers}
+                disabled={searching}
+              >
+                {searching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+                <span className="ml-2">Search</span>
+              </Button>
             </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
-                {error}
-              </div>
-            )}
-
-            {/* Search Results */}
-            <div className="space-y-4">
-              {searchResults.length > 0 ? (
-                searchResults.map((profile) => (
-                  <div
-                    key={profile.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium">{profile.email}</p>
-                      <p className="text-sm text-gray-500">
-                        Team: {profile.team?.name || 'No team'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Select
-                        value={profile.role}
-                        onValueChange={(value) => updateUserRole(profile.id, value)}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">User</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                ))
-              ) : searchQuery && !searching ? (
-                <div className="flex items-center justify-center p-8 text-gray-500 border rounded-lg">
-                  <AlertCircle className="h-5 w-5 mr-2" />
-                  No users found
-                </div>
-              ) : null}
-            </div>
+            <p className="text-sm text-gray-500">
+              Search for users by their email address
+            </p>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* Search Results */}
+          <div className="space-y-4">
+            {searchResults.length > 0 ? (
+              searchResults.map((profile) => (
+                <div
+                  key={profile.id}
+                  className="flex items-center justify-between p-4 border rounded-lg"
+                >
+                  <div>
+                    <p className="font-medium">{profile.email}</p>
+                    <p className="text-sm text-gray-500">
+                      Team: {profile.team?.name || 'No team'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <Select
+                      value={profile.role}
+                      onValueChange={(value) => updateUserRole(profile.id, value)}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ))
+            ) : searchQuery && !searching ? (
+              <div className="flex items-center justify-center p-8 text-gray-500 border rounded-lg">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                No users found
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 } 
