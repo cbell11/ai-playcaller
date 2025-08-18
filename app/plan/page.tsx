@@ -1568,22 +1568,25 @@ export default function PlanPage() {
 
   // Add effect to load initial data
   const loadInitialData = useCallback(async () => {
-      try {
-        setLoading(true);
-        console.log('Loading initial data...');
+    try {
+      setLoading(true);
+      console.log('Loading initial data...');
 
-        // Get team and opponent IDs from localStorage
+      // Get team and opponent IDs from localStorage
       const teamId = isBrowser ? localStorage.getItem('selectedTeam') : null;
       const opponentId = isBrowser ? localStorage.getItem('selectedOpponent') : null;
 
-        if (!teamId || !opponentId) {
-          console.log('No team or opponent selected');
+      if (!teamId || !opponentId) {
+        console.log('No team or opponent selected');
         setLoading(false);
         return;
       }
 
-        setSelectedTeam(teamId);
-        setSelectedOpponent(opponentId);
+      setSelectedTeam(teamId);
+      setSelectedOpponent(opponentId);
+
+      // First, load scouting data to create dynamic sections
+      await loadScoutingData();
 
       // Get saved section sizes
       const savedSizes = isBrowser ? localStorage.getItem('sectionSizes') : null;
@@ -1591,120 +1594,118 @@ export default function PlanPage() {
 
       // Load game plan with current sizes
       const initialPlan = await fetchGamePlanFromDatabase(currentSizes);
-        if (initialPlan) {
-          console.log('Loaded initial game plan');
-          setPlan(initialPlan);
+      if (initialPlan) {
+        console.log('Loaded initial game plan');
+        setPlan(initialPlan);
         if (isBrowser) {
           save('plan', initialPlan);
         }
-        }
+      }
 
-        // Load play pool
-        console.log('Loading initial plays...');
-        const playData = await getPlayPool();
-        console.log('Initial plays loaded:', playData.length);
-        setPlayPool(playData.map(convertPlayToExtended));
-        
-        // Reset play pool related states
-        setShowPlayPool(false);
-        setPlayPoolSection(null);
-        setPlayPoolCategory('run_game');
-        setPlayPoolFilterType('category');
+      // Load play pool
+      console.log('Loading initial plays...');
+      const playData = await getPlayPool();
+      console.log('Initial plays loaded:', playData.length);
+      setPlayPool(playData.map(convertPlayToExtended));
+      
+      // Reset play pool related states
+      setShowPlayPool(false);
+      setPlayPoolSection(null);
+      setPlayPoolCategory('run_game');
+      setPlayPoolFilterType('category');
 
-        // Set up real-time subscription
-        console.log('Setting up real-time subscription for:', { teamId, opponentId });
-        
-        const subscription = browserClient
-          .channel('game_plan_changes')
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'game_plan',
-              filter: `team_id=eq.${teamId}&opponent_id=eq.${opponentId}`
-            },
-            async (payload) => {
-              console.log('Received database change:', payload);
-              try {
+      // Set up real-time subscription
+      console.log('Setting up real-time subscription for:', { teamId, opponentId });
+      
+      const subscription = browserClient
+        .channel('game_plan_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'game_plan',
+            filter: `team_id=eq.${teamId}&opponent_id=eq.${opponentId}`
+          },
+          async (payload) => {
+            console.log('Received database change:', payload);
+            try {
               // Get current section sizes for the update
               const currentSizes = isBrowser ? 
                 JSON.parse(localStorage.getItem('sectionSizes') || JSON.stringify(initialSectionSizes)) :
                 initialSectionSizes;
               const updatedPlan = await fetchGamePlanFromDatabase(currentSizes);
-                if (updatedPlan) {
-                  console.log('Updating plan from real-time change');
-                  setPlan(updatedPlan);
+              if (updatedPlan) {
+                console.log('Updating plan from real-time change');
+                setPlan(updatedPlan);
                 if (isBrowser) {
                   save('plan', updatedPlan);
                 }
-        }
-        } catch (error) {
-                console.error('Error handling real-time update:', error);
               }
+            } catch (error) {
+              console.error('Error handling real-time update:', error);
             }
-          )
-          .subscribe((status) => {
-            console.log('Subscription status:', status);
-          });
+          }
+        )
+        .subscribe((status) => {
+          console.log('Subscription status:', status);
+        });
 
-        return () => {
-          console.log('Cleaning up subscription');
-          subscription.unsubscribe();
-        };
-      } catch (error) {
-        console.error('Error loading initial data:', error);
-        setError('Failed to load game plan. Please try again.');
-        } finally {
-        setLoading(false);
-      }
+      return () => {
+        console.log('Cleaning up subscription');
+        subscription.unsubscribe();
+      };
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+      setError('Failed to load game plan. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [setLoading, setSelectedTeam, setSelectedOpponent, setPlan, setPlayPool, setShowPlayPool, setPlayPoolSection, setPlayPoolCategory, setPlayPoolFilterType, setError]);
 
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
 
-  // Update the opponent change effect to load data
+  // Update the handleOpponentChange function
   const handleOpponentChange = useCallback(async (event: Event) => {
-      const customEvent = event as CustomEvent<{ opponentId: string }>;
-      console.log('Opponent changed from sidebar, updating state...');
-      const opponentId = customEvent.detail.opponentId;
-      setSelectedOpponent(opponentId);
+    const customEvent = event as CustomEvent<{ opponentId: string }>;
+    console.log('Opponent changed from sidebar, updating state...');
+    const opponentId = customEvent.detail.opponentId;
+    setSelectedOpponent(opponentId);
 
-      // Load game plan data
-      try {
-        setLoading(true);
-      const teamId = isBrowser ? localStorage.getItem('selectedTeam') : null;
-        if (!teamId) {
-          throw new Error('No team selected');
-        }
+    try {
+      setLoading(true);
 
-        // Load game plan
-      const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
-        if (updatedPlan) {
-          console.log('Updating plan from opponent change');
-          setPlan(updatedPlan);
+      // First, load scouting data to create dynamic sections
+      await loadScoutingData();
+
+      // Then load game plan data
+      const gamePlan = await fetchGamePlanFromDatabase(sectionSizes);
+      if (gamePlan) {
+        console.log('Updating plan from opponent change');
+        setPlan(gamePlan);
         if (isBrowser) {
-          save('plan', updatedPlan);
+          save('plan', gamePlan);
         }
-        }
-
-        // Load play pool
-        console.log('Loading plays for new opponent...');
-        const playData = await getPlayPool();
-        console.log('Plays loaded:', playData.length);
-        setPlayPool(playData.map(convertPlayToExtended));
-        
-        // Reset play pool related states
-        setShowPlayPool(false);
-        setPlayPoolSection(null);
-        setPlayPoolCategory('run_game');
-        setPlayPoolFilterType('category');
-      } catch (error) {
-        console.error('Failed to load data for new opponent:', error);
-      } finally {
-        setLoading(false);
       }
+
+      // Load play pool data
+      console.log('Loading plays for new opponent...');
+      const playData = await getPlayPool();
+      console.log('Plays loaded:', playData.length);
+      setPlayPool(playData.map(convertPlayToExtended));
+      
+      // Reset play pool related states
+      setShowPlayPool(false);
+      setPlayPoolSection(null);
+      setPlayPoolCategory('run_game');
+      setPlayPoolFilterType('category');
+    } catch (error) {
+      console.error('Failed to load data for new opponent:', error);
+    } finally {
+      setLoading(false);
+    }
   }, [setSelectedOpponent, setLoading, setPlan, setPlayPool, setShowPlayPool, setPlayPoolSection, setPlayPoolCategory, setPlayPoolFilterType]);
 
   useEffect(() => {
@@ -1931,34 +1932,24 @@ export default function PlanPage() {
   // Update the play pool loading effect to depend on selectedOpponent only
   useEffect(() => {
     async function loadPlays() {
-      if (!selectedOpponent) {
-        setPlayPool([]);
-        return;
-      }
-
       try {
         setLoading(true);
-        console.log('Loading plays for new opponent...');
+        
+        // First, load scouting data to create dynamic sections
+        await loadScoutingData();
+        
+        // Then fetch game plan data
+        const gamePlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (gamePlan) {
+          setPlan(gamePlan);
+        } else {
+          // If no game plan exists, create an empty one with current section sizes
+          setPlan(createEmptyPlan(sectionSizes));
+        }
+
+        // Load play pool data
         const playData = await getPlayPool();
         console.log('Plays loaded:', playData.length);
-        
-        // Debug: Check categories in loaded plays
-        const categoryCounts = playData.reduce((acc, play) => {
-          acc[play.category] = (acc[play.category] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-        console.log('Play categories loaded:', categoryCounts);
-        
-        const screenPlays = playData.filter(p => p.category === 'screen_game');
-        console.log('Screen plays loaded:', screenPlays.length);
-        if (screenPlays.length > 0) {
-          console.log('Sample screen plays:', screenPlays.slice(0, 3).map(p => ({
-            name: p.concept,
-            formation: p.formations,
-            category: p.category
-          })));
-        }
-        
         setPlayPool(playData.map(convertPlayToExtended));
         
         // Reset play pool related states
@@ -1967,8 +1958,7 @@ export default function PlanPage() {
         setPlayPoolCategory('run_game');
         setPlayPoolFilterType('category');
       } catch (error) {
-        console.error('Failed to load play pool:', error);
-        setPlayPool([]);
+        console.error('Error loading plays:', error);
       } finally {
         setLoading(false);
       }
