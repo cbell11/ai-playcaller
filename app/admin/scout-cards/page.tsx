@@ -79,6 +79,43 @@ export default function ScoutCardsPage() {
     checkAdmin()
   }, [])
 
+  useEffect(() => {
+    const checkTerminology = async () => {
+      try {
+        const { data: terminology, error } = await supabase
+          .from('scouting_terminology')
+          .select('name, category')
+          .order('category')
+          .order('name')
+
+        if (error) {
+          console.error('Error fetching terminology:', error)
+          return
+        }
+
+        console.log('All terminology:', terminology.map(t => ({
+          name: t.name,
+          category: t.category
+        })))
+
+        // Group by category for easier viewing
+        const grouped = terminology.reduce((acc, curr) => {
+          if (!acc[curr.category]) {
+            acc[curr.category] = []
+          }
+          acc[curr.category].push(curr.name)
+          return acc
+        }, {} as Record<string, string[]>)
+
+        console.log('Grouped terminology:', grouped)
+      } catch (err) {
+        console.error('Error in checkTerminology:', err)
+      }
+    }
+
+    checkTerminology()
+  }, [])
+
   const fetchScoutingTerminology = async () => {
     try {
       const { data: frontsData, error: frontsError } = await supabase

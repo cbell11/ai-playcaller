@@ -8,11 +8,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Timer, Plus, Trash2, Search, Star } from 'lucide-react'
+import { Timer, Plus, Trash2, Search, Star, Image } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getScoutingReport } from '@/lib/scouting'
 
-// Define interfaces for our data structures
+interface ScoutCard {
+  id: string
+  image_url: string
+  team_id: string
+  front: string
+  coverage: string | null
+  blitz: string | null
+}
+
 interface PracticePlay {
   id: string;
   number: number;
@@ -22,6 +30,7 @@ interface PracticePlay {
   play: string;
   vs_front: string;
   vs_coverage: string;
+  scout_card?: ScoutCard
 }
 
 interface PracticeSection {
@@ -77,6 +86,7 @@ export default function PracticePage() {
   const [playPoolFilterType, setPlayPoolFilterType] = useState<'category' | 'search'>('category')
   const [playPoolCategory, setPlayPoolCategory] = useState<keyof typeof CATEGORIES>('run_game')
   const [searchResults, setSearchResults] = useState<GamePlanPlay[]>([])
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -93,18 +103,131 @@ export default function PracticePage() {
 
   // Add a listener for opponent changes
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'selectedOpponent') {
-        setOpponentId(e.newValue)
+    const handleStorageChange = async (event: StorageEvent) => {
+      if (event.key === 'selectedOpponent' && event.newValue) {
+        console.log('Storage event: Opponent changed to:', event.newValue);
+        if (event.newValue !== opponentId) {
+          setOpponentId(event.newValue);
+          
+          // Clear all current scout cards and sections
+          setSections([]);
+
+          // Load practice plan for new opponent
+          if (teamId && event.newValue) {
+            console.log('Loading practice plan for new opponent:', event.newValue);
+            try {
+              const { data, error } = await supabase
+                .from('practice_plans')
+                .select('*')
+                .eq('team_id', teamId)
+                .eq('opponent_id', event.newValue)
+                .single();
+
+              if (error) {
+                if (error.code === 'PGRST116') { // No data found
+                  console.log('No existing practice plan found for new opponent');
+                } else {
+                  console.error('Error loading practice plan:', error);
+                }
+              } else if (data?.sections) {
+                console.log('Found existing practice plan:', data);
+                setSections(data.sections);
+              }
+            } catch (err) {
+              console.error('Error in loadExistingPracticePlan:', err);
+            }
+          }
+
+          // Fetch scouting data for new opponent
+          fetchScoutingData();
+        }
       }
-      if (e.key === 'selectedTeam') {
-        setTeamId(e.newValue)
+      if (event.key === 'selectedTeam') {
+        setTeamId(event.newValue);
       }
     }
 
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
-  }, [])
+    // Fix the CustomEvent type
+    const handleOpponentChangeEvent = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ opponentId: string }>;
+      const newOpponentId = customEvent.detail?.opponentId;
+      if (newOpponentId && newOpponentId !== opponentId) {
+        console.log('Custom event: Opponent changed to:', newOpponentId);
+        
+        // Clear all current scout cards and sections
+        setSections([]);
+
+        // Update state and localStorage
+        setOpponentId(newOpponentId);
+        localStorage.setItem('selectedOpponent', newOpponentId);
+
+        // Load practice plan for new opponent
+        if (teamId && newOpponentId) {
+          console.log('Loading practice plan for new opponent:', newOpponentId);
+          try {
+            const { data, error } = await supabase
+              .from('practice_plans')
+              .select('*')
+              .eq('team_id', teamId)
+              .eq('opponent_id', newOpponentId)
+              .single();
+
+            if (error) {
+              if (error.code === 'PGRST116') { // No data found
+                console.log('No existing practice plan found for new opponent');
+              } else {
+                console.error('Error loading practice plan:', error);
+              }
+            } else if (data?.sections) {
+              console.log('Found existing practice plan:', data);
+              setSections(data.sections);
+            }
+          } catch (err) {
+            console.error('Error in loadExistingPracticePlan:', err);
+          }
+        }
+
+        // Fetch scouting data for new opponent
+        fetchScoutingData();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('opponentChanged', handleOpponentChangeEvent);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('opponentChanged', handleOpponentChangeEvent);
+    };
+  }, [opponentId, teamId]);
+
+  // Also update when opponent changes directly (not through storage event)
+  useEffect(() => {
+    const refreshScoutCards = async () => {
+      if (!opponentId) return
+
+      console.log('Refreshing scout cards for new opponent:', opponentId)
+      
+      const updatedSections = await Promise.all(sections.map(async (section) => {
+        const updatedPlays = await Promise.all(section.plays.map(async (play) => {
+          // Only search if there's a front selected
+          if (play.vs_front && play.vs_front !== 'none' && play.vs_front !== '-') {
+            console.log('Refreshing scout card for play:', {
+              front: play.vs_front,
+              coverage: play.vs_coverage
+            })
+            const matchingCard = await findMatchingScoutCard(play.vs_front, play.vs_coverage)
+            return { ...play, scout_card: matchingCard || undefined }
+          }
+          return play
+        }))
+        return { ...section, plays: updatedPlays }
+      }))
+      setSections(updatedSections)
+    }
+
+    refreshScoutCards()
+  }, [opponentId]) // Run when opponentId changes
 
   // Update the fetchGamePlanPlays to use the correct IDs
   useEffect(() => {
@@ -183,14 +306,13 @@ export default function PracticePage() {
       if (scoutingReportResult.success && scoutingReportResult.data) {
         const reportData = scoutingReportResult.data
         
+        // Log the exact terminology we're getting
+        console.log('Loaded scouting fronts:', reportData.fronts?.map(f => f.name))
+        console.log('Loaded scouting coverages:', reportData.coverages?.map(c => c.name))
+
         // Set the scouting data state
         setScoutingFronts(reportData.fronts || [])
         setScoutingCoverages(reportData.coverages || [])
-
-        console.log('Loaded scouting data:', {
-          fronts_count: reportData.fronts?.length || 0,
-          coverages_count: reportData.coverages?.length || 0
-        })
       } else {
         console.error('Failed to load scouting report:', scoutingReportResult.error)
         setScoutingFronts([])
@@ -656,41 +778,222 @@ export default function PracticePage() {
     )
   }
 
+  const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683'
+
+  const findMatchingScoutCard = async (front: string, coverage: string) => {
+    try {
+      console.log('Starting scout card search with inputs:', { 
+        front, 
+        coverage, 
+        teamId, 
+        DEFAULT_TEAM_ID,
+        frontType: typeof front,
+        coverageType: typeof coverage
+      })
+      
+      // Handle 'none' or '-' as null for coverage
+      const coverageValue = coverage === 'none' || coverage === '-' ? null : coverage.toLowerCase()
+      const frontValue = front.toLowerCase()
+      
+      console.log('Processed values:', { 
+        frontValue, 
+        coverageValue,
+        isNullCoverage: coverageValue === null
+      })
+
+      // First try with team's cards
+      if (teamId) {
+        let query = supabase
+          .from('scout_cards')
+          .select('*')
+          .eq('team_id', teamId)
+          .eq('front', frontValue)
+
+        // If coverage is null (user selected '-'), match cards with null OR empty coverage
+        if (coverageValue === null) {
+          query = query.or('coverage.is.null,coverage.eq.')
+        } else {
+          query = query.eq('coverage', coverageValue)
+        }
+
+        const { data: teamCard, error: teamError } = await query
+
+        console.log('Team search results:', {
+          found: !!teamCard?.length,
+          count: teamCard?.length || 0,
+          error: teamError?.message,
+          data: teamCard
+        })
+
+        if (!teamError && teamCard?.[0]) {
+          console.log('Found team scout card:', teamCard[0])
+          return teamCard[0]
+        }
+      }
+
+      // Then try with default team's cards
+      let defaultQuery = supabase
+        .from('scout_cards')
+        .select('*')
+        .eq('team_id', DEFAULT_TEAM_ID)
+        .eq('front', frontValue)
+
+      // If coverage is null (user selected '-'), match cards with null OR empty coverage
+      if (coverageValue === null) {
+        defaultQuery = defaultQuery.or('coverage.is.null,coverage.eq.')
+      } else {
+        defaultQuery = defaultQuery.eq('coverage', coverageValue)
+      }
+
+      const { data: defaultCard, error: defaultError } = await defaultQuery
+
+      console.log('Default team search results:', {
+        found: !!defaultCard?.length,
+        count: defaultCard?.length || 0,
+        error: defaultError?.message,
+        data: defaultCard
+      })
+
+      if (!defaultError && defaultCard?.[0]) {
+        console.log('Found default scout card:', defaultCard[0])
+        return defaultCard[0]
+      }
+
+      // For debugging, show all scout cards that match the front
+      const { data: allMatchingFront } = await supabase
+        .from('scout_cards')
+        .select('*')
+        .eq('team_id', DEFAULT_TEAM_ID)
+        .eq('front', frontValue)
+
+      console.log('All cards matching front:', {
+        front: frontValue,
+        count: allMatchingFront?.length || 0,
+        cards: allMatchingFront?.map(card => ({
+          front: card.front,
+          coverage: card.coverage,
+          coverageType: typeof card.coverage,
+          isEmpty: card.coverage === '',
+          isNull: card.coverage === null
+        }))
+      })
+
+      console.log('No matching scout card found')
+      return null
+    } catch (err) {
+      console.error('Error finding scout card:', err)
+      return null
+    }
+  }
+
+  const handleFrontCoverageChange = async (sectionId: string, playId: string, field: 'vs_front' | 'vs_coverage', value: string) => {
+    console.log('Handling change:', { field, value })
+
+    // Find the section and play first
+    const section = sections.find(s => s.id === sectionId)
+    if (!section) return
+
+    const playIndex = section.plays.findIndex(p => p.id === playId)
+    if (playIndex === -1) return
+
+    // Create new play with updated value
+    const updatedPlay = {
+      ...section.plays[playIndex],
+      [field]: value === 'none' || value === '-' ? '' : value
+    }
+
+    // Create new sections array with the updated play
+    const newSections = sections.map(s => {
+      if (s.id === sectionId) {
+        const newPlays = [...s.plays]
+        newPlays[playIndex] = updatedPlay
+        return { ...s, plays: newPlays }
+      }
+      return s
+    })
+
+    // Update state with the new value
+    setSections(newSections)
+
+    // Always search if we have a front value, regardless of which field changed
+    if (updatedPlay.vs_front && updatedPlay.vs_front !== 'none' && updatedPlay.vs_front !== '-') {
+      console.log('Searching for scout card with:', {
+        front: updatedPlay.vs_front,
+        coverage: updatedPlay.vs_coverage
+      })
+
+      const matchingCard = await findMatchingScoutCard(updatedPlay.vs_front, updatedPlay.vs_coverage)
+      
+      // Always update the section, either with the new card or removing the existing one
+      const sectionsWithCardUpdate = newSections.map(s => {
+        if (s.id === sectionId) {
+          const playsWithCardUpdate = s.plays.map((p, idx) => {
+            if (idx === playIndex) {
+              // If we found a match, use it; otherwise, remove any existing scout_card
+              return { ...p, scout_card: matchingCard || undefined }
+            }
+            return p
+          })
+          return { ...s, plays: playsWithCardUpdate }
+        }
+        return s
+      })
+      setSections(sectionsWithCardUpdate)
+    } else {
+      // If front is cleared or set to none/-, remove any existing scout card
+      const sectionsWithoutCard = newSections.map(s => {
+        if (s.id === sectionId) {
+          const playsWithoutCard = s.plays.map((p, idx) => {
+            if (idx === playIndex) {
+              // Remove the scout_card property
+              const { scout_card, ...playWithoutCard } = p
+              return playWithoutCard
+            }
+            return p
+          })
+          return { ...s, plays: playsWithoutCard }
+        }
+        return s
+      })
+      setSections(sectionsWithoutCard)
+    }
+  }
+
   const renderFrontDropdown = (sectionId: string, playId: string, currentValue: string) => (
     <Select 
       value={currentValue || "none"}
-      onValueChange={(value) => handlePlayChange(sectionId, playId, 'vs_front', value === "none" ? "" : value)}
+      onValueChange={(value) => handleFrontCoverageChange(sectionId, playId, 'vs_front', value)}
     >
       <SelectTrigger className="h-8">
         <SelectValue placeholder="Select front" />
       </SelectTrigger>
-              <SelectContent>
-          <SelectItem value="none">-</SelectItem>
-          {scoutingFronts.map((front) => (
-            <SelectItem key={front.id || front.name} value={front.name}>
-              {front.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
+      <SelectContent>
+        <SelectItem value="none">-</SelectItem>
+        {scoutingFronts.map((front) => (
+          <SelectItem key={front.id || front.name} value={front.name.toLowerCase()}>
+            {front.name.toLowerCase()}
+          </SelectItem>
+        ))}
+      </SelectContent>
     </Select>
   )
 
   const renderCoverageDropdown = (sectionId: string, playId: string, currentValue: string) => (
     <Select 
       value={currentValue || "none"}
-      onValueChange={(value) => handlePlayChange(sectionId, playId, 'vs_coverage', value === "none" ? "" : value)}
+      onValueChange={(value) => handleFrontCoverageChange(sectionId, playId, 'vs_coverage', value)}
     >
       <SelectTrigger className="h-8">
         <SelectValue placeholder="Select coverage" />
       </SelectTrigger>
-              <SelectContent>
-          <SelectItem value="none">-</SelectItem>
-          {scoutingCoverages.map((coverage) => (
-            <SelectItem key={coverage.id || coverage.name} value={coverage.name}>
-              {coverage.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
+      <SelectContent>
+        <SelectItem value="none">-</SelectItem>
+        {scoutingCoverages.map((coverage) => (
+          <SelectItem key={coverage.id || coverage.name} value={coverage.name.toLowerCase()}>
+            {coverage.name.toLowerCase()}
+          </SelectItem>
+        ))}
+      </SelectContent>
     </Select>
   )
 
@@ -748,6 +1051,7 @@ export default function PracticePage() {
                   <th className="p-2 text-left w-4"></th>
                   <th className="p-2 text-left w-40">Front</th>
                   <th className="p-2 text-left w-40">Coverage</th>
+                  <th className="p-2 text-center w-8">Card</th>
                   <th className="p-2 text-right w-12"></th>
                 </tr>
               </thead>
@@ -794,6 +1098,18 @@ export default function PracticePage() {
                     </td>
                     <td className="p-2">
                       {renderCoverageDropdown(section.id, play.id, play.vs_coverage)}
+                    </td>
+                    <td className="p-2 text-center">
+                      {play.scout_card ? (
+                        <img
+                          src={play.scout_card.image_url}
+                          alt="Scout card thumbnail"
+                          className="h-8 w-8 object-cover rounded cursor-pointer mx-auto"
+                          onClick={() => play.scout_card?.image_url && setSelectedImage(play.scout_card.image_url)}
+                        />
+                      ) : (
+                        <Image className="h-4 w-4 text-gray-600 mx-auto" />
+                      )}
                     </td>
                     <td className="p-2 text-right">
                       <Button variant="ghost" size="sm" onClick={() => {
@@ -854,6 +1170,20 @@ export default function PracticePage() {
           )}
         </div>
       )}
+
+      {/* Image Preview Dialog */}
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden">
+          {selectedImage && (
+            <img
+              src={selectedImage}
+              alt="Scout card"
+              className="w-full h-auto"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   )
