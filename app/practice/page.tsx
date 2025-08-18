@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -108,6 +108,14 @@ export default function PracticePage() {
     coverage: string | null;
     currentCard: ScoutCard;
   } | null>(null);
+
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+
+  // Add state for upload success message
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  // Add state to track if Cloudinary widget is open
+  const [isWidgetOpen, setIsWidgetOpen] = useState(false);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1235,17 +1243,32 @@ export default function PracticePage() {
     return <Image className="h-4 w-4 text-gray-600 mx-auto" />;
   };
 
-  // Update the Add Scout Card modal description
+  // Update the modal to handle overlay differently when widget is open
   const renderAddScoutCardModal = () => (
-    <Dialog open={showAddScoutCardModal} onOpenChange={(open) => {
-      if (!open) {
-        setNewScoutCardUrl('');
-        setSelectedPlayForCard(null);
-        setSelectedScoutCardPlay(null);
-      }
-      setShowAddScoutCardModal(open);
-    }}>
-      <DialogContent>
+    <Dialog 
+      open={showAddScoutCardModal} 
+      onOpenChange={(open) => {
+        if (!isWidgetOpen) {
+          if (!open) {
+            setNewScoutCardUrl('');
+            setSelectedPlayForCard(null);
+            setSelectedScoutCardPlay(null);
+            setUploadSuccess(false);
+          }
+          setShowAddScoutCardModal(open);
+        }
+      }}
+      modal={!isWidgetOpen} // Make dialog non-modal when widget is open
+    >
+      <DialogContent 
+        className={`z-[100] ${isWidgetOpen ? 'pointer-events-none opacity-50' : ''}`}
+        onPointerDownOutside={(e) => {
+          // Prevent closing when widget is open
+          if (isWidgetOpen) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {selectedScoutCardPlay ? 'Replace Scout Card' : 'Add New Scout Card'}
@@ -1257,26 +1280,54 @@ export default function PracticePage() {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <p className="text-sm text-gray-500">
-            Please enter the URL for your scout card image. File upload functionality will be available soon.
-          </p>
+          <div className="flex flex-col gap-4">
+            <div>
+              <Label className="mb-2 block">Option 1: Upload Image</Label>
+              <Button
+                variant="outline"
+                onClick={initializeWidget}
+                className="bg-blue-500 hover:bg-blue-600 text-white hover:text-white border-blue-500 w-full"
+                disabled={isWidgetOpen}
+              >
+                Upload Files
+              </Button>
+              {uploadSuccess && (
+                <div className="mt-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded-md flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Upload successful! Click 'Save Scout Card' to confirm.
+                </div>
+              )}
+            </div>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500">or</span>
+              </div>
+            </div>
+            <div>
+              <Label className="mb-2 block">Option 2: Enter Image URL</Label>
+              <Input
+                type="url"
+                placeholder="Enter image URL or upload above"
+                value={newScoutCardUrl}
+                onChange={(e) => {
+                  setNewScoutCardUrl(e.target.value);
+                  setAddCardError(null);
+                  setUploadSuccess(false);
+                }}
+              />
+            </div>
+          </div>
+
           {addCardError && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
               {addCardError}
             </div>
           )}
-          <div className="space-y-2">
-            <Label>Image URL</Label>
-            <Input
-              type="url"
-              placeholder="Enter image URL"
-              value={newScoutCardUrl}
-              onChange={(e) => {
-                setNewScoutCardUrl(e.target.value);
-                setAddCardError(null);
-              }}
-            />
-          </div>
 
           {newScoutCardUrl && (
             <div className="space-y-2">
@@ -1303,6 +1354,7 @@ export default function PracticePage() {
               setNewScoutCardUrl('');
               setSelectedPlayForCard(null);
               setSelectedScoutCardPlay(null);
+              setUploadSuccess(false);
             }}
           >
             Cancel
@@ -1325,6 +1377,59 @@ export default function PracticePage() {
       </DialogContent>
     </Dialog>
   );
+
+  // Add back the Cloudinary script initialization
+  useEffect(() => {
+    // Add Cloudinary script
+    const script = document.createElement('script');
+    script.src = 'https://upload-widget.cloudinary.com/latest/global/all.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      // Only remove the script if it exists
+      const existingScript = document.querySelector(`script[src="${script.src}"]`);
+      if (existingScript && existingScript.parentNode) {
+        existingScript.parentNode.removeChild(existingScript);
+      }
+    };
+  }, []);
+
+  // Update the widget initialization with z-index configuration
+  const initializeWidget = useCallback(() => {
+    if ((window as any).cloudinary) {
+      setIsWidgetOpen(true); // Set widget as open
+      const myWidget = (window as any).cloudinary.createUploadWidget({
+        cloudName: 'dfvzvbygc',
+        uploadPreset: 'AIPlaycallerScoutCards',
+        sources: ['local', 'url', 'camera'],
+        multiple: false,
+        maxFiles: 1,
+        styles: {
+          frame: {
+            zIndex: 2147483647 // Maximum z-index value
+          }
+        }
+      }, (error: any, result: any) => {
+        if (!error && result) {
+          if (result.event === "success") {
+            console.log('Done! Here is the image info: ', result.info);
+            const imageUrl = result.info.secure_url;
+            setNewScoutCardUrl(imageUrl);
+            setUploadSuccess(true);
+            setIsWidgetOpen(false); // Set widget as closed
+            myWidget.close();
+          } else if (result.event === "close") {
+            setIsWidgetOpen(false); // Set widget as closed when user closes it
+          }
+        }
+      });
+
+      myWidget.open();
+    } else {
+      console.error('Cloudinary widget script not loaded');
+    }
+  }, []);
 
   return (
     <div className="space-y-4">
