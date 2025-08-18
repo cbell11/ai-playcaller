@@ -1031,17 +1031,17 @@ export default function PracticePage() {
 
     try {
       console.log('Creating new scout card:', {
-        team_id: teamId, // Use the user's team_id instead of DEFAULT_TEAM_ID
+        team_id: DEFAULT_TEAM_ID, // Always save to default team
         front: selectedPlayForCard.front.toLowerCase(),
         coverage: selectedPlayForCard.coverage?.toLowerCase() || null,
         image_url: newScoutCardUrl
       });
 
-      // Insert new scout card with user's team_id
+      // Insert new scout card with default team_id
       const { data, error } = await supabase
         .from('scout_cards')
         .insert({
-          team_id: teamId, // Use the user's team_id
+          team_id: DEFAULT_TEAM_ID, // Always save to default team
           front: selectedPlayForCard.front.toLowerCase(),
           coverage: selectedPlayForCard.coverage?.toLowerCase() || null,
           image_url: newScoutCardUrl
@@ -1104,7 +1104,7 @@ export default function PracticePage() {
       const { data: existingCard } = await supabase
         .from('scout_cards')
         .select('*')
-        .eq('team_id', teamId)
+        .eq('team_id', DEFAULT_TEAM_ID) // Check default team instead of user's team
         .eq('front', selectedScoutCardPlay.front.toLowerCase())
         .eq('coverage', selectedScoutCardPlay.coverage?.toLowerCase() || null)
         .single();
@@ -1141,11 +1141,11 @@ export default function PracticePage() {
         });
         setSections(newSections);
       } else {
-        // Create new card for this team
+        // Create new card for default team
         const { data, error } = await supabase
           .from('scout_cards')
           .insert({
-            team_id: teamId,
+            team_id: DEFAULT_TEAM_ID, // Always save to default team
             front: selectedScoutCardPlay.front.toLowerCase(),
             coverage: selectedScoutCardPlay.coverage?.toLowerCase() || null,
             image_url: newScoutCardUrl
@@ -1786,37 +1786,35 @@ export default function PracticePage() {
           setSelectedScoutCardPlay(null);
         }
       }}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden">
+        <DialogContent className="max-w-4xl p-0 overflow-hidden flex flex-col">
           <DialogHeader className="sr-only">
             <DialogTitle>Scout Card Preview</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col">
+          <div className="flex-1 overflow-auto">
             {selectedImage && (
-              <>
-                <img
-                  src={selectedImage}
-                  alt="Scout card"
-                  className="w-full h-auto"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                {/* Only show Replace button if this is not the user's team's card */}
-                {selectedScoutCardPlay && selectedScoutCardPlay.currentCard.team_id !== teamId && (
-                  <div className="p-4 bg-white border-t flex justify-center">
-                    <Button
-                      variant="outline"
-                      className="bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
-                      onClick={() => {
-                        setShowAddScoutCardModal(true);
-                        setSelectedImage(null); // Close the preview dialog
-                      }}
-                    >
-                      Replace
-                    </Button>
-                  </div>
-                )}
-              </>
+              <img
+                src={selectedImage}
+                alt="Scout card"
+                className="w-full h-auto object-contain max-h-[730px]"
+                onClick={(e) => e.stopPropagation()}
+              />
             )}
           </div>
+          {/* Always show Replace button for scout cards */}
+          {selectedImage && (
+            <div className="p-4 bg-white border-t flex justify-center shrink-0">
+              <Button
+                variant="outline"
+                className="bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
+                onClick={() => {
+                  setShowAddScoutCardModal(true);
+                  setSelectedImage(null); // Close the preview dialog
+                }}
+              >
+                Replace
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
