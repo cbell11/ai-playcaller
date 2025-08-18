@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Timer, Plus, Trash2, Search, Star, Image } from 'lucide-react'
+import { Timer, Plus, Trash2, Search, Star, Image, Loader2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getScoutingReport } from '@/lib/scouting'
 
@@ -87,6 +87,18 @@ export default function PracticePage() {
   const [playPoolCategory, setPlayPoolCategory] = useState<keyof typeof CATEGORIES>('run_game')
   const [searchResults, setSearchResults] = useState<GamePlanPlay[]>([])
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [showAddScoutCardModal, setShowAddScoutCardModal] = useState(false)
+  const [newScoutCardUrl, setNewScoutCardUrl] = useState('')
+  const [isSubmittingNewCard, setIsSubmittingNewCard] = useState(false)
+  const [selectedPlayForCard, setSelectedPlayForCard] = useState<{
+    sectionId: string;
+    playId: string;
+    front: string;
+    coverage: string | null;
+  } | null>(null)
+
+  // Add error state for the modal
+  const [addCardError, setAddCardError] = useState<string | null>(null);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -997,6 +1009,118 @@ export default function PracticePage() {
     </Select>
   )
 
+  // Add function to handle new scout card submission
+  const handleSubmitNewScoutCard = async () => {
+    if (!selectedPlayForCard || !newScoutCardUrl || !teamId) {
+      setAddCardError('Missing required information');
+      return;
+    }
+
+    setIsSubmittingNewCard(true);
+    setAddCardError(null);
+
+    try {
+      console.log('Creating new scout card:', {
+        team_id: DEFAULT_TEAM_ID,
+        front: selectedPlayForCard.front.toLowerCase(),
+        coverage: selectedPlayForCard.coverage?.toLowerCase() || null,
+        image_url: newScoutCardUrl
+      });
+
+      // Insert new scout card
+      const { data, error } = await supabase
+        .from('scout_cards')
+        .insert({
+          team_id: DEFAULT_TEAM_ID,
+          front: selectedPlayForCard.front.toLowerCase(),
+          coverage: selectedPlayForCard.coverage?.toLowerCase() || null,
+          image_url: newScoutCardUrl
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase error creating scout card:', error);
+        throw new Error(error.message);
+      }
+
+      if (!data) {
+        throw new Error('No data returned from insert');
+      }
+
+      console.log('Successfully created scout card:', data);
+
+      // Update the play with the new scout card
+      const newSections = sections.map(section => {
+        if (section.id === selectedPlayForCard.sectionId) {
+          const newPlays = section.plays.map(play => {
+            if (play.id === selectedPlayForCard.playId) {
+              return { ...play, scout_card: data };
+            }
+            return play;
+          });
+          return { ...section, plays: newPlays };
+        }
+        return section;
+      });
+      setSections(newSections);
+
+      // Reset state
+      setShowAddScoutCardModal(false);
+      setNewScoutCardUrl('');
+      setSelectedPlayForCard(null);
+      setAddCardError(null);
+
+    } catch (err) {
+      console.error('Error creating new scout card:', err);
+      setAddCardError(err instanceof Error ? err.message : 'Failed to create scout card');
+    } finally {
+      setIsSubmittingNewCard(false);
+    }
+  };
+
+  // Modify the table cell render to include the Add button
+  const renderScoutCardCell = (play: PracticePlay, sectionId: string, playId: string) => {
+    if (!play.vs_front) {
+      return <Image className="h-4 w-4 text-gray-600 mx-auto" />;
+    }
+
+    if (play.scout_card) {
+      return (
+        <img
+          src={play.scout_card.image_url}
+          alt="Scout card thumbnail"
+          className="h-8 w-8 object-cover rounded cursor-pointer mx-auto"
+          onClick={() => {
+            if (play.scout_card?.image_url) {
+              setSelectedImage(play.scout_card.image_url);
+            }
+          }}
+        />
+      );
+    }
+
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
+        onClick={() => {
+          setAddCardError(null); // Clear any previous errors
+          setSelectedPlayForCard({
+            sectionId,
+            playId,
+            front: play.vs_front,
+            coverage: play.vs_coverage === '-' ? null : play.vs_coverage
+          });
+          setShowAddScoutCardModal(true);
+        }}
+      >
+        Add
+      </Button>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -1100,16 +1224,7 @@ export default function PracticePage() {
                       {renderCoverageDropdown(section.id, play.id, play.vs_coverage)}
                     </td>
                     <td className="p-2 text-center">
-                      {play.scout_card ? (
-                        <img
-                          src={play.scout_card.image_url}
-                          alt="Scout card thumbnail"
-                          className="h-8 w-8 object-cover rounded cursor-pointer mx-auto"
-                          onClick={() => play.scout_card?.image_url && setSelectedImage(play.scout_card.image_url)}
-                        />
-                      ) : (
-                        <Image className="h-4 w-4 text-gray-600 mx-auto" />
-                      )}
+                      {renderScoutCardCell(play, section.id, play.id)}
                     </td>
                     <td className="p-2 text-right">
                       <Button variant="ghost" size="sm" onClick={() => {
@@ -1182,6 +1297,86 @@ export default function PracticePage() {
               onClick={(e) => e.stopPropagation()}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Scout Card Modal */}
+      <Dialog open={showAddScoutCardModal} onOpenChange={(open) => {
+        if (!open) {
+          setNewScoutCardUrl('');
+          setSelectedPlayForCard(null);
+        }
+        setShowAddScoutCardModal(open);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Scout Card</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-500">
+              Please enter the URL for your scout card image. File upload functionality will be available soon.
+            </p>
+            {addCardError && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+                {addCardError}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Image URL</Label>
+              <Input
+                type="url"
+                placeholder="Enter image URL"
+                value={newScoutCardUrl}
+                onChange={(e) => {
+                  setNewScoutCardUrl(e.target.value);
+                  setAddCardError(null); // Clear error when input changes
+                }}
+              />
+            </div>
+
+            {newScoutCardUrl && (
+              <div className="space-y-2">
+                <Label>Preview</Label>
+                <div className="border rounded-lg overflow-hidden">
+                  <img
+                    src={newScoutCardUrl}
+                    alt="Scout card preview"
+                    className="w-full h-auto max-h-[300px] object-contain"
+                    onError={(e) => {
+                      e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>';
+                      e.currentTarget.className = 'w-full h-[300px] object-contain p-4 bg-gray-100';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddScoutCardModal(false);
+                setNewScoutCardUrl('');
+                setSelectedPlayForCard(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitNewScoutCard}
+              disabled={!newScoutCardUrl || isSubmittingNewCard}
+              className="bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              {isSubmittingNewCard ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Saving...
+                </>
+              ) : (
+                'Save Scout Card'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

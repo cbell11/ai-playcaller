@@ -2,8 +2,8 @@
 create table if not exists public.scout_cards (
     id uuid default gen_random_uuid() primary key,
     front text not null,
-    coverage text not null,
-    blitz text not null,
+    coverage text,  -- Allow null values
+    blitz text,     -- Allow null values
     image_url text not null,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null
