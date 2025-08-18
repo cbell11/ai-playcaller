@@ -340,7 +340,7 @@ export default function PracticePage() {
         // Log the exact terminology we're getting
         console.log('Loaded scouting fronts:', reportData.fronts?.map(f => f.name))
         console.log('Loaded scouting coverages:', reportData.coverages?.map(c => c.name))
-
+        
         // Set the scouting data state
         setScoutingFronts(reportData.fronts || [])
         setScoutingCoverages(reportData.coverages || [])
@@ -989,14 +989,14 @@ export default function PracticePage() {
       <SelectTrigger className="h-8">
         <SelectValue placeholder="Select front" />
       </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="none">-</SelectItem>
-        {scoutingFronts.map((front) => (
+              <SelectContent>
+          <SelectItem value="none">-</SelectItem>
+          {scoutingFronts.map((front) => (
           <SelectItem key={front.id || front.name} value={front.name.toLowerCase()}>
             {front.name.toLowerCase()}
-          </SelectItem>
-        ))}
-      </SelectContent>
+            </SelectItem>
+          ))}
+        </SelectContent>
     </Select>
   )
 
@@ -1008,14 +1008,14 @@ export default function PracticePage() {
       <SelectTrigger className="h-8">
         <SelectValue placeholder="Select coverage" />
       </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="none">-</SelectItem>
-        {scoutingCoverages.map((coverage) => (
+              <SelectContent>
+          <SelectItem value="none">-</SelectItem>
+          {scoutingCoverages.map((coverage) => (
           <SelectItem key={coverage.id || coverage.name} value={coverage.name.toLowerCase()}>
             {coverage.name.toLowerCase()}
-          </SelectItem>
-        ))}
-      </SelectContent>
+            </SelectItem>
+          ))}
+        </SelectContent>
     </Select>
   )
 

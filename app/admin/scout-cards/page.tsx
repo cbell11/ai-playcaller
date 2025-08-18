@@ -21,6 +21,15 @@ interface DuplicateCard {
   image_url: string
 }
 
+interface ScoutCard {
+  id: string;
+  front: string;
+  coverage: string | null;
+  blitz: string | null;
+  image_url: string;
+  team_id: string;
+}
+
 const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683'
 
 export default function ScoutCardsPage() {
@@ -37,6 +46,15 @@ export default function ScoutCardsPage() {
   const [duplicateCard, setDuplicateCard] = useState<DuplicateCard | null>(null)
   const [showDuplicateModal, setShowDuplicateModal] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+
+  // Add state for scout cards table
+  const [scoutCards, setScoutCards] = useState<ScoutCard[]>([]);
+  const [loadingCards, setLoadingCards] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+
+  // Add filter states with null for "all" selection
+  const [frontFilter, setFrontFilter] = useState<string | null>(null);
+  const [coverageFilter, setCoverageFilter] = useState<string | null>(null);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -284,6 +302,52 @@ export default function ScoutCardsPage() {
     }
   }
 
+  // Add effect to fetch all scout cards
+  useEffect(() => {
+    const fetchScoutCards = async () => {
+      try {
+        setLoadingCards(true);
+        setCardError(null);
+        
+        const { data, error } = await supabase
+          .from('scout_cards')
+          .select('*')
+          .order('front', { ascending: true });
+
+        if (error) throw error;
+
+        setScoutCards(data || []);
+      } catch (err) {
+        console.error('Error fetching scout cards:', err);
+        setCardError('Failed to load scout cards');
+      } finally {
+        setLoadingCards(false);
+      }
+    };
+
+    fetchScoutCards();
+  }, []);
+
+  // Add function to get unique values for filters
+  const getUniqueValues = (cards: ScoutCard[], field: 'front' | 'coverage') => {
+    const values = new Set<string>();
+    cards.forEach(card => {
+      if (card[field]) {
+        values.add(card[field] as string);
+      }
+    });
+    return Array.from(values).sort();
+  };
+
+  // Add function to filter cards
+  const getFilteredCards = () => {
+    return scoutCards.filter(card => {
+      const matchesFront = !frontFilter || card.front === frontFilter;
+      const matchesCoverage = !coverageFilter || card.coverage === coverageFilter;
+      return matchesFront && matchesCoverage;
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -303,15 +367,16 @@ export default function ScoutCardsPage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ImageIcon className="h-6 w-6" />
-          Scout Cards Management
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-6">
+    <div className="space-y-6">
+      {/* Existing Scout Cards Management Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="h-6 w-6" />
+            Scout Cards Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           {showSuccess && (
             <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md text-sm flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
@@ -473,8 +538,114 @@ export default function ScoutCardsPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Scout Cards Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="h-6 w-6" />
+            Scout Cards Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {cardError && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+              {cardError}
+            </div>
+          )}
+          
+          {loadingCards ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <>
+              {/* Filters */}
+              <div className="mb-6 grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-2 block">Filter by Front</Label>
+                  <Select 
+                    value={frontFilter || "all"} 
+                    onValueChange={(value) => setFrontFilter(value === "all" ? null : value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Fronts" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Fronts</SelectItem>
+                      {getUniqueValues(scoutCards, 'front').map(front => (
+                        <SelectItem key={front} value={front}>
+                          {front}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="mb-2 block">Filter by Coverage</Label>
+                  <Select 
+                    value={coverageFilter || "all"} 
+                    onValueChange={(value) => setCoverageFilter(value === "all" ? null : value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Coverages" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Coverages</SelectItem>
+                      {getUniqueValues(scoutCards, 'coverage').map(coverage => (
+                        <SelectItem key={coverage} value={coverage}>
+                          {coverage || 'None'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2 font-medium w-48">Front</th>
+                      <th className="text-left p-2 font-medium w-48">Coverage</th>
+                      <th className="text-left p-2 font-medium w-48">Blitz</th>
+                      <th className="text-left p-2 font-medium w-[500px]">Image</th>
+                      <th className="text-left p-2 font-medium w-24">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getFilteredCards().map((card) => (
+                      <tr key={card.id} className="border-b">
+                        <td className="p-2">{card.front}</td>
+                        <td className="p-2">{card.coverage || '-'}</td>
+                        <td className="p-2">{card.blitz || '-'}</td>
+                        <td className="p-2">
+                          <div className="w-[500px] h-[300px] relative">
+                            <img 
+                              src={card.image_url} 
+                              alt="Scout card" 
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        </td>
+                        <td className="p-2 text-center">
+                          {card.team_id === DEFAULT_TEAM_ID && (
+                            <span className="px-2 py-1 bg-blue-500 text-white rounded text-sm whitespace-nowrap">
+                              Default
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 } 
