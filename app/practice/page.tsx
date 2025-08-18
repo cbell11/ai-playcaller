@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Timer, Plus, Trash2, Search, Star, Image, Loader2 } from 'lucide-react'
+import { Timer, Plus, Trash2, Search, Star, Image, Loader2, Printer } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getScoutingReport } from '@/lib/scouting'
 
@@ -1332,6 +1332,185 @@ export default function PracticePage() {
             Practice Plan
           </CardTitle>
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline"
+              onClick={() => {
+                const printWindow = window.open('', '_blank');
+                if (!printWindow) return;
+
+                const content = `
+                  <!DOCTYPE html>
+                  <html>
+                    <head>
+                      <title>Practice Script</title>
+                      <style>
+                        body { 
+                          font-family: Arial, sans-serif;
+                          margin: 0;
+                          padding: 20px;
+                        }
+                        table { 
+                          width: 100%; 
+                          border-collapse: collapse; 
+                          margin-bottom: 10px;
+                          font-size: 12px;
+                        }
+                        th, td { 
+                          border: 1px solid #ddd; 
+                          padding: 4px 8px; 
+                          text-align: left; 
+                        }
+                        th { 
+                          background-color: #f5f5f5; 
+                          font-size: 12px;
+                        }
+                        h2 { 
+                          margin: 10px 0;
+                          font-size: 14px;
+                          page-break-before: auto;
+                        }
+                        @media print {
+                          .no-print { display: none; }
+                          @page { 
+                            margin: 1cm;
+                            size: portrait;
+                          }
+                          body {
+                            padding: 0;
+                          }
+                          table {
+                            page-break-inside: avoid;
+                          }
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="no-print">
+                        <button onclick="window.print()">Print</button>
+                        <hr>
+                      </div>
+                      ${sections.map((section: PracticeSection) => `
+                        <h2>${section.name}</h2>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>Dn</th>
+                              <th>Dist</th>
+                              <th>Hash</th>
+                              <th>Play</th>
+                              <th>Front</th>
+                              <th>Coverage</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${section.plays.map((play: PracticePlay) => `
+                              <tr>
+                                <td>${play.number}</td>
+                                <td>${play.dn || ''}</td>
+                                <td>${play.dist || ''}</td>
+                                <td>${play.hash === 'none' ? '' : play.hash}</td>
+                                <td>${play.play || ''}</td>
+                                <td>${play.vs_front === 'none' ? '' : play.vs_front}</td>
+                                <td>${play.vs_coverage === 'none' ? '' : play.vs_coverage}</td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
+                      `).join('')}
+                    </body>
+                  </html>
+                `;
+
+                printWindow.document.write(content);
+                printWindow.document.close();
+              }}
+              className="gap-2 bg-[#2ECC70] hover:bg-[#27AE60] text-white hover:text-white border-[#2ECC70] cursor-pointer"
+            >
+              <Printer className="h-4 w-4" />
+              Print Script
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => {
+                const printWindow = window.open('', '_blank');
+                if (!printWindow) return;
+
+                const uniqueCards = new Set<string>();
+                sections.forEach((section: PracticeSection) => {
+                  section.plays.forEach((play: PracticePlay) => {
+                    if (play.scout_card) {
+                      uniqueCards.add(play.scout_card.image_url);
+                    }
+                  });
+                });
+
+                const content = `
+                  <!DOCTYPE html>
+                  <html>
+                    <head>
+                      <title>Scout Cards</title>
+                      <style>
+                        body { 
+                          font-family: Arial, sans-serif;
+                          margin: 0;
+                          padding: 20px;
+                        }
+                        .card-container {
+                          width: 100%;
+                          height: 100vh;
+                          display: flex;
+                          justify-content: center;
+                          align-items: center;
+                          page-break-after: always;
+                        }
+                        .card-container:last-child {
+                          page-break-after: avoid;
+                        }
+                        img {
+                          max-width: 100%;
+                          max-height: 90vh;
+                          object-fit: contain;
+                        }
+                        @media print {
+                          .no-print { display: none; }
+                          @page { 
+                            margin: 1cm;
+                            size: portrait;
+                          }
+                          body {
+                            padding: 0;
+                          }
+                          .card-container {
+                            page-break-after: always;
+                            margin: 0;
+                            height: 100vh;
+                          }
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="no-print">
+                        <button onclick="window.print()">Print</button>
+                        <hr>
+                      </div>
+                      ${Array.from(uniqueCards).map(url => `
+                        <div class="card-container">
+                          <img src="${url}" alt="Scout card">
+                        </div>
+                      `).join('')}
+                    </body>
+                  </html>
+                `;
+
+                printWindow.document.write(content);
+                printWindow.document.close();
+              }}
+              className="gap-2 bg-[#2ECC70] hover:bg-[#27AE60] text-white hover:text-white border-[#2ECC70] cursor-pointer"
+            >
+              <Printer className="h-4 w-4" />
+              Print Cards
+            </Button>
             <Button onClick={() => setIsAddSectionOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Add Section
