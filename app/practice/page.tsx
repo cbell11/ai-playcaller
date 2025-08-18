@@ -510,8 +510,11 @@ export default function PracticePage() {
             })
           }
         } else {
-          // Remove plays
+          // Remove plays and renumber remaining ones
           newPlays = newPlays.slice(0, newCount)
+          newPlays.forEach((play, index) => {
+            play.number = index + 1
+          })
         }
         return { ...section, play_count: newCount, plays: newPlays }
       }
@@ -1611,6 +1614,10 @@ export default function PracticePage() {
                       <Button variant="ghost" size="sm" onClick={() => {
                         const newPlays = [...section.plays]
                         newPlays.splice(playIndex, 1)
+                        // Renumber remaining plays
+                        newPlays.forEach((play, index) => {
+                          play.number = index + 1
+                        })
                         const newSections = sections.map(s => 
                           s.id === section.id ? { ...s, plays: newPlays } : s
                         )
