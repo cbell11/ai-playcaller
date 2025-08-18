@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Timer, Plus, Trash2, Search, Star } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getScoutingReport } from '@/lib/scouting'
 
 // Define interfaces for our data structures
 interface PracticePlay {
@@ -40,6 +41,14 @@ interface GamePlanPlay {
   customized_edit?: string;
 }
 
+interface ScoutingOption {
+  id?: string
+  name: string
+  fieldArea?: string
+  dominateDown?: string
+  notes?: string
+}
+
 const CATEGORIES = {
   'run_game': 'Run Game',
   'rpo_game': 'RPO Game',
@@ -56,8 +65,8 @@ export default function PracticePage() {
   const [teamId, setTeamId] = useState<string | null>(null)
   const [opponentId, setOpponentId] = useState<string | null>(null)
   const [gameplanPlays, setGameplanPlays] = useState<GamePlanPlay[]>([])
-  const [scoutingFronts, setScoutingFronts] = useState<string[]>([])
-  const [scoutingCoverages, setScoutingCoverages] = useState<string[]>([])
+  const [scoutingFronts, setScoutingFronts] = useState<ScoutingOption[]>([])
+  const [scoutingCoverages, setScoutingCoverages] = useState<ScoutingOption[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isSelectPlayOpen, setIsSelectPlayOpen] = useState(false)
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
@@ -160,21 +169,46 @@ export default function PracticePage() {
     }
   }
 
-  const fetchScoutingData = async (opponentId: string) => {
-    const { data, error } = await supabase
-      .from('scouting_reports')
-      .select('fronts, coverages')
-      .eq('opponent_id', opponentId)
-      .single()
-    
-    if (error) {
-      console.error('Error fetching scouting data:', error)
+  const fetchScoutingData = async () => {
+    if (!teamId || !opponentId) {
+      console.log('No team or opponent selected for scouting data')
       return
     }
 
-    setScoutingFronts(data.fronts?.map((f: any) => f.name) || [])
-    setScoutingCoverages(data.coverages?.map((c: any) => c.name) || [])
+    try {
+      console.log('Loading scouting data for:', { teamId, opponentId })
+
+      const scoutingReportResult = await getScoutingReport(teamId, opponentId)
+
+      if (scoutingReportResult.success && scoutingReportResult.data) {
+        const reportData = scoutingReportResult.data
+        
+        // Set the scouting data state
+        setScoutingFronts(reportData.fronts || [])
+        setScoutingCoverages(reportData.coverages || [])
+
+        console.log('Loaded scouting data:', {
+          fronts_count: reportData.fronts?.length || 0,
+          coverages_count: reportData.coverages?.length || 0
+        })
+      } else {
+        console.error('Failed to load scouting report:', scoutingReportResult.error)
+        setScoutingFronts([])
+        setScoutingCoverages([])
+      }
+    } catch (error) {
+      console.error('Error loading scouting data:', error)
+      setScoutingFronts([])
+      setScoutingCoverages([])
+    }
   }
+
+  // Add effect to load scouting data when team/opponent changes
+  useEffect(() => {
+    if (teamId && opponentId) {
+      fetchScoutingData()
+    }
+  }, [teamId, opponentId])
 
   const fetchGamePlanSections = async () => {
     if (!teamId || !opponentId) return
@@ -442,50 +476,47 @@ export default function PracticePage() {
     return filtered
   }
 
+  // Update the handleSearch function to be more responsive
   const handleSearch = (query: string) => {
     setSearchQuery(query)
+    
+    // Always show all plays if query is empty
     if (!query.trim()) {
-      setSearchResults([])
+      setSearchResults(gameplanPlays)
       return
     }
 
-    // Search through all sections
-    const allPlays = Object.values(gameplanSections).flat()
-    const filtered = allPlays.filter(play => {
-      const searchTerms = query.toLowerCase().split(' ')
+    // Search through all plays
+    const searchTerms = query.toLowerCase().split(' ')
+    const filtered = gameplanPlays.filter(play => {
       const playText = (play.customized_edit || play.combined_call).toLowerCase()
-      
       return searchTerms.every(term => playText.includes(term))
     })
     setSearchResults(filtered)
   }
 
+  // Add this effect at the component level
+  useEffect(() => {
+    if (selectedSectionId && selectedPlayIndex !== null) {
+      // Initialize search results with all plays when opening selector
+      setSearchResults(gameplanPlays)
+    } else {
+      // Clear search when closing selector
+      setSearchQuery('')
+      setSearchResults([])
+    }
+  }, [selectedSectionId, selectedPlayIndex, gameplanPlays])
+
   const renderPlaySelector = (section: PracticeSection, play: PracticePlay, playIndex: number) => {
-    // Update the filtering logic
+    // Filter plays based on current mode
     const filteredPlays = playPoolFilterType === 'search' 
       ? searchResults 
-      : gameplanPlays.filter(p => {
-          // Add debug logging
-          console.log('Filtering play:', {
-            play: p,
-            category: playPoolCategory,
-            section: p.section,
-            matches: p.section === playPoolCategory
-          })
-          return p.section === playPoolCategory
-        })
-
-    console.log('Filtered plays:', {
-      total: gameplanPlays.length,
-      filtered: filteredPlays.length,
-      category: playPoolCategory,
-      filterType: playPoolFilterType
-    })
+      : gameplanPlays.filter(p => p.section === playPoolCategory)
 
     return (
-      <Card className="absolute z-50 bg-white rounded shadow-lg w-96 max-h-[500px] flex flex-col">
+      <Card className="absolute z-50 bg-white rounded shadow-lg w-[600px] max-h-[600px] flex flex-col">
         <CardHeader className="bg-gray-100 border-b flex flex-row justify-between items-center p-3">
-          <CardTitle className="text-sm font-semibold">Select Play</CardTitle>
+          <CardTitle className="text-sm font-semibold">Select a Play</CardTitle>
           <Button 
             variant="outline" 
             size="sm" 
@@ -509,7 +540,11 @@ export default function PracticePage() {
                     ? 'bg-blue-600 text-white' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
                 }`}
-                onClick={() => setPlayPoolFilterType('category')}
+                onClick={() => {
+                  setPlayPoolFilterType('category')
+                  setSearchQuery('')
+                  setSearchResults([])
+                }}
               >
                 By Category
               </button>
@@ -520,7 +555,10 @@ export default function PracticePage() {
                     ? 'bg-blue-600 text-white' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
                 }`}
-                onClick={() => setPlayPoolFilterType('search')}
+                onClick={() => {
+                  setPlayPoolFilterType('search')
+                  setSearchResults(gameplanPlays)
+                }}
               >
                 Search
               </button>
@@ -557,21 +595,31 @@ export default function PracticePage() {
                       onChange={(e) => handleSearch(e.target.value)}
                       placeholder="Search plays..."
                       className="w-full pl-8 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      autoFocus
                     />
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {filteredPlays.length} {filteredPlays.length === 1 ? 'play' : 'plays'} found
                   </div>
                 </div>
               )}
 
               <div className="space-y-1 overflow-y-auto" style={{ maxHeight: playPoolFilterType === 'search' ? '400px' : '450px' }}>
-                {filteredPlays.map((play) => (
-                  <div 
-                    key={play.id}
-                    className="p-1 border rounded flex justify-between items-center bg-gray-50 border-gray-200 hover:bg-gray-100"
-                  >
-                    <div className="text-xs font-mono truncate flex-1">
-                      {play.customized_edit || play.combined_call}
-                    </div>
-                    <button
+                {filteredPlays.map((play) => {
+                  // Highlight matching text in search mode
+                  let displayText = play.customized_edit || play.combined_call
+                  if (playPoolFilterType === 'search' && searchQuery) {
+                    const searchTerms = searchQuery.toLowerCase().split(' ')
+                    searchTerms.forEach(term => {
+                      const regex = new RegExp(`(${term})`, 'gi')
+                      displayText = displayText.replace(regex, '<mark>$1</mark>')
+                    })
+                  }
+
+                  return (
+                    <div 
+                      key={play.id}
+                      className="p-2 border rounded flex justify-between items-center bg-gray-50 border-gray-200 hover:bg-gray-100 cursor-pointer"
                       onClick={() => {
                         if (selectedSectionId && selectedPlayIndex !== null) {
                           const section = sections.find(s => s.id === selectedSectionId)
@@ -582,12 +630,14 @@ export default function PracticePage() {
                           }
                         }
                       }}
-                      className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 ml-1 rounded flex-shrink-0 cursor-pointer"
                     >
-                      Select
-                    </button>
-                  </div>
-                ))}
+                      <div 
+                        className="text-xs font-mono truncate flex-1"
+                        dangerouslySetInnerHTML={{ __html: displayText }}
+                      />
+                    </div>
+                  )
+                })}
                 {filteredPlays.length === 0 && (
                   <p className="text-gray-500 italic text-xs text-center p-4">
                     {playPoolFilterType === 'search' 
@@ -605,6 +655,44 @@ export default function PracticePage() {
       </Card>
     )
   }
+
+  const renderFrontDropdown = (sectionId: string, playId: string, currentValue: string) => (
+    <Select 
+      value={currentValue || "none"}
+      onValueChange={(value) => handlePlayChange(sectionId, playId, 'vs_front', value === "none" ? "" : value)}
+    >
+      <SelectTrigger className="h-8">
+        <SelectValue placeholder="Select front" />
+      </SelectTrigger>
+              <SelectContent>
+          <SelectItem value="none">-</SelectItem>
+          {scoutingFronts.map((front) => (
+            <SelectItem key={front.id || front.name} value={front.name}>
+              {front.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+    </Select>
+  )
+
+  const renderCoverageDropdown = (sectionId: string, playId: string, currentValue: string) => (
+    <Select 
+      value={currentValue || "none"}
+      onValueChange={(value) => handlePlayChange(sectionId, playId, 'vs_coverage', value === "none" ? "" : value)}
+    >
+      <SelectTrigger className="h-8">
+        <SelectValue placeholder="Select coverage" />
+      </SelectTrigger>
+              <SelectContent>
+          <SelectItem value="none">-</SelectItem>
+          {scoutingCoverages.map((coverage) => (
+            <SelectItem key={coverage.id || coverage.name} value={coverage.name}>
+              {coverage.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+    </Select>
+  )
 
   return (
     <div className="space-y-4">
@@ -702,30 +790,10 @@ export default function PracticePage() {
                     {renderPlayCell(section, play, playIndex)}
                     <td className="p-2 text-center">vs</td>
                     <td className="p-2">
-                      {/* Dropdown for fronts will go here */}
-                      <Select onValueChange={(value) => handlePlayChange(section.id, play.id, 'vs_front', value)}>
-                        <SelectTrigger className="h-8">
-                          <SelectValue placeholder="Select a front" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {scoutingFronts.map((front, i) => (
-                            <SelectItem key={i} value={front}>{front}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {renderFrontDropdown(section.id, play.id, play.vs_front)}
                     </td>
                     <td className="p-2">
-                      {/* Dropdown for coverages will go here */}
-                      <Select onValueChange={(value) => handlePlayChange(section.id, play.id, 'vs_coverage', value)}>
-                        <SelectTrigger className="h-8">
-                          <SelectValue placeholder="Select a coverage" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {scoutingCoverages.map((coverage, i) => (
-                            <SelectItem key={i} value={coverage}>{coverage}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {renderCoverageDropdown(section.id, play.id, play.vs_coverage)}
                     </td>
                     <td className="p-2 text-right">
                       <Button variant="ghost" size="sm" onClick={() => {
@@ -787,34 +855,6 @@ export default function PracticePage() {
         </div>
       )}
 
-      {/* Add debugging console */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-2 text-xs font-mono z-50">
-        <div>Debug Info:</div>
-        <div>team_id: {teamId || 'null'}</div>
-        <div>opponent_id: {opponentId || 'null'}</div>
-        <div>gameplanPlays loaded: {gameplanPlays.length}</div>
-        <div>filtered plays: {
-          playPoolFilterType === 'search' 
-            ? searchResults.length 
-            : gameplanPlays.filter(p => p.section === playPoolCategory).length
-        }</div>
-        <div>current category: {playPoolCategory}</div>
-        <div>current filter type: {playPoolFilterType}</div>
-        <div className="mt-1 text-green-400">Game Plan Data:</div>
-        <div>- Total sections: {Object.keys(gameplanSections).length}</div>
-        <div>- Total plays in sections: {
-          Object.values(gameplanSections)
-            .reduce((total, plays) => total + plays.length, 0)
-        }</div>
-        <div>- Available categories: {
-          Array.from(new Set(gameplanPlays.map(p => p.section))).join(', ')
-        }</div>
-        <div className="mt-1 text-blue-400">Practice Plan Data:</div>
-        <div>- Total practice sections: {sections.length}</div>
-        <div>- Total practice plays: {
-          sections.reduce((total, section) => total + section.plays.length, 0)
-        }</div>
-      </div>
     </div>
   )
 } 

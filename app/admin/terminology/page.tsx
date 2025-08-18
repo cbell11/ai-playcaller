@@ -235,12 +235,51 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const handleSaveAll = async () => {
     try {
       setIsSaving(true)
-      // Your existing save logic here
+      
+      // Clear any existing success message and timeout
+      setSaveSuccess(null)
+      if (saveTimeout) {
+        clearTimeout(saveTimeout)
+        setSaveTimeout(null)
+      }
+
+      const dirtyTerms = localTerms.filter(term => term.isDirty)
+      
+      for (const term of dirtyTerms) {
+        // Only update the concept and label fields, preserve other fields
+        const termData = {
+          concept: term.concept,
+          label: term.label
+        }
+
+        // Always update existing row since we're editing in the master terminology
+        const { error: updateError } = await supabase
+          .from('terminology')
+          .update(termData)
+          .eq('id', term.id)
+          .eq('team_id', DEFAULT_TEAM_ID)
+
+        if (updateError) throw updateError
+      }
+
+      // Update local state to reflect saved changes
+      const updatedTerms = localTerms.map(term => ({
+        ...term,
+        isDirty: false,
+        isEditing: false // Close edit mode after saving
+      }))
+      setLocalTerms(updatedTerms)
+      onUpdate(updatedTerms)
+
+      setSaveSuccess('Changes saved successfully')
+      const timeout = setTimeout(() => setSaveSuccess(null), 3000)
+      setSaveTimeout(timeout)
     } catch (error) {
       console.error('Error in handleSaveAll:', error)
       alert(error instanceof Error ? error.message : 'An error occurred while saving')
     } finally {
       setIsSaving(false)
+      setHasDeleted(false) // Reset delete flag after saving
     }
   }
 
@@ -602,7 +641,6 @@ export default function AdminTerminologyPage() {
   const [toMotionsSet, setToMotionsSet] = useState<TerminologyWithUI[]>([])
   const [fromMotionsSet, setFromMotionsSet] = useState<TerminologyWithUI[]>([])
   const [runGameSet, setRunGameSet] = useState<TerminologyWithUI[]>([])
-  const [rpoGameSet, setRpoGameSet] = useState<TerminologyWithUI[]>([])
   const [rpoTagsSet, setRpoTagsSet] = useState<TerminologyWithUI[]>([])
   const [passProtectionsSet, setPassProtectionsSet] = useState<TerminologyWithUI[]>([])
   const [quickGameSet, setQuickGameSet] = useState<TerminologyWithUI[]>([])
@@ -675,7 +713,6 @@ export default function AdminTerminologyPage() {
         setToMotionsSet(data?.filter(term => term.category === 'to_motions') || [])
         setFromMotionsSet(data?.filter(term => term.category === 'from_motions') || [])
         setRunGameSet(data?.filter(term => term.category === 'run_game') || [])
-        setRpoGameSet(data?.filter(term => term.category === 'rpo_game') || [])
         setRpoTagsSet(data?.filter(term => term.category === 'rpo_tag') || [])
         setPassProtectionsSet(data?.filter(term => term.category === 'pass_protections') || [])
         setQuickGameSet(data?.filter(term => term.category === 'quick_game') || [])
@@ -699,7 +736,6 @@ export default function AdminTerminologyPage() {
   const handleUpdateToMotions = (updatedTerms: TerminologyWithUI[]) => setToMotionsSet(updatedTerms)
   const handleUpdateFromMotions = (updatedTerms: TerminologyWithUI[]) => setFromMotionsSet(updatedTerms)
   const handleUpdateRunGame = (updatedTerms: TerminologyWithUI[]) => setRunGameSet(updatedTerms)
-  const handleUpdateRpoGame = (updatedTerms: TerminologyWithUI[]) => setRpoGameSet(updatedTerms)
   const handleUpdateRpoTags = (updatedTerms: TerminologyWithUI[]) => setRpoTagsSet(updatedTerms)
   const handleUpdatePassProtections = (updatedTerms: TerminologyWithUI[]) => setPassProtectionsSet(updatedTerms)
   const handleUpdateQuickGame = (updatedTerms: TerminologyWithUI[]) => setQuickGameSet(updatedTerms)
@@ -825,16 +861,6 @@ export default function AdminTerminologyPage() {
               terms={runGameSet}
               category="run_game"
               onUpdate={handleUpdateRunGame}
-              supabase={supabase}
-              setProfileInfo={() => {}}
-              setTeamCode={() => {}}
-              setTeamName={() => {}}
-            />
-            <TerminologySet
-              title="RPO Game"
-              terms={rpoGameSet}
-              category="rpo_game"
-              onUpdate={handleUpdateRpoGame}
               supabase={supabase}
               setProfileInfo={() => {}}
               setTeamCode={() => {}}
