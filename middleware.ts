@@ -31,9 +31,9 @@ export async function middleware(req: NextRequest) {
   const isAuthPage = req.nextUrl.pathname === '/auth';
   const isResetPasswordPage = req.nextUrl.pathname === '/auth/reset-password';
   
-  // If user is on the auth page and is already authenticated, redirect to setup
+  // If user is on the auth page and is already authenticated, redirect to scouting
   if (isAuthPage && isAuthenticated) {
-    return NextResponse.redirect(new URL('/setup', req.url));
+    return NextResponse.redirect(new URL('/scouting', req.url));
   }
 
   // Skip auth check for public routes
@@ -48,6 +48,11 @@ export async function middleware(req: NextRequest) {
   // If user is not authenticated and not on a public route, redirect to auth
   if (!isAuthenticated && !isPublicRoute) {
     return NextResponse.redirect(new URL('/auth', req.url));
+  }
+
+  // If user is authenticated and on the root path, redirect to scouting
+  if (isAuthenticated && req.nextUrl.pathname === '/') {
+    return NextResponse.redirect(new URL('/scouting', req.url));
   }
 
   return res;
