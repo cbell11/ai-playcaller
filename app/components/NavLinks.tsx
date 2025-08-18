@@ -96,7 +96,7 @@ export function NavLinks() {
             <span className="flex items-center gap-2">
               {item.name}
               {item.beta && (
-                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-white bg-opacity-20 rounded">
+                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-white bg-opacity-20 rounded text-black">
                   BETA
                 </span>
               )}
