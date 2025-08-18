@@ -93,8 +93,8 @@ export default function AuthPage() {
       
       if (error) throw error;
       
-      // Force a page reload to the setup page instead of using router.push
-      window.location.href = "/setup";
+      // Redirect to scouting page instead of setup
+      window.location.href = "/scouting";
     } catch (error: any) {
       setError(error.message || "An error occurred during sign in");
       setLoading(false);
@@ -294,8 +294,8 @@ export default function AuthPage() {
         }
       }
 
-      console.log("Successfully created/updated user and profile. Redirecting to setup");
-      window.location.href = "/setup";
+      console.log("Successfully created/updated user and profile. Redirecting to scouting");
+      window.location.href = "/scouting";
       
     } catch (error: any) {
       console.error("Signup error:", error);
