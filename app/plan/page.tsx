@@ -2075,75 +2075,25 @@ export default function PlanPage() {
             opponent_id
           });
 
-          // First, get all plays in this section
-          const { data: sectionPlays, error: fetchError } = await browserClient
-            .from('game_plan')
-            .select(`
-              *,
-              play:play_id (
-                id
-              )
-            `)
-            .eq('team_id', team_id)
-            .eq('opponent_id', opponent_id)
-            .eq('section', sectionId.toLowerCase())
-            .order('position', { ascending: true });
+          // Convert section name to database format
+          const dbSection = sectionId.toString().toLowerCase();
 
-          if (fetchError) {
-            throw new Error(`Failed to fetch section plays: ${fetchError.message}`);
-          }
+          // Call the database function to update positions
+          const { error: updateError } = await browserClient
+            .rpc('update_play_positions', {
+              p_team_id: team_id,
+              p_opponent_id: opponent_id,
+              p_section: dbSection,
+              p_old_pos: sourceIdx,
+              p_new_pos: destIdx
+            });
 
-          // Create an array of updates for all affected plays
-          const updates = [];
-          
-          // Moving down
-          if (sourceIdx < destIdx) {
-            for (let i = sourceIdx + 1; i <= destIdx; i++) {
-              const play = sectionPlays[i];
-              if (play) {
-                updates.push({
-                  id: play.id,
-                  position: i - 1
-                });
-              }
-            }
-          }
-          // Moving up
-          else if (sourceIdx > destIdx) {
-            for (let i = destIdx; i < sourceIdx; i++) {
-              const play = sectionPlays[i];
-              if (play) {
-                updates.push({
-                  id: play.id,
-                  position: i + 1
-                });
-              }
-            }
-          }
-          
-          // Add the moved play's position update
-          const movedPlayData = sectionPlays[sourceIdx];
-          if (movedPlayData) {
-          updates.push({
-              id: movedPlayData.id,
-              position: destIdx
-          });
-          }
-
-          // Update all positions in a single transaction
-          for (const update of updates) {
-            const { error: updateError } = await browserClient
-              .from('game_plan')
-              .update({ position: update.position })
-              .eq('id', update.id);
-
-            if (updateError) {
-              throw new Error(`Failed to update position: ${updateError.message}`);
-            }
+          if (updateError) {
+            throw new Error(`Failed to update position: ${updateError.message}`);
           }
 
           // Update local state
-      updatedPlays.splice(result.destination.index, 0, movedPlay);
+          updatedPlays.splice(result.destination.index, 0, movedPlay);
           updatedPlan[sectionId] = updatedPlays;
           setPlan(updatedPlan);
           save('plan', updatedPlan);
@@ -2155,9 +2105,9 @@ export default function PlanPage() {
         } else {
           // If it's an empty play, just update the local state
           updatedPlays.splice(result.destination.index, 0, movedPlay);
-      updatedPlan[sectionId] = updatedPlays;
-      setPlan(updatedPlan);
-      save('plan', updatedPlan);
+          updatedPlan[sectionId] = updatedPlays;
+          setPlan(updatedPlan);
+          save('plan', updatedPlan);
         }
       }
     } catch (error) {
@@ -5705,6 +5655,7 @@ export default function PlanPage() {
     </>
   )
 }
+
 
 
 
