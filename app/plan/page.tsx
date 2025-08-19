@@ -4242,17 +4242,13 @@ export default function PlanPage() {
         </div>
 
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
-          <div className="text-center">
-            <h2 className="text-xl font-semibold mb-2">Unfortunately, you need to generate a play pool for this opponent before we generate your gameplan</h2>
-            <p className="text-gray-600">Please build your play pool first.</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-900"></div>
+          <div className="text-center max-w-lg">
+            <h2 className="text-xl font-semibold mb-4">Loading your game plan information...</h2>
+            <p className="text-gray-600">
+              If nothing loads, make sure you have completed some scouting information for this opponent.
+            </p>
           </div>
-          <Button 
-            onClick={() => router.push('/playpool')}
-            className="bg-blue-900 hover:bg-blue-800 text-white"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Build your play pool
-          </Button>
         </div>
       </div>
     );
