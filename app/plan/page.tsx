@@ -2270,9 +2270,17 @@ export default function PlanPage() {
               <div>
                 <CardTitle className="font-bold text-black">{displayTitle}</CardTitle>
                 {showBeaterNote && (
-                  <div className="mt-2 text-sm text-amber-600 italic flex items-center gap-1">
-                    <RefreshCw className="h-3 w-3" />
-                    Don't see your plays? Try changing the opponent and then coming back
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-sm text-amber-600">Don't see your plays?</span>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleReloadSection}
+                      className="text-xs flex items-center gap-1 bg-amber-50 hover:bg-amber-100 border-amber-200"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Reload
+                    </Button>
                   </div>
                 )}
                 {isBasePackage && (basePackageConcepts[section] || basePackageFormations[section]) && (
@@ -4458,6 +4466,49 @@ export default function PlanPage() {
   // Helper function to check if a section is a beater section
   const isBeaterSection = (section: string) => {
     return section.toLowerCase().includes('beaters');
+  };
+
+  // Add reload handler function
+  const handleReloadSection = async () => {
+    try {
+      const team_id = localStorage.getItem('selectedTeam');
+      const opponent_id = localStorage.getItem('selectedOpponent');
+      
+      if (!team_id || !opponent_id) {
+        throw new Error('Team or opponent not selected');
+      }
+
+      setLoading(true);
+
+      // First, clear the current opponent selection
+      setSelectedOpponent(null);
+      setPlan(null);
+
+      // Small delay to ensure state is cleared
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Then set it back to trigger a full reload
+      setSelectedOpponent(opponent_id);
+
+      // Trigger the opponent change handler
+      const event = new CustomEvent('opponentChanged', { 
+        detail: { opponentId: opponent_id } 
+      });
+      window.dispatchEvent(event);
+
+      setNotification({
+        message: 'Game plan reloaded successfully',
+        type: 'success'
+      });
+    } catch (error) {
+      console.error('Error reloading section:', error);
+      setNotification({
+        message: 'Failed to reload game plan',
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
