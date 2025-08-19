@@ -673,7 +673,7 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
     // Fetch all plays for this team and opponent
     const { data: gamePlanData, error } = await browserClient
       .from('game_plan')
-      .select('*') // Remove the join since play_id is now just text
+      .select('*')
       .eq('team_id', team_id)
       .eq('opponent_id', opponent_id)
       .order('position', { ascending: true });
@@ -694,47 +694,60 @@ async function fetchGamePlanFromDatabase(currentSectionSizes: Record<keyof GameP
       sectionPlays[section as keyof GamePlan] = [];
     });
 
+    // First, collect all unique sections from the database
+    const dbSections = new Set(gamePlanData?.map(entry => entry.section.toLowerCase()) || []);
+    
+    // Create a mapping of database section names to GamePlan section keys
+    const sectionKeyMap = new Map<string, keyof GamePlan>();
+    
+    // Add static mappings
+    Object.entries(sectionMapping).forEach(([dbSection, planSection]) => {
+      sectionKeyMap.set(dbSection.toLowerCase(), planSection);
+    });
+    
+    // Add dynamic section mappings
+    dbSections.forEach(dbSection => {
+      if (!sectionKeyMap.has(dbSection)) {
+        // Find matching section in currentSectionSizes
+        const matchingSection = Object.keys(currentSectionSizes).find(key => 
+          key.toLowerCase() === dbSection
+        );
+        if (matchingSection) {
+          sectionKeyMap.set(dbSection, matchingSection as keyof GamePlan);
+        }
+      }
+    });
+
     // Group plays by section
     gamePlanData?.forEach((entry) => {
-        const dbSection = entry.section.toLowerCase();
-        let section = sectionMapping[dbSection];
+      const dbSection = entry.section.toLowerCase();
+      const section = sectionKeyMap.get(dbSection);
       
-        // If no static mapping found, check if it's a dynamic section
-        if (!section) {
-          // Check if this is a dynamic front beater section
-          const sectionKeys = Object.keys(currentSectionSizes);
-          const matchingSection = sectionKeys.find(key => 
-            key.toLowerCase() === dbSection
-          );
-          
-          if (matchingSection) {
-            section = matchingSection as keyof GamePlan;
-          } else {
-          console.warn(`No mapping found for database section "${dbSection}"`);
-          return;
-          }
-        }
+      if (!section) {
+        console.warn(`No mapping found for database section "${dbSection}"`);
+        return;
+      }
 
-        // Check if this play is in favorites
-        const favoriteKey = `${entry.play_id}_${entry.combined_call}`;
-        const isFavorite = favoritesMap.has(favoriteKey);
+      // Check if this play is in favorites
+      const favoriteKey = `${entry.play_id}_${entry.combined_call}`;
+      const isFavorite = favoritesMap.has(favoriteKey);
 
-        // Create PlayCall object from the entry data
-        const playCall: PlayCall = {
-          formation: '',
-          fieldAlignment: '+',
-          motion: '',
-          play: entry.customized_edit || entry.combined_call || '',
-          runDirection: '+',
-          category: entry.category, // Use category directly since no join
-          is_locked: entry.is_locked || false, // Add this line to include lock state
-          is_favorite: isFavorite, // Use the favorites table data
-          // Add database fields needed for favorites
-          game_plan_id: entry.id,
-          play_id: entry.play_id,
-          combined_call: entry.combined_call,
-          customized_edit: entry.customized_edit
-        };
+      // Create PlayCall object from the entry data
+      const playCall: PlayCall = {
+        formation: '',
+        fieldAlignment: '+',
+        motion: '',
+        play: entry.customized_edit || entry.combined_call || '',
+        runDirection: '+',
+        category: entry.category, // Use category directly since no join
+        is_locked: entry.is_locked || false, // Add this line to include lock state
+        is_favorite: isFavorite, // Use the favorites table data
+        // Add database fields needed for favorites
+        game_plan_id: entry.id,
+        play_id: entry.play_id,
+        combined_call: entry.combined_call,
+        customized_edit: entry.customized_edit
+      };
 
       // Add the play to its section array
       sectionPlays[section].push(playCall);
@@ -1588,11 +1601,11 @@ export default function PlanPage() {
       // First, load scouting data to create dynamic sections
       await loadScoutingData();
 
-      // Get saved section sizes
+      // Get saved section sizes (now includes dynamic sections)
       const savedSizes = isBrowser ? localStorage.getItem('sectionSizes') : null;
       const currentSizes = savedSizes ? JSON.parse(savedSizes) : initialSectionSizes;
 
-      // Load game plan with current sizes
+      // Then load game plan with current sizes (including dynamic sections)
       const initialPlan = await fetchGamePlanFromDatabase(currentSizes);
       if (initialPlan) {
         console.log('Loaded initial game plan');
@@ -1602,7 +1615,7 @@ export default function PlanPage() {
         }
       }
 
-      // Load play pool
+      // Load play pool data
       console.log('Loading initial plays...');
       const playData = await getPlayPool();
       console.log('Initial plays loaded:', playData.length);
@@ -1680,8 +1693,12 @@ export default function PlanPage() {
       // First, load scouting data to create dynamic sections
       await loadScoutingData();
 
-      // Then load game plan data
-      const gamePlan = await fetchGamePlanFromDatabase(sectionSizes);
+      // Get current section sizes (now includes dynamic sections)
+      const savedSizes = isBrowser ? localStorage.getItem('sectionSizes') : null;
+      const currentSizes = savedSizes ? JSON.parse(savedSizes) : initialSectionSizes;
+
+      // Then load game plan with current sizes (including dynamic sections)
+      const gamePlan = await fetchGamePlanFromDatabase(currentSizes);
       if (gamePlan) {
         console.log('Updating plan from opponent change');
         setPlan(gamePlan);
@@ -2239,6 +2256,11 @@ export default function PlanPage() {
     const isBasePackage = section.startsWith('basePackage');
     const displayTitle = isBasePackage ? customSectionNames[section] || title : title;
     
+    // Check if this is a beater section and has no plays
+    const isBeater = isBeaterSection(section.toString());
+    const hasNoPlays = filledPlays.every(play => !play.play);
+    const showBeaterNote = isBeater && hasNoPlays;
+    
     return (
       <Card className="bg-white rounded shadow h-full relative">
         {renderSectionLoadingModal(section)}
@@ -2247,6 +2269,12 @@ export default function PlanPage() {
             <div className="flex items-center gap-2">
               <div>
                 <CardTitle className="font-bold text-black">{displayTitle}</CardTitle>
+                {showBeaterNote && (
+                  <div className="mt-2 text-sm text-amber-600 italic flex items-center gap-1">
+                    <RefreshCw className="h-3 w-3" />
+                    Don't see your plays? Try changing the opponent and then coming back
+                  </div>
+                )}
                 {isBasePackage && (basePackageConcepts[section] || basePackageFormations[section]) && (
                   <div className="flex gap-2 text-sm text-gray-500">
                     {basePackageConcepts[section] && (
@@ -4429,6 +4457,11 @@ export default function PlanPage() {
     const thirdAndShortPlays = plays.filter(p => p.third_s === true);
     const shuffled = [...thirdAndShortPlays].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, count);
+  };
+
+  // Helper function to check if a section is a beater section
+  const isBeaterSection = (section: string) => {
+    return section.toLowerCase().includes('beaters');
   };
 
   return (
