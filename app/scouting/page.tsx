@@ -370,22 +370,31 @@ export default function ScoutingPage() {
               }
             }
             
-            // Also fetch the full opponents list for the dropdown
+            // Check if user has any opponents - if not, show first opponent modal
             try {
-              const { data: allOpponents, error: allOpponentsError } = await supabase
+              const { data: teamOpponents, error: opponentsError } = await supabase
                 .from('opponents')
                 .select('id, name')
                 .eq('team_id', teamData[0].id)
                 .order('name');
               
-              if (allOpponentsError) {
-                console.error('Error fetching all opponents:', allOpponentsError.message);
-              } else if (allOpponents) {
-                setOpponentsList(allOpponents);
-                console.log(`Loaded ${allOpponents.length} opponents for dropdown`);
+              if (opponentsError) {
+                console.error('Error checking for opponents:', opponentsError.message);
+              } else {
+                console.log(`Opponent check: found ${teamOpponents?.length || 0} opponents for team ${teamData[0].id}`);
+                setOpponentsList(teamOpponents || []);
+                
+                // Simple check: if no opponents found, show the modal
+                if (!teamOpponents || teamOpponents.length === 0) {
+                  console.log('No opponents found - showing first opponent modal');
+                  setShowFirstOpponentModal(true);
+                } else {
+                  console.log('Opponents found - not showing modal');
+                  setShowFirstOpponentModal(false);
+                }
               }
             } catch (error) {
-              console.error('Exception fetching all opponents:', error);
+              console.error('Exception checking for opponents:', error);
             }
           } else {
             console.log('No team found with team_id:', profileData[0].team_id);
@@ -1701,53 +1710,7 @@ export default function ScoutingPage() {
     }
   };
 
-  // Load opponents for the dropdown when component mounts
-  useEffect(() => {
-    const loadOpponentsList = async () => {
-      if (!supabaseClient || !selectedTeamId) return;
-      
-      setIsLoadingOpponentsList(true);
-      try {
-        console.log('Final opponents check for team:', selectedTeamId);
-        const { data, error } = await supabaseClient
-          .from('opponents')
-          .select('id, name')
-          .eq('team_id', selectedTeamId)
-          .order('name');
-          
-        if (error) {
-          console.error('Error loading opponents for dropdown:', error.message);
-          setOpponentsCheckComplete(true);
-        } else if (data) {
-          console.log(`Final opponents check: found ${data.length} opponents`);
-          setOpponentsList(data);
-          
-          // After loading opponents, check if we need to show the first opponent modal
-          if (data.length === 0) {
-            console.log('No opponents found after complete check - showing first opponent modal');
-            setShowFirstOpponentModal(true);
-          }
-          setOpponentsCheckComplete(true);
-        } else {
-          console.log('No opponents data returned after complete check - showing first opponent modal');
-          setShowFirstOpponentModal(true);
-          setOpponentsCheckComplete(true);
-        }
-      } catch (error) {
-        console.error('Exception loading opponents dropdown:', error);
-        setOpponentsCheckComplete(true);
-      } finally {
-        setIsLoadingOpponentsList(false);
-      }
-    };
-    
-    if (supabaseClient && selectedTeamId) {
-      // Add a small delay to ensure all initialization is complete
-      setTimeout(() => {
-        loadOpponentsList();
-      }, 1000);
-    }
-  }, [supabaseClient, selectedTeamId]);
+  // This useEffect is no longer needed - opponent check is done in the main initialization
 
   // Handle opponent change from dropdown
   const handleOpponentChange = async (opponentId: string) => {
@@ -2091,7 +2054,6 @@ export default function ScoutingPage() {
   const [newOpponentName, setNewOpponentName] = useState("");
   const [isAddingOpponent, setIsAddingOpponent] = useState(false);
   const [addOpponentError, setAddOpponentError] = useState<string | null>(null);
-  const [opponentsCheckComplete, setOpponentsCheckComplete] = useState(false);
 
                       return (
     <div className="container max-w-7xl space-y-6">
@@ -2381,7 +2343,7 @@ export default function ScoutingPage() {
       </SelectSafeDialog>
 
       {/* First Opponent Modal */}
-      <Dialog open={showFirstOpponentModal && opponentsCheckComplete && opponentsList.length === 0} onOpenChange={() => {}}>
+      <Dialog open={showFirstOpponentModal} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Add Your First Opponent</DialogTitle>
@@ -2390,12 +2352,6 @@ export default function ScoutingPage() {
             <p className="text-sm text-gray-600 mb-4">
               Welcome to AI Playcaller! To get started, please add your first opponent.
             </p>
-            {/* Debug info - remove in production */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="text-xs text-gray-400 mb-2">
-                Debug: checkComplete={opponentsCheckComplete.toString()}, listLength={opponentsList.length}, showModal={showFirstOpponentModal.toString()}
-              </div>
-            )}
             <div className="space-y-4">
               <div>
                 <Label htmlFor="opponent-name">Opponent Name</Label>
