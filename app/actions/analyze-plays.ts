@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+
 interface ScoutingOption {
   id?: string;
   name: string;
@@ -162,7 +163,18 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
     // No longer using play count limits - we'll return all viable plays
 
-    // Fetch team's terminology
+    // Fetch default team's terminology (contains default labels like "Deuce +")
+    const defaultTeamId = '8feef3dc-942f-4bc5-b526-0b39e14cb683'
+    const { data: defaultTerminology, error: defaultError } = await supabase
+      .from('terminology')
+      .select('concept, label, category')
+      .eq('team_id', defaultTeamId);
+
+    if (defaultError) {
+      throw new Error(`Failed to fetch default team terminology: ${defaultError.message}`);
+    }
+
+    // Fetch user team's terminology (contains user's custom labels like "Ace T +")
     const { data: teamTerminology, error: terminologyError } = await supabase
       .from('terminology')
       .select('concept, label, category')
@@ -183,10 +195,22 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     };
     console.log('Terminology by category:', terminologyByCategory);
 
-    // Create a map of master concepts to team labels
+    // Create a map of default team labels → user team labels
     const terminologyMap = new Map<string, string>();
-    teamTerminology?.forEach((term: Terminology) => {
-      terminologyMap.set(term.concept.toLowerCase(), term.label);
+    defaultTerminology?.forEach((defaultTerm: Terminology) => {
+      if (!defaultTerm.concept || !defaultTerm.label) return
+      
+      // Find the user's terminology for the same concept
+      const userTerm = teamTerminology?.find(userTerm => 
+        userTerm.concept === defaultTerm.concept && 
+        userTerm.category === defaultTerm.category
+      )
+      
+      if (userTerm && userTerm.label) {
+        // Map: default team label → user team label
+        terminologyMap.set(defaultTerm.label.toLowerCase(), userTerm.label);
+        console.log(`Global terminology mapping: ${defaultTerm.category} | "${defaultTerm.label}" → "${userTerm.label}"`)
+      }
     });
 
     // First, get all locked plays for this team AND opponent
@@ -803,23 +827,146 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
           frontPercentages[0]?.front || ''; // Use most common front as default beater
       }
       
-      // Get team concept from terminology map
-      const teamConcept = play.concept ? terminologyMap.get(play.concept.toLowerCase()) || play.concept : play.concept;
+      // Create terminology maps by category for translation
+      const terminologyMaps = {
+        formations: new Map<string, string>(),
+        form_tags: new Map<string, string>(),
+        shifts: new Map<string, string>(),
+        to_motions: new Map<string, string>(),
+        from_motions: new Map<string, string>(),
+        pass_protections: new Map<string, string>(),
+        concept_tags: new Map<string, string>(),
+        rpo_tag: new Map<string, string>(),
+        run_game: new Map<string, string>(),
+        quick_game: new Map<string, string>(),
+        dropback_game: new Map<string, string>(),
+        shot_plays: new Map<string, string>(),
+        screen_game: new Map<string, string>()
+      }
+
+      // Populate the category-specific maps using default team labels → user team labels
+      defaultTerminology?.forEach(defaultTerm => {
+        if (!defaultTerm.concept || !defaultTerm.label) return
+        
+        const category = defaultTerm.category as keyof typeof terminologyMaps
+        if (terminologyMaps[category]) {
+          // Find the user's terminology for the same concept
+          const userTerm = teamTerminology?.find(userTerm => 
+            userTerm.concept === defaultTerm.concept && 
+            userTerm.category === defaultTerm.category
+          )
+          
+          if (userTerm && userTerm.label) {
+            // Map: default team label → user team label
+            terminologyMaps[category].set(defaultTerm.label.toLowerCase(), userTerm.label)
+            console.log(`Added terminology mapping: ${defaultTerm.category} | "${defaultTerm.label}" → "${userTerm.label}"`)
+          }
+        } else {
+          console.log(`Skipped terminology for unknown category: ${defaultTerm.category}`)
+        }
+      })
+
+      // Debug: Show all terminology maps
+      console.log('Final terminology maps:', {
+        formations: Array.from(terminologyMaps.formations.entries()),
+        form_tags: Array.from(terminologyMaps.form_tags.entries()),
+        pass_protections: Array.from(terminologyMaps.pass_protections.entries()),
+        concept_tags: Array.from(terminologyMaps.concept_tags.entries()),
+        rpo_tag: Array.from(terminologyMaps.rpo_tag.entries()),
+        run_game: Array.from(terminologyMaps.run_game.entries()),
+        quick_game: Array.from(terminologyMaps.quick_game.entries()),
+        dropback_game: Array.from(terminologyMaps.dropback_game.entries()),
+        shot_plays: Array.from(terminologyMaps.shot_plays.entries()),
+        screen_game: Array.from(terminologyMaps.screen_game.entries())
+      })
+
+      // Helper function to translate terminology
+      const translateField = (value: string | null, map: Map<string, string>): string | null => {
+        if (!value) return value
+        const lowerValue = value.toLowerCase()
+        const translated = map.get(lowerValue)
+        
+        // Debug logging for failed translations
+        if (!translated && map.size > 0) {
+          console.log(`🔍 Translation MISS for "${value}":`, {
+            lowercase: lowerValue,
+            available_keys: Array.from(map.keys()).slice(0, 5), // First 5 keys
+            map_size: map.size
+          })
+          
+          // Special debug for formations to see what concepts are actually used
+          if (map === terminologyMaps.formations) {
+            console.log(`🔧 Formations debug - Need to map concept "${value}" to your terminology`)
+          }
+        }
+        
+        return translated || value
+      }
+
+      // Get team translations for all terminology fields
+      const teamConcept = translateField(play.concept, terminologyMaps[play.category as keyof typeof terminologyMaps] || new Map());
+      const teamFormations = translateField(play.formations, terminologyMaps.formations);
+      const teamTags = translateField(play.tags, terminologyMaps.form_tags);
+      const teamShifts = translateField(play.shifts, terminologyMaps.shifts);
+      const teamToMotions = translateField(play.to_motions, terminologyMaps.to_motions);
+      const teamFromMotions = translateField(play.from_motions, terminologyMaps.from_motions);
+      const teamPassProtections = translateField(play.pass_protections, terminologyMaps.pass_protections);
+      const teamConceptTag = translateField(play.concept_tag, terminologyMaps.concept_tags);
+      const teamRpoTag = translateField(play.rpo_tag, terminologyMaps.rpo_tag);
+
+      // Debug logging for terminology translation
+      console.log('Terminology translation debug for play:', play.play_id, {
+        original: {
+          formations: play.formations,
+          tags: play.tags,
+          pass_protections: play.pass_protections,
+          concept_tag: play.concept_tag,
+          rpo_tag: play.rpo_tag,
+          concept: play.concept,
+          category: play.category
+        },
+        translated: {
+          formations: teamFormations,
+          tags: teamTags,
+          pass_protections: teamPassProtections,
+          concept_tag: teamConceptTag,
+          rpo_tag: teamRpoTag,
+          concept: teamConcept
+        },
+        terminology_maps_sizes: {
+          formations: terminologyMaps.formations.size,
+          form_tags: terminologyMaps.form_tags.size,
+          pass_protections: terminologyMaps.pass_protections.size,
+          concept_tags: terminologyMaps.concept_tags.size,
+          rpo_tag: terminologyMaps.rpo_tag.size
+        }
+      });
       
       return {
         team_id: teamId,
         opponent_id: opponentId,
         play_id: play.play_id,
-        shifts: play.shouldShowMotion ? play.shifts : null,
-        to_motions: play.shouldShowMotion ? play.to_motions : null,
-        formations: play.formations,
-        tags: play.tags,
-        from_motions: play.shouldShowMotion ? play.from_motions : null,
-        pass_protections: play.pass_protections,
+        shifts: play.shouldShowMotion ? teamShifts : null,
+        to_motions: play.shouldShowMotion ? teamToMotions : null,
+        formations: teamFormations,
+        tags: teamTags,
+        from_motions: play.shouldShowMotion ? teamFromMotions : null,
+        pass_protections: teamPassProtections,
         concept: teamConcept,
-        combined_call: formatCompletePlay({...play, concept: teamConcept}, play.shouldShowMotion),
-        concept_tag: play.concept_tag,
-        rpo_tag: play.rpo_tag,
+        combined_call: formatCompletePlay({
+          ...play, 
+          concept: teamConcept,
+          formations: teamFormations,
+          tags: teamTags,
+          shifts: teamShifts,
+          to_motions: teamToMotions,
+          from_motions: teamFromMotions,
+          pass_protections: teamPassProtections,
+          concept_tag: teamConceptTag,
+          rpo_tag: teamRpoTag
+        }, play.shouldShowMotion),
+        concept_tag: teamConceptTag,
+        rpo_tag: teamRpoTag,
         category: play.category,
         third_s: play.third_s,
         third_m: play.third_m,
