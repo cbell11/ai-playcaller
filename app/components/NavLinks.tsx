@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { OpponentSelect } from "./OpponentSelect"
 import { createBrowserClient } from '@supabase/ssr'
@@ -19,6 +19,7 @@ const navigation = [
 
 export function NavLinks() {
   const pathname = usePathname()
+  const router = useRouter()
   const [isAdmin, setIsAdmin] = useState(false)
   
   const supabase = createBrowserClient(
@@ -47,6 +48,23 @@ export function NavLinks() {
     checkAdminStatus()
   }, [])
 
+  // Handle navigation with auto-save for setup page
+  const handleNavigation = async (href: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    
+    // If we're on the setup page, trigger save before navigation
+    if (pathname === '/setup') {
+      // Dispatch a custom event to trigger save on setup page
+      const saveEvent = new CustomEvent('saveTerminologyBeforeNavigation', { 
+        detail: { targetUrl: href }
+      })
+      window.dispatchEvent(saveEvent)
+    } else {
+      // Direct navigation if not on setup page
+      router.push(href)
+    }
+  }
+
   return (
     <nav className="flex-1 space-y-1 p-2">
       {navigation.map((item) => {
@@ -65,10 +83,10 @@ export function NavLinks() {
                 </div>
                 <OpponentSelect />
               </div>
-              <Link
-                href={item.href}
+              <button
+                onClick={(e) => handleNavigation(item.href, e)}
                 className={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+                  "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium w-full text-left",
                   isActive
                     ? "bg-white bg-opacity-10 text-white"
                     : "text-white hover:bg-white hover:bg-opacity-10"
@@ -76,17 +94,17 @@ export function NavLinks() {
               >
                 {item.icon && <item.icon className="h-4 w-4" />}
                 {item.name}
-              </Link>
+              </button>
             </div>
           )
         }
         
         return (
-          <Link
+          <button
             key={item.name}
-            href={item.href}
+            onClick={(e) => handleNavigation(item.href, e)}
             className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium w-full text-left",
               isActive
                 ? "bg-white bg-opacity-10 text-white"
                 : "text-white hover:bg-white hover:bg-opacity-10"
@@ -101,19 +119,19 @@ export function NavLinks() {
                 </span>
               )}
             </span>
-          </Link>
+          </button>
         )
       })}
-      <Link
-        href="/help"
+      <button
+        onClick={(e) => handleNavigation("/help", e)}
         className={cn(
-          "group flex items-center rounded-md px-3 py-2 text-sm font-medium text-white hover:bg-[#0B2545]/90",
+          "group flex items-center rounded-md px-3 py-2 text-sm font-medium text-white hover:bg-[#0B2545]/90 w-full text-left",
           pathname === "/help" ? "bg-[#0B2545]" : "transparent"
         )}
       >
         <HelpCircle className="mr-2 h-4 w-4" />
         <span>Help</span>
-      </Link>
+      </button>
     </nav>
   )
 } 

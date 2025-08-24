@@ -1138,6 +1138,34 @@ function SetupPageContent() {
 
     loadTerminology()
   }, [supabase])
+
+  // Handle navigation save event
+  useEffect(() => {
+    const handleSaveBeforeNavigation = async (event: CustomEvent) => {
+      const targetUrl = event.detail?.targetUrl
+      if (targetUrl) {
+        console.log('Auto-saving terminology before navigation to:', targetUrl)
+        try {
+          // Trigger save all terminology
+          await handleSaveAllTerminology()
+          // Navigate after save completes
+          window.location.href = targetUrl
+        } catch (error) {
+          console.error('Error saving terminology before navigation:', error)
+          // Navigate anyway to prevent being stuck
+          window.location.href = targetUrl
+        }
+      }
+    }
+
+    // Add event listener
+    window.addEventListener('saveTerminologyBeforeNavigation', handleSaveBeforeNavigation as EventListener)
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('saveTerminologyBeforeNavigation', handleSaveBeforeNavigation as EventListener)
+    }
+  }, [profileInfo.team_id, formationsSet, formTagsSet, shiftsSet, toMotionsSet, fromMotionsSet, runGameSet, rpoTagsSet, passProtectionsSet, quickGameSet, dropbackGameSet, screenGameSet, shotPlaysSet, conceptTagsSet])
   
   // Handle updates to terminology sets
   const handleUpdateFormations = (updatedTerms: TerminologyWithUI[]) => {
