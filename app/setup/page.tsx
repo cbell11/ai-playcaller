@@ -1435,6 +1435,16 @@ function SetupPageContent() {
         setSaveAllSuccess(null);
       }, 5000);
 
+      // Update existing playpool terminology first
+      try {
+        const { updatePlayPoolTerminology } = await import('../../lib/playpool');
+        await updatePlayPoolTerminology();
+        console.log('Successfully updated existing playpool terminology');
+      } catch (error) {
+        console.error('Error updating playpool terminology:', error);
+        // Don't throw, just log - this is not critical for the save operation
+      }
+
       // If we have an opponent selected, trigger playpool reload
       if (currentOpponentId) {
         console.log('Triggering playpool reload after terminology save');

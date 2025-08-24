@@ -43,7 +43,6 @@ import { LoadingModal } from "../components/loading-modal"
 
 interface ExtendedPlay extends Play {
   combined_call?: string;
-  formations?: string;
 }
 
 const CATEGORIES = {
@@ -68,7 +67,7 @@ function formatPlay(play: ExtendedPlay): string {
 
   // Fallback to old format method if neither exists
   const parts = [
-    play.formation,
+    play.formations,
     play.tag,
     play.strength,
     play.motion_shift,
@@ -169,9 +168,9 @@ export default function PlayPoolPage() {
     }
   }
 
-  // Check admin access first
+  // Check user authentication (removed admin requirement)
   useEffect(() => {
-    const checkAdminAccess = async () => {
+    const checkUserAccess = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -185,27 +184,23 @@ export default function PlayPoolPage() {
           .eq('id', user.id)
           .single()
 
-        if (profile?.role !== 'admin') {
-          router.push('/')
-          return
-        }
-
-        setIsAdmin(true)
+        // Set admin status but don't block non-admin users
+        setIsAdmin(profile?.role === 'admin')
         setAdminCheckComplete(true)
       } catch (err) {
-        console.error('Failed to check admin access:', err)
-        setError('Failed to check admin access')
+        console.error('Failed to check user access:', err)
+        setError('Failed to check user access')
         setAdminCheckComplete(true)
       }
     }
 
-    checkAdminAccess()
+    checkUserAccess()
   }, [router])
 
   // Add effect to load team and opponent info
   useEffect(() => {
-    // Only run if admin check is complete and user is admin
-    if (!adminCheckComplete || !isAdmin) return
+    // Only run if user check is complete (removed admin requirement)
+    if (!adminCheckComplete) return
 
     const loadTeamAndOpponentInfo = async () => {
       try {
@@ -391,7 +386,7 @@ export default function PlayPoolPage() {
     }
     
     loadTeamAndOpponentInfo()
-  }, [supabase, adminCheckComplete, isAdmin])
+  }, [supabase, adminCheckComplete])
 
   // Update total plays count whenever plays change
   useEffect(() => {
@@ -462,8 +457,8 @@ export default function PlayPoolPage() {
             console.log('✅ Successfully loaded scouting data from database:', {
               fronts_count: scoutingData.fronts?.length || 0,
               coverages_count: scoutingData.coverages?.length || 0,
-              fronts_names: scoutingData.fronts?.map(f => f.name) || [],
-              coverages_names: scoutingData.coverages?.map(c => c.name) || [],
+              fronts_names: scoutingData.fronts?.map((f: any) => f.name) || [],
+              coverages_names: scoutingData.coverages?.map((c: any) => c.name) || [],
               has_fronts_pct: !!scoutingData.fronts_pct,
               has_coverages_pct: !!scoutingData.coverages_pct
             });
@@ -801,18 +796,7 @@ export default function PlayPoolPage() {
     )
   }
 
-  // Show access denied for non-admin users
-  if (!isAdmin) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
-          <p className="text-gray-600 mb-4">You need admin privileges to access the Play Pool.</p>
-          <Button onClick={() => router.push('/')}>Return to Home</Button>
-        </div>
-      </div>
-    )
-  }
+  // Non-admin users can now access the playpool (removed access restriction)
 
   if (loading) {
     return (

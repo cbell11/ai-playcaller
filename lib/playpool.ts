@@ -209,8 +209,8 @@ export async function getPlayPool(): Promise<Play[]> {
       console.log('✅ Successfully retrieved scouting data:', {
         fronts_count: scoutingData.fronts?.length || 0,
         coverages_count: scoutingData.coverages?.length || 0,
-        fronts_names: scoutingData.fronts?.map(f => f.name) || [],
-        coverages_names: scoutingData.coverages?.map(c => c.name) || [],
+        fronts_names: scoutingData.fronts?.map((f: any) => f.name) || [],
+        coverages_names: scoutingData.coverages?.map((c: any) => c.name) || [],
         fronts_pct: scoutingData.fronts_pct,
         coverages_pct: scoutingData.coverages_pct
       });
@@ -856,90 +856,182 @@ export async function updatePlayPoolTerminology(): Promise<void> {
   try {
     console.log('Starting play pool terminology update...')
 
-    // Get current plays
+    // Get team_id and opponent_id from localStorage
+    const team_id = typeof window !== 'undefined' ? localStorage.getItem('selectedTeam') : null
+    const opponent_id = typeof window !== 'undefined' ? localStorage.getItem('selectedOpponent') : null
+
+    if (!team_id) {
+      console.log('No team selected, skipping playpool terminology update')
+      return
+    }
+
+    if (!opponent_id) {
+      console.log('No opponent selected, skipping playpool terminology update')
+      return
+    }
+
+    // Get current plays for this team and opponent
     const { data: plays, error: playsError } = await supabase
       .from('playpool')
       .select('*')
+      .eq('team_id', team_id)
+      .eq('opponent_id', opponent_id)
     
     if (playsError) {
       throw new Error(`Failed to fetch plays: ${playsError.message}`)
     }
 
     if (!plays || plays.length === 0) {
-      console.log('No plays to update')
+      console.log('No plays to update for this team/opponent')
       return
     }
 
-    // Get current terminology
+    // Get current terminology for this team
     const { data: terminology, error: termError } = await supabase
       .from('terminology')
       .select('*')
+      .eq('team_id', team_id)
 
     if (termError) {
       throw new Error(`Failed to fetch terminology: ${termError.message}`)
     }
 
     if (!terminology) {
-      throw new Error('No terminology found')
+      throw new Error('No terminology found for this team')
     }
 
-    // Group terminology by category
-    const formations = terminology.filter(t => t.category === 'formations')
-    const tags = terminology.filter(t => t.category === 'tags')
-    const runConcepts = terminology.filter(t => t.category === 'run_game')
-    const rpoConcepts = terminology.filter(t => t.category === 'rpo_game')
-    const quickGame = terminology.filter(t => t.category === 'quick_game')
-    const dropback = terminology.filter(t => t.category === 'dropback')
-    const shotPlays = terminology.filter(t => t.category === 'shot_plays')
-    const screens = terminology.filter(t => t.category === 'screen_game')
-    const motions = terminology.filter(t => t.category === 'motions')
+    // Create terminology maps by category - just like the working logic in analyzeAndUpdatePlays
+    const terminologyMaps = {
+      formations: new Map<string, string>(),
+      form_tags: new Map<string, string>(),
+      shifts: new Map<string, string>(),
+      to_motions: new Map<string, string>(),
+      from_motions: new Map<string, string>(),
+      pass_protections: new Map<string, string>(),
+      concept_tags: new Map<string, string>(),
+      rpo_tag: new Map<string, string>(),
+      run_game: new Map<string, string>(),
+      rpo_game: new Map<string, string>(),
+      quick_game: new Map<string, string>(),
+      dropback_game: new Map<string, string>(),
+      shot_plays: new Map<string, string>(),
+      screen_game: new Map<string, string>(),
+      motions: new Map<string, string>()
+    }
+
+    // Populate the maps - concept.toLowerCase() → label (exactly like the working logic)
+    terminology.forEach(term => {
+      const category = term.category as keyof typeof terminologyMaps
+      if (terminologyMaps[category]) {
+        terminologyMaps[category].set(term.concept.toLowerCase(), term.label)
+      }
+    })
+
+    // Debug: Log terminology data to understand the structure
+    console.log('Terminology translation debug info:', {
+      formations_count: terminologyMaps.formations.size,
+      formations_sample: Array.from(terminologyMaps.formations.entries()).slice(0, 3),
+      passProtections_count: terminologyMaps.pass_protections.size, 
+      passProtections_sample: Array.from(terminologyMaps.pass_protections.entries()).slice(0, 3),
+      screens_count: terminologyMaps.screen_game.size,
+      screens_sample: Array.from(terminologyMaps.screen_game.entries()).slice(0, 3),
+      conceptTags_count: terminologyMaps.concept_tags.size,
+      rpoTags_count: terminologyMaps.rpo_tag.size
+    })
 
     // Update each play with new terminology
     const updatedPlays = plays.map(play => {
       // Create a copy of the play to update
       const updatedPlay = { ...play }
 
-      // Helper function to find new label
-      const findNewLabel = (oldLabel: string, terminologyList: TerminologyItem[]): string => {
-        // First try to find by label in case it's unchanged
-        const byLabel = terminologyList.find(t => t.label === oldLabel)
-        if (byLabel) return byLabel.label
-
-        // If not found by label, try to find by concept
-        // This assumes the concept remains constant even if label changes
-        const byConcept = terminologyList.find(t => t.label === oldLabel || t.concept === oldLabel)
-        return byConcept ? byConcept.label : oldLabel
-      }
-
-      // Update formation
-      if (play.formation) {
-        updatedPlay.formation = findNewLabel(play.formation, formations)
-      }
-
-      // Update tag
-      if (play.tag) {
-        updatedPlay.tag = findNewLabel(play.tag, tags)
-      }
-
-      // Update motion
-      if (play.motion_shift) {
-        updatedPlay.motion_shift = findNewLabel(play.motion_shift, motions)
-      }
-
-      // Update concept and pass_screen_concept
-      if (play.concept) {
-        // Split concept if it contains a quick game component
-        const [runPart, quickPart] = play.concept.split(' ')
+      // Helper function to find new label - using the EXACT same logic as analyzeAndUpdatePlays
+      const findNewLabel = (oldValue: string, terminologyMap: Map<string, string>): string => {
+        if (!oldValue) return oldValue
         
-        if (quickPart) {
-          // If there's a quick game part, update both parts
-          const newRunLabel = findNewLabel(runPart, runConcepts)
-          const newQuickLabel = findNewLabel(quickPart, quickGame)
-          updatedPlay.concept = `${newRunLabel} ${newQuickLabel}`
-        } else {
-          // If it's just a run concept
-          updatedPlay.concept = findNewLabel(runPart, runConcepts)
+        // Use the exact same logic: terminologyMap.get(concept.toLowerCase()) || originalValue
+        const newLabel = terminologyMap.get(oldValue.toLowerCase()) || oldValue
+        
+        if (newLabel !== oldValue) {
+          console.log(`Terminology translation: "${oldValue}" → "${newLabel}"`)
         }
+        
+        return newLabel
+      }
+
+      // Update formations (this field contains the formation name)
+      if (play.formations) {
+        updatedPlay.formations = findNewLabel(play.formations, terminologyMaps.formations)
+      }
+
+      // Update tag (form_tags category)
+      if (play.tag) {
+        updatedPlay.tag = findNewLabel(play.tag, terminologyMaps.form_tags)
+      }
+
+      // Update shifts
+      if (play.shifts) {
+        updatedPlay.shifts = findNewLabel(play.shifts, terminologyMaps.shifts)
+      }
+
+      // Update to_motions
+      if (play.to_motions) {
+        updatedPlay.to_motions = findNewLabel(play.to_motions, terminologyMaps.to_motions)
+      }
+
+      // Update from_motions
+      if (play.from_motions) {
+        updatedPlay.from_motions = findNewLabel(play.from_motions, terminologyMaps.from_motions)
+      }
+
+      // Update motion_shift (backward compatibility)
+      if (play.motion_shift) {
+        updatedPlay.motion_shift = findNewLabel(play.motion_shift, terminologyMaps.motions)
+      }
+
+      // Update pass_protections
+      if (play.pass_protections) {
+        updatedPlay.pass_protections = findNewLabel(play.pass_protections, terminologyMaps.pass_protections)
+      }
+
+      // Update concept_tag
+      if (play.concept_tag) {
+        updatedPlay.concept_tag = findNewLabel(play.concept_tag, terminologyMaps.concept_tags)
+      }
+
+      // Update rpo_tag
+      if (play.rpo_tag) {
+        updatedPlay.rpo_tag = findNewLabel(play.rpo_tag, terminologyMaps.rpo_tag)
+      }
+
+      // Update concept - try each category's terminology map
+      if (play.concept) {
+        // Try each concept category until we find a match
+        let newConcept = play.concept
+        
+        // Check each terminology map for a translation
+        const conceptMaps = [
+          terminologyMaps.run_game,
+          terminologyMaps.quick_game,
+          terminologyMaps.dropback_game,
+          terminologyMaps.shot_plays,
+          terminologyMaps.screen_game,
+          terminologyMaps.rpo_game
+        ]
+        
+        for (const map of conceptMaps) {
+          const translated = findNewLabel(play.concept, map)
+          if (translated !== play.concept) {
+            newConcept = translated
+            break
+          }
+        }
+        
+        updatedPlay.concept = newConcept
+      }
+
+      // Update pass_screen_concept for screen plays
+      if (play.pass_screen_concept) {
+        updatedPlay.pass_screen_concept = findNewLabel(play.pass_screen_concept, terminologyMaps.screen_game)
       }
 
       return updatedPlay
@@ -957,7 +1049,7 @@ export async function updatePlayPoolTerminology(): Promise<void> {
       }
     }
 
-    console.log('Successfully updated play pool terminology')
+    console.log(`Successfully updated play pool terminology for ${updatedPlays.length} plays`)
   } catch (error) {
     console.error('Error updating play pool terminology:', error)
     throw error
