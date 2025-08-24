@@ -313,16 +313,16 @@ export default function ScoutingPage() {
                     await saveToDatabase();
                   }
                 } else {
-                  console.log('No opponents found to use as default');
+                  console.log('No opponents found in initial load');
                   setIsAppLoading(false);
                   setDataFullyLoaded(true);
-                  // Show the first opponent modal
-                  setShowFirstOpponentModal(true);
+                  // Don't show modal yet - wait for the secondary opponents check
                 }
               } catch (opponentsError) {
                 console.error('Error getting default opponent:', opponentsError);
                 setIsAppLoading(false);
                 setDataFullyLoaded(true);
+                // Don't show modal yet - wait for the secondary opponents check
               }
             } else {
               // We have a stored opponent ID
@@ -1708,6 +1708,7 @@ export default function ScoutingPage() {
       
       setIsLoadingOpponentsList(true);
       try {
+        console.log('Final opponents check for team:', selectedTeamId);
         const { data, error } = await supabaseClient
           .from('opponents')
           .select('id, name')
@@ -1716,18 +1717,35 @@ export default function ScoutingPage() {
           
         if (error) {
           console.error('Error loading opponents for dropdown:', error.message);
+          setOpponentsCheckComplete(true);
         } else if (data) {
+          console.log(`Final opponents check: found ${data.length} opponents`);
           setOpponentsList(data);
+          
+          // After loading opponents, check if we need to show the first opponent modal
+          if (data.length === 0) {
+            console.log('No opponents found after complete check - showing first opponent modal');
+            setShowFirstOpponentModal(true);
+          }
+          setOpponentsCheckComplete(true);
+        } else {
+          console.log('No opponents data returned after complete check - showing first opponent modal');
+          setShowFirstOpponentModal(true);
+          setOpponentsCheckComplete(true);
         }
       } catch (error) {
         console.error('Exception loading opponents dropdown:', error);
+        setOpponentsCheckComplete(true);
       } finally {
         setIsLoadingOpponentsList(false);
       }
     };
     
     if (supabaseClient && selectedTeamId) {
-      loadOpponentsList();
+      // Add a small delay to ensure all initialization is complete
+      setTimeout(() => {
+        loadOpponentsList();
+      }, 1000);
     }
   }, [supabaseClient, selectedTeamId]);
 
@@ -2073,6 +2091,7 @@ export default function ScoutingPage() {
   const [newOpponentName, setNewOpponentName] = useState("");
   const [isAddingOpponent, setIsAddingOpponent] = useState(false);
   const [addOpponentError, setAddOpponentError] = useState<string | null>(null);
+  const [opponentsCheckComplete, setOpponentsCheckComplete] = useState(false);
 
                       return (
     <div className="container max-w-7xl space-y-6">
@@ -2362,7 +2381,7 @@ export default function ScoutingPage() {
       </SelectSafeDialog>
 
       {/* First Opponent Modal */}
-      <Dialog open={showFirstOpponentModal} onOpenChange={() => {}}>
+      <Dialog open={showFirstOpponentModal && opponentsCheckComplete && opponentsList.length === 0} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Add Your First Opponent</DialogTitle>
@@ -2371,6 +2390,12 @@ export default function ScoutingPage() {
             <p className="text-sm text-gray-600 mb-4">
               Welcome to AI Playcaller! To get started, please add your first opponent.
             </p>
+            {/* Debug info - remove in production */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="text-xs text-gray-400 mb-2">
+                Debug: checkComplete={opponentsCheckComplete.toString()}, listLength={opponentsList.length}, showModal={showFirstOpponentModal.toString()}
+              </div>
+            )}
             <div className="space-y-4">
               <div>
                 <Label htmlFor="opponent-name">Opponent Name</Label>
