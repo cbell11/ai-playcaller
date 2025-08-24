@@ -904,7 +904,11 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       }
 
       // Get team translations for all terminology fields
-      const teamConcept = translateField(play.concept, terminologyMaps[play.category as keyof typeof terminologyMaps] || new Map());
+      // Special case: RPO games use run_game terminology for concepts since they're run plays with RPO tags
+      const conceptMap = play.category === 'rpo_game' 
+        ? terminologyMaps.run_game 
+        : terminologyMaps[play.category as keyof typeof terminologyMaps] || new Map();
+      const teamConcept = translateField(play.concept, conceptMap);
       const teamFormations = translateField(play.formations, terminologyMaps.formations);
       const teamTags = translateField(play.tags, terminologyMaps.form_tags);
       const teamShifts = translateField(play.shifts, terminologyMaps.shifts);
@@ -913,6 +917,33 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       const teamPassProtections = translateField(play.pass_protections, terminologyMaps.pass_protections);
       const teamConceptTag = translateField(play.concept_tag, terminologyMaps.concept_tags);
       const teamRpoTag = translateField(play.rpo_tag, terminologyMaps.rpo_tag);
+
+      // Special debug for screen game plays
+      if (play.category === 'screen_game') {
+        console.log(`🎬 Screen game debug for play ${play.play_id}:`, {
+          original_concept: play.concept,
+          original_concept_lowercase: play.concept?.toLowerCase(),
+          translated_concept: teamConcept,
+          category: play.category,
+          screen_map_size: terminologyMaps.screen_game.size,
+          screen_map_has_key: terminologyMaps.screen_game.has(play.concept?.toLowerCase() || ''),
+          screen_map_entries: Array.from(terminologyMaps.screen_game.entries())
+        });
+      }
+
+      // Special debug for RPO game plays
+      if (play.category === 'rpo_game') {
+        console.log(`🏈 RPO game debug for play ${play.play_id}:`, {
+          original_concept: play.concept,
+          translated_concept: teamConcept,
+          original_rpo_tag: play.rpo_tag,
+          translated_rpo_tag: teamRpoTag,
+          category: play.category,
+          using_run_game_map: true,
+          run_game_map_size: terminologyMaps.run_game.size,
+          rpo_tag_map_size: terminologyMaps.rpo_tag.size
+        });
+      }
 
       // Debug logging for terminology translation
       console.log('Terminology translation debug for play:', play.play_id, {
