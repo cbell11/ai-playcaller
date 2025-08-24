@@ -3655,6 +3655,168 @@ export default function PlanPage() {
 
       if (lockedError) throw lockedError;
 
+      // Special handling for Opening Script - just randomly select plays from play pool
+      if (section === 'openingScript') {
+        const count = sectionSizes[section];
+        
+        // Randomly shuffle and select plays from the entire play pool
+        const shuffled = [...playPool].sort(() => Math.random() - 0.5);
+        const selectedPlays = shuffled.slice(0, count);
+        
+        if (selectedPlays.length === 0) {
+          setNotification({
+            message: 'No plays available for Opening Script',
+            type: 'error'
+          });
+          return;
+        }
+
+        // Delete existing unlocked plays for this section
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toString().toLowerCase())
+          .eq('is_locked', false);
+
+        if (deleteError) {
+          throw new Error('Failed to clear unlocked plays');
+        }
+
+        // Calculate available positions after locked plays
+        const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+        let currentPosition = 0;
+        const insertData = [];
+
+        // Insert new plays into available positions
+        for (const play of selectedPlays) {
+          while (currentPosition < count && lockedPositions.has(currentPosition)) {
+            currentPosition++;
+          }
+          
+          if (currentPosition < count) {
+            insertData.push({
+              team_id,
+              opponent_id,
+              play_id: play.play_id,
+              section: section.toString().toLowerCase(),
+              position: currentPosition,
+              combined_call: formatPlayFromPool(play),
+              customized_edit: play.customized_edit,
+              is_locked: false,
+              category: play.category
+            });
+            currentPosition++;
+          }
+        }
+
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+
+        setNotification({
+          message: `Updated Opening Script with ${insertData.length} plays`,
+          type: 'success'
+        });
+        return;
+      }
+
+      // Special handling for Opening Script - just randomly select plays from play pool
+      if (section === 'openingScript') {
+        const count = sectionSizes[section];
+        const shuffled = [...playPool].sort(() => Math.random() - 0.5);
+        const selectedPlays = shuffled.slice(0, count);
+        
+        if (selectedPlays.length === 0) {
+          setNotification({
+            message: 'No plays available for Opening Script',
+            type: 'error'
+          });
+          return;
+        }
+
+        // Delete existing unlocked plays for this section
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toString().toLowerCase())
+          .eq('is_locked', false);
+
+        if (deleteError) {
+          throw new Error('Failed to clear unlocked plays');
+        }
+
+        // Calculate available positions after locked plays
+        const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+        let currentPosition = 0;
+        const insertData = [];
+
+        // Insert new plays into available positions
+        for (const play of selectedPlays) {
+          while (currentPosition < count && lockedPositions.has(currentPosition)) {
+            currentPosition++;
+          }
+          
+          if (currentPosition < count) {
+            insertData.push({
+              team_id,
+              opponent_id,
+              play_id: play.play_id,
+              section: section.toString().toLowerCase(),
+              position: currentPosition,
+              combined_call: formatPlayFromPool(play),
+              customized_edit: play.customized_edit,
+              is_locked: false,
+              category: play.category
+            });
+            currentPosition++;
+          }
+        }
+
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+
+        setNotification({
+          message: `Updated Opening Script with ${insertData.length} plays`,
+          type: 'success'
+        });
+        return;
+      }
+
       // Special handling for third down, red zone, and goalline situations - no AI needed
       if (section === 'thirdAndShort' || section === 'thirdAndMedium' || section === 'thirdAndLong' ||
           section === 'highRedZone' || section === 'lowRedZone' || section === 'goalline') {
