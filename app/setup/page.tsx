@@ -62,6 +62,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [defaultScreenGame, setDefaultScreenGame] = useState<Terminology[]>([])
   const [defaultShotPlays, setDefaultShotPlays] = useState<Terminology[]>([])
   const [defaultConceptTags, setDefaultConceptTags] = useState<Terminology[]>([])
+  const [defaultRpoTags, setDefaultRpoTags] = useState<Terminology[]>([])
   const [localTerms, setLocalTerms] = useState<TerminologyWithUI[]>(terms || [])
   const [userInfo, setUserInfo] = useState<{id: string | null, email: string | null, team_id: string | null}>({id: null, email: null, team_id: null})
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -132,7 +133,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   useEffect(() => {
     if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
         category === "run_game" || category === "pass_protections" || category === "quick_game" || category === "dropback_game" || 
-        category === "screen_game" || category === "shot_plays") {
+        category === "screen_game" || category === "shot_plays" || category === "concept_tags" || category === "rpo_tag") {
       console.log(`Getting default team ${category} for category:`, category);
       
       const loadItems = async () => {
@@ -172,6 +173,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             setDefaultScreenGame(items || []);
           } else if (category === "shot_plays") {
             setDefaultShotPlays(items || []);
+          } else if (category === "concept_tags") {
+            setDefaultConceptTags(items || []);
+          } else if (category === "rpo_tag") {
+            setDefaultRpoTags(items || []);
           }
         } catch (error) {
           console.error(`Error loading team ${category}:`, error);
@@ -291,7 +296,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const updateConcept = (term: TerminologyWithUI, newConcept: string, isSelected: boolean) => {
     if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
         category === "run_game" || category === "pass_protections" || category === "quick_game" || category === "dropback_game" || 
-        category === "screen_game" || category === "shot_plays") {
+        category === "screen_game" || category === "shot_plays" || category === "concept_tags" || category === "rpo_tag") {
       const defaultItems = category === "formations" ? defaultFormations : 
                           category === "form_tags" ? defaultFormTags : 
                           category === "shifts" ? defaultShifts :
@@ -302,7 +307,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                           category === "quick_game" ? defaultQuickGame :
                           category === "dropback_game" ? defaultDropbackGame :
                           category === "screen_game" ? defaultScreenGame :
-                          defaultShotPlays;
+                          category === "shot_plays" ? defaultShotPlays :
+                          category === "concept_tags" ? defaultConceptTags :
+                          defaultRpoTags;
       const item = defaultItems.find(f => f.concept === newConcept)
       const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === newConcept)
       
@@ -680,6 +687,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         setDefaultShotPlays(items || []);
       } else if (category === "concept_tags") {
         setDefaultConceptTags(items || []);
+      } else if (category === "rpo_tag") {
+        setDefaultRpoTags(items || []);
       }
     } catch (error) {
       console.error(`Error force reloading ${category}:`, error);
@@ -690,9 +699,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const handleResetToDefault = async () => {
     if ((category !== "formations" && category !== "form_tags" && category !== "shifts" && category !== "to_motions" && category !== "from_motions" && 
          category !== "run_game" && category !== "pass_protections" && category !== "quick_game" && category !== "dropback_game" && 
-         category !== "screen_game" && category !== "shot_plays" && category !== "concept_tags") || 
+         category !== "screen_game" && category !== "shot_plays" && category !== "concept_tags" && category !== "rpo_tag") || 
         !userInfo.team_id || userInfo.team_id === DEFAULT_TEAM_ID) {
-      console.log(`Cannot reset ${category}: not on formations/form_tags/shifts/to_motions/from_motions/run_game/pass_protections/quick_game/dropback_game/screen_game/shot_plays/concept_tags tab, no team id, or already using default team`);
+      console.log(`Cannot reset ${category}: not on formations/form_tags/shifts/to_motions/from_motions/run_game/pass_protections/quick_game/dropback_game/screen_game/shot_plays/concept_tags/rpo_tag tab, no team id, or already using default team`);
       return;
     }
 
@@ -885,7 +894,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                       category === "quick_game" ? defaultQuickGame :
                       category === "dropback_game" ? defaultDropbackGame :
                       category === "screen_game" ? defaultScreenGame :
-                      defaultShotPlays)
+                      category === "shot_plays" ? defaultShotPlays :
+                      category === "concept_tags" ? defaultConceptTags :
+                      defaultRpoTags)
                       .filter(item => item.concept !== term.concept) // Filter out current concept as it's already added above
                       .map((item, index) => {
                         const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === item.concept);
