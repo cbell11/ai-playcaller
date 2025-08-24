@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import React, { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Plus, Pencil, Check, Trash2, Save, Eye, X, RefreshCw, AlertTriangle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -1014,7 +1014,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
 }
 
 // Parent component to manage all terminology sets
-export default function SetupPage() {
+function SetupPageContent() {
+  const searchParams = useSearchParams()
+  const welcomeMessage = searchParams.get('message')
+  
   const [isLoading, setIsLoading] = useState(true)
   const [terminology, setTerminology] = useState<Terminology[]>([])
   const [formationsSet, setFormationsSet] = useState<TerminologyWithUI[]>([])
@@ -1038,6 +1041,7 @@ export default function SetupPage() {
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null)
   const [isSavingAll, setIsSavingAll] = useState(false)
   const [saveAllSuccess, setSaveAllSuccess] = useState<string | null>(null)
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(!!welcomeMessage)
 
   // Create Supabase client
   const supabase = createBrowserClient(
@@ -1385,6 +1389,21 @@ export default function SetupPage() {
   // Render all terminology sets
   return (
     <div className="container mx-auto py-8">
+      {/* Welcome Message */}
+      {showWelcomeMessage && welcomeMessage && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg flex items-center justify-between">
+          <p className="text-sm font-medium">{welcomeMessage}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowWelcomeMessage(false)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+      
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Terminology Setup</h1>
         <div className="flex items-center space-x-4">
@@ -1580,5 +1599,14 @@ export default function SetupPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// Export wrapped component with Suspense
+export default function SetupPage() {
+  return (
+    <Suspense fallback={<div className="container mx-auto py-8">Loading...</div>}>
+      <SetupPageContent />
+    </Suspense>
   )
 }

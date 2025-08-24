@@ -17,6 +17,8 @@ import {
   getScoutingReport
 } from "../actions/scouting-reports"
 import { analyzeAndUpdatePlays } from "../actions/analyze-plays"
+import { addOpponent } from "../actions/opponents"
+import { v4 as uuidv4 } from 'uuid'
 
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
@@ -236,10 +238,11 @@ export default function ScoutingPage() {
               console.log('No opponent selected, fetching available opponents...');
               
               try {
-                // Fetch all opponents first (don't limit to 10)
+                // Fetch opponents for this specific team
                 const { data: opponentsData, error: opponentsError } = await supabase
                   .from('opponents')
                   .select('id, name')
+                  .eq('team_id', teamData[0].id)
                   .order('name');
                   
                 if (opponentsError) {
@@ -313,6 +316,8 @@ export default function ScoutingPage() {
                   console.log('No opponents found to use as default');
                   setIsAppLoading(false);
                   setDataFullyLoaded(true);
+                  // Show the first opponent modal
+                  setShowFirstOpponentModal(true);
                 }
               } catch (opponentsError) {
                 console.error('Error getting default opponent:', opponentsError);
@@ -370,6 +375,7 @@ export default function ScoutingPage() {
               const { data: allOpponents, error: allOpponentsError } = await supabase
                 .from('opponents')
                 .select('id, name')
+                .eq('team_id', teamData[0].id)
                 .order('name');
               
               if (allOpponentsError) {
@@ -1698,13 +1704,14 @@ export default function ScoutingPage() {
   // Load opponents for the dropdown when component mounts
   useEffect(() => {
     const loadOpponentsList = async () => {
-      if (!supabaseClient) return;
+      if (!supabaseClient || !selectedTeamId) return;
       
       setIsLoadingOpponentsList(true);
       try {
         const { data, error } = await supabaseClient
           .from('opponents')
           .select('id, name')
+          .eq('team_id', selectedTeamId)
           .order('name');
           
         if (error) {
@@ -1719,10 +1726,10 @@ export default function ScoutingPage() {
       }
     };
     
-    if (supabaseClient) {
+    if (supabaseClient && selectedTeamId) {
       loadOpponentsList();
     }
-  }, [supabaseClient]);
+  }, [supabaseClient, selectedTeamId]);
 
   // Handle opponent change from dropdown
   const handleOpponentChange = async (opponentId: string) => {
@@ -2000,6 +2007,72 @@ export default function ScoutingPage() {
     setShowAddBlitzDialog(false);
     setSelectedBlitzId("");
   };
+
+  // Handle adding first opponent
+  const handleAddFirstOpponent = async () => {
+    if (!newOpponentName.trim() || !selectedTeamId) return;
+    
+    setAddOpponentError(null);
+    setIsAddingOpponent(true);
+    
+    try {
+      // Generate a new UUID for the opponent
+      const opponentId = uuidv4();
+      
+      // Prepare data for server action
+      const opponentData = {
+        id: opponentId,
+        name: newOpponentName.trim(),
+        team_id: selectedTeamId
+      };
+      
+      console.log('Adding first opponent:', opponentData);
+      
+      // Call the server action
+      const result = await addOpponent(opponentData);
+      
+      if (!result.success) {
+        setAddOpponentError(result.error?.message || 'Failed to add opponent');
+        console.error('Server action error:', result.error);
+        return;
+      }
+      
+      if (!result.data) {
+        setAddOpponentError('No data returned after insert');
+        return;
+      }
+      
+      console.log('Successfully added first opponent:', result.data);
+      
+      // Update opponents list
+      setOpponentsList([result.data]);
+      
+      // Select the new opponent
+      setSelectedOpponentId(result.data.id);
+      setSelectedOpponentName(result.data.name);
+      localStorage.setItem('selectedOpponent', result.data.id);
+      
+      // Close the modal and reset form
+      setShowFirstOpponentModal(false);
+      setNewOpponentName("");
+      
+      // Redirect to setup page with message and reload
+      window.location.href = '/setup?message=Before we get started, let\'s set up your terminology';
+    } catch (error) {
+      console.error('Error adding first opponent:', error);
+      setAddOpponentError(error instanceof Error ? error.message : 'Unknown error occurred');
+    } finally {
+      setIsAddingOpponent(false);
+    }
+  };
+
+  // Add this near the other state declarations (around line 150-160)
+  
+  // Add state for first opponent modal
+  const [showFirstOpponentModal, setShowFirstOpponentModal] = useState(false);
+  const [newOpponentName, setNewOpponentName] = useState("");
+  const [isAddingOpponent, setIsAddingOpponent] = useState(false);
+  const [addOpponentError, setAddOpponentError] = useState<string | null>(null);
 
                       return (
     <div className="container max-w-7xl space-y-6">
@@ -2287,6 +2360,56 @@ export default function ScoutingPage() {
           </SelectSafeDialogFooter>
         </SelectSafeDialogContent>
       </SelectSafeDialog>
+
+      {/* First Opponent Modal */}
+      <Dialog open={showFirstOpponentModal} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Add Your First Opponent</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600 mb-4">
+              Welcome to AI Playcaller! To get started, please add your first opponent.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="opponent-name">Opponent Name</Label>
+                <Input
+                  id="opponent-name"
+                  type="text"
+                  placeholder="Enter opponent name"
+                  value={newOpponentName}
+                  onChange={(e) => setNewOpponentName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddFirstOpponent();
+                    }
+                  }}
+                />
+              </div>
+              {addOpponentError && (
+                <p className="text-sm text-red-600">{addOpponentError}</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleAddFirstOpponent}
+              disabled={!newOpponentName.trim() || isAddingOpponent}
+              className="bg-[#2ecc71] hover:bg-[#27ae60] text-white w-full"
+            >
+              {isAddingOpponent ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                'Submit'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
