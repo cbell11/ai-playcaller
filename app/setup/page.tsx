@@ -1146,8 +1146,23 @@ function SetupPageContent() {
       if (targetUrl) {
         console.log('Auto-saving terminology before navigation to:', targetUrl)
         try {
+          // Get current opponent ID before save
+          const currentOpponentId = localStorage.getItem('selectedOpponent')
+          
           // Trigger save all terminology
           await handleSaveAllTerminology()
+          
+          // If we have an opponent and we're going to the playpool page, trigger reload
+          if (currentOpponentId && targetUrl === '/playpool') {
+            console.log('Triggering playpool reload before navigation')
+            const event = new CustomEvent('opponentChanged', { 
+              detail: { opponentId: currentOpponentId }
+            })
+            window.dispatchEvent(event)
+            // Add small delay to allow reload to start
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+          
           // Navigate after save completes
           window.location.href = targetUrl
         } catch (error) {
@@ -1280,6 +1295,9 @@ function SetupPageContent() {
     try {
       setIsSavingAll(true);
       console.log("Saving all terminology categories for team", profileInfo.team_id);
+      
+      // Get the current opponent ID from localStorage for playpool reload
+      const currentOpponentId = localStorage.getItem('selectedOpponent');
 
       // Check if supabase client is available
       if (!supabase) {
@@ -1416,6 +1434,16 @@ function SetupPageContent() {
       setTimeout(() => {
         setSaveAllSuccess(null);
       }, 5000);
+
+      // If we have an opponent selected, trigger playpool reload
+      if (currentOpponentId) {
+        console.log('Triggering playpool reload after terminology save');
+        // Dispatch opponent changed event to trigger playpool reload
+        const event = new CustomEvent('opponentChanged', { 
+          detail: { opponentId: currentOpponentId }
+        });
+        window.dispatchEvent(event);
+      }
 
     } catch (error) {
       console.error("Error saving all terminology:", error);
