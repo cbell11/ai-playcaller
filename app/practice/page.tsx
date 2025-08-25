@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Timer, Plus, Trash2, Search, Star, Image, Loader2, Printer, Wand2, Save } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getScoutingReport } from '@/lib/scouting'
@@ -138,6 +139,9 @@ export default function PracticePage() {
   }>>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
+
+  // Add state for clear practice plan
+  const [showClearPlanDialog, setShowClearPlanDialog] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -621,6 +625,39 @@ export default function PracticePage() {
       setAvailableTemplates([])
     } finally {
       setIsLoadingTemplates(false)
+    }
+  }
+
+  const handleClearPracticePlan = async () => {
+    if (!teamId || !opponentId) {
+      console.error('Missing teamId or opponentId for clearing practice plan')
+      setShowClearPlanDialog(false)
+      return
+    }
+
+    try {
+      console.log('Clearing practice plan for:', { teamId, opponentId })
+      
+      // Delete the practice plan from the database
+      const { error } = await supabase
+        .from('practice_plans')
+        .delete()
+        .eq('team_id', teamId)
+        .eq('opponent_id', opponentId)
+
+      if (error) {
+        console.error('Error clearing practice plan from database:', error)
+        alert('Failed to clear practice plan from database. Please try again.')
+      } else {
+        console.log('Practice plan cleared from database successfully')
+        // Clear sections from UI
+        setSections([])
+      }
+    } catch (err) {
+      console.error('Error in handleClearPracticePlan:', err)
+      alert('Failed to clear practice plan. Please try again.')
+    } finally {
+      setShowClearPlanDialog(false)
     }
   }
 
@@ -1981,6 +2018,14 @@ export default function PracticePage() {
             <Button onClick={handleSavePracticePlan} disabled={isSaving}>
               {isSaving ? 'Saving...' : 'Save Practice Plan'}
             </Button>
+            <Button 
+              variant="outline"
+              onClick={() => setShowClearPlanDialog(true)}
+              className="bg-red-500 hover:bg-red-600 text-white hover:text-white border-red-500"
+              disabled={sections.length === 0}
+            >
+              Clear Practice Plan
+            </Button>
           </div>
         </CardHeader>
       </Card>
@@ -2363,6 +2408,27 @@ export default function PracticePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Clear Practice Plan Confirmation Dialog */}
+      <AlertDialog open={showClearPlanDialog} onOpenChange={setShowClearPlanDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear Entire Practice Plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to clear your entire practice plan? This will remove all sections and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleClearPracticePlan}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Yes, Clear Practice Plan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   )
