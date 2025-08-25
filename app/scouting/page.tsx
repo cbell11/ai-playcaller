@@ -5,13 +5,12 @@ import { useRouter } from "next/navigation"
 import { createBrowserClient } from '@supabase/ssr'
 import { Plus, FileText, Loader2, X, ChevronDown, ChevronUp } from "lucide-react"
 import { load, save } from "@/lib/local"
-import { getMasterFronts } from "../actions/fronts"
-import { getMasterCoverages } from "../actions/coverages"
 import { 
-  getMasterBlitzes, 
-  listAllBlitzes,
-  removeProblematicBlitzes
-} from "../actions/blitzes"
+  getScoutingFronts, 
+  getScoutingCoverages, 
+  getScoutingBlitzes,
+  ScoutingTerminology 
+} from "../actions/scouting-terminology"
 import {
   saveScoutingReport,
   getScoutingReport
@@ -51,26 +50,10 @@ type ScoutingOption = {
   fieldArea: string
 }
 
-// Define master front type
-type MasterFront = {
-  id: string
-  name: string
-  created_at: string
-}
-
-// Define master coverage type
-type MasterCoverage = {
-  id: string
-  name: string
-  created_at: string
-}
-
-// Define master blitz type
-type MasterBlitz = {
-  id: string
-  name: string
-  created_at: string
-}
+// Use ScoutingTerminology type from the imported module
+type ScoutingFront = ScoutingTerminology
+type ScoutingCoverage = ScoutingTerminology  
+type ScoutingBlitz = ScoutingTerminology
 
 export default function ScoutingPage() {
   const router = useRouter()
@@ -92,21 +75,21 @@ export default function ScoutingPage() {
     message: string
   } | null>(null)
   
-  // Master fronts state
-  const [masterFronts, setMasterFronts] = useState<MasterFront[]>([])
-  const [isLoadingMasterFronts, setIsLoadingMasterFronts] = useState(true)
+  // Scouting terminology state
+  const [scoutingFronts, setScoutingFronts] = useState<ScoutingFront[]>([])
+  const [isLoadingScoutingFronts, setIsLoadingScoutingFronts] = useState(true)
   const [showAddFrontDialog, setShowAddFrontDialog] = useState(false)
   const [selectedFrontId, setSelectedFrontId] = useState<string>("")
   
-  // Master coverages state
-  const [masterCoverages, setMasterCoverages] = useState<MasterCoverage[]>([])
-  const [isLoadingMasterCoverages, setIsLoadingMasterCoverages] = useState(true)
+  // Scouting coverages state
+  const [scoutingCoverages, setScoutingCoverages] = useState<ScoutingCoverage[]>([])
+  const [isLoadingScoutingCoverages, setIsLoadingScoutingCoverages] = useState(true)
   const [showAddCoverageDialog, setShowAddCoverageDialog] = useState(false)
   const [selectedCoverageId, setSelectedCoverageId] = useState<string>("")
   
-  // Master blitzes state
-  const [masterBlitzes, setMasterBlitzes] = useState<MasterBlitz[]>([])
-  const [isLoadingMasterBlitzes, setIsLoadingMasterBlitzes] = useState(true)
+  // Scouting blitzes state
+  const [scoutingBlitzes, setScoutingBlitzes] = useState<ScoutingBlitz[]>([])
+  const [isLoadingScoutingBlitzes, setIsLoadingScoutingBlitzes] = useState(true)
   const [showAddBlitzDialog, setShowAddBlitzDialog] = useState(false)
   const [selectedBlitzId, setSelectedBlitzId] = useState<string>("")
   
@@ -144,9 +127,9 @@ export default function ScoutingPage() {
   const [isLoadingOpponentsList, setIsLoadingOpponentsList] = useState(false);
 
   // Add these dialog state handlers
-  const [selectedFront, setSelectedFront] = useState<MasterFront | null>(null);
-  const [selectedCoverage, setSelectedCoverage] = useState<MasterCoverage | null>(null);
-  const [selectedBlitz, setSelectedBlitz] = useState<MasterBlitz | null>(null);
+  const [selectedFront, setSelectedFront] = useState<ScoutingFront | null>(null);
+  const [selectedCoverage, setSelectedCoverage] = useState<ScoutingCoverage | null>(null);
+  const [selectedBlitz, setSelectedBlitz] = useState<ScoutingBlitz | null>(null);
 
   // Add loading state for opponent data
   const [isLoadingOpponentData, setIsLoadingOpponentData] = useState(false)
@@ -570,96 +553,89 @@ export default function ScoutingPage() {
     };
   }, []);
 
-  // Fetch master fronts
+  // Fetch scouting fronts
   useEffect(() => {
-    const fetchMasterFronts = async () => {
-      setIsLoadingMasterFronts(true);
+    const fetchScoutingFronts = async () => {
+      setIsLoadingScoutingFronts(true);
       
       try {
-        // Just fetch all fronts from the database without removing anything
-        const result = await getMasterFronts();
+        // Fetch all enabled fronts from the scouting terminology table
+        const result = await getScoutingFronts();
         
         if (result.success && result.data) {
-          // Keep all fronts in masterFronts for selection, filtering happens only at UI level
-          setMasterFronts(result.data);
+          // Set scouting fronts for selection
+          setScoutingFronts(result.data);
         } else {
-          setErrorMessage(result.error?.message || 'Failed to load master fronts');
-          console.error('Failed to fetch master fronts:', result.error);
+          setErrorMessage(result.error?.message || 'Failed to load scouting fronts');
+          console.error('Failed to fetch scouting fronts:', result.error);
         }
       } catch (error) {
-        setErrorMessage('Error loading master fronts');
-        console.error('Error fetching master fronts:', error);
+        setErrorMessage('Error loading scouting fronts');
+        console.error('Error fetching scouting fronts:', error);
       } finally {
-        setIsLoadingMasterFronts(false);
+        setIsLoadingScoutingFronts(false);
       }
     };
     
-    fetchMasterFronts();
+    fetchScoutingFronts();
   }, []);
 
-  // Fetch master coverages
+  // Fetch scouting coverages
   useEffect(() => {
-    const fetchMasterCoverages = async () => {
-      setIsLoadingMasterCoverages(true);
+    const fetchScoutingCoverages = async () => {
+      setIsLoadingScoutingCoverages(true);
       
       try {
-        // Just fetch all coverages from the database without removing anything
-        const result = await getMasterCoverages();
+        // Fetch all enabled coverages from the scouting terminology table
+        const result = await getScoutingCoverages();
         
         if (result.success && result.data) {
-          // Keep all coverages in masterCoverages for selection, filtering happens only at UI level
-          setMasterCoverages(result.data);
+          // Set scouting coverages for selection
+          setScoutingCoverages(result.data);
         } else {
-          setErrorMessage(result.error?.message || 'Failed to load master coverages');
-          console.error('Failed to fetch master coverages:', result.error);
+          setErrorMessage(result.error?.message || 'Failed to load scouting coverages');
+          console.error('Failed to fetch scouting coverages:', result.error);
         }
       } catch (error) {
-        setErrorMessage('Error loading master coverages');
-        console.error('Error fetching master coverages:', error);
+        setErrorMessage('Error loading scouting coverages');
+        console.error('Error fetching scouting coverages:', error);
       } finally {
-        setIsLoadingMasterCoverages(false);
+        setIsLoadingScoutingCoverages(false);
       }
     };
     
-    fetchMasterCoverages();
+    fetchScoutingCoverages();
   }, []);
 
-  // Fetch master blitzes - updated to prevent deletion of blitzes
+  // Fetch scouting blitzes
   useEffect(() => {
-    const fetchMasterBlitzes = async () => {
-      setIsLoadingMasterBlitzes(true);
+    const fetchScoutingBlitzes = async () => {
+      setIsLoadingScoutingBlitzes(true);
       
       try {
-        // Skip removal of default blitzes to prevent data loss
-        // await removeDefaultBlitzes(); <-- This was likely causing issues
-        
-        // Just fetch the blitzes without any filtering
-        const result = await getMasterBlitzes();
+        // Fetch all enabled blitzes from the scouting terminology table
+        const result = await getScoutingBlitzes();
         
         if (result.success && result.data) {
-          console.log("Fetched master blitzes:", result.data);
-          setMasterBlitzes(result.data);
+          console.log("Fetched scouting blitzes:", result.data);
+          setScoutingBlitzes(result.data);
           
           // Log all blitz names to help diagnose issues
-          const blitzNames = result.data.map(blitz => blitz.name);
+          const blitzNames = result.data.map((blitz: ScoutingBlitz) => blitz.name);
           console.log("Available blitz names:", blitzNames);
-          
-          if (blitzNames.includes('Strong Outside') || blitzNames.includes('Weak Outside')) {
-            console.log("WARNING: Found unexpected blitz names 'Strong Outside' or 'Weak Outside'");
-          }
         } else {
-          setErrorMessage(result.error?.message || 'Failed to load master blitzes');
-          console.error('Failed to fetch master blitzes:', result.error);
+          setErrorMessage(result.error?.message || 'Failed to load scouting blitzes');
+          console.error('Failed to fetch scouting blitzes:', result.error);
         }
       } catch (error) {
-        setErrorMessage('Error loading master blitzes');
-        console.error('Error fetching master blitzes:', error);
+        setErrorMessage('Error loading scouting blitzes');
+        console.error('Error fetching scouting blitzes:', error);
       } finally {
-        setIsLoadingMasterBlitzes(false);
+        setIsLoadingScoutingBlitzes(false);
       }
     };
     
-    fetchMasterBlitzes();
+    fetchScoutingBlitzes();
   }, []);
   
   // Handle removing a front
@@ -1209,9 +1185,9 @@ export default function ScoutingPage() {
                 size="sm"
                 onClick={() => setShowAddFrontDialog(true)}
                 className="w-full flex justify-center items-center"
-                disabled={isLoadingMasterFronts}
+                disabled={isLoadingScoutingFronts}
               >
-                {isLoadingMasterFronts ? (
+                {isLoadingScoutingFronts ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Loading Fronts...
@@ -1247,9 +1223,9 @@ export default function ScoutingPage() {
                 size="sm"
                 onClick={() => setShowAddCoverageDialog(true)}
                 className="w-full flex justify-center items-center"
-                disabled={isLoadingMasterCoverages}
+                disabled={isLoadingScoutingCoverages}
               >
-                {isLoadingMasterCoverages ? (
+                {isLoadingScoutingCoverages ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Loading Coverages...
@@ -1285,9 +1261,9 @@ export default function ScoutingPage() {
                 size="sm"
                 onClick={() => setShowAddBlitzDialog(true)}
                 className="w-full flex justify-center items-center"
-                disabled={isLoadingMasterBlitzes}
+                disabled={isLoadingScoutingBlitzes}
               >
-                {isLoadingMasterBlitzes ? (
+                {isLoadingScoutingBlitzes ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Loading Blitzes...
@@ -1864,8 +1840,8 @@ export default function ScoutingPage() {
       return;
     }
     
-    // Find the selected front in the master list
-    const front = masterFronts.find(front => front.id === frontId);
+    // Find the selected front in the scouting list
+    const front = scoutingFronts.find((front: ScoutingFront) => front.id === frontId);
     if (!front) {
       setErrorMessage("Selected front not found");
       return;
@@ -1906,8 +1882,8 @@ export default function ScoutingPage() {
       return;
     }
     
-    // Find the selected coverage in the master list
-    const coverage = masterCoverages.find(coverage => coverage.id === coverageId);
+    // Find the selected coverage in the scouting list
+    const coverage = scoutingCoverages.find((coverage: ScoutingCoverage) => coverage.id === coverageId);
     if (!coverage) {
       setErrorMessage("Selected coverage not found");
       return;
@@ -1948,8 +1924,8 @@ export default function ScoutingPage() {
       return;
     }
     
-    // Find the selected blitz in the master list
-    const blitz = masterBlitzes.find(blitz => blitz.id === blitzId);
+    // Find the selected blitz in the scouting list
+    const blitz = scoutingBlitzes.find((blitz: ScoutingBlitz) => blitz.id === blitzId);
     if (!blitz) {
       setErrorMessage("Selected blitz not found");
       return;
@@ -2233,7 +2209,7 @@ export default function ScoutingPage() {
                 sideOffset={4}
                 align="start"
               >
-                {masterFronts.map(front => (
+                {scoutingFronts.map((front: ScoutingFront) => (
                   <SelectItem key={front.id} value={front.id}>
                     {front.name}
                   </SelectItem>
@@ -2276,7 +2252,7 @@ export default function ScoutingPage() {
                 sideOffset={4}
                 align="start"
               >
-                {masterCoverages.map(coverage => (
+                {scoutingCoverages.map((coverage: ScoutingCoverage) => (
                   <SelectItem key={coverage.id} value={coverage.id}>
                     {coverage.name}
                   </SelectItem>
@@ -2319,7 +2295,7 @@ export default function ScoutingPage() {
                 sideOffset={4}
                 align="start"
               >
-                {masterBlitzes.map(blitz => (
+                {scoutingBlitzes.map((blitz: ScoutingBlitz) => (
                   <SelectItem key={blitz.id} value={blitz.id}>
                     {blitz.name}
                   </SelectItem>
