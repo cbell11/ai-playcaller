@@ -211,6 +211,32 @@ export default function MasterPlayPoolPage() {
     return sortedPlays
   }
 
+  // Transform database play values to UI-friendly values for editing
+  const preparePlayForEditing = (play: MasterPlay): MasterPlay => {
+    // Convert concept_direction from database format (+/-/'') to UI format (plus/minus/none)
+    let uiConceptDirection = 'none'
+    if (play.concept_direction === '+') {
+      uiConceptDirection = 'plus'
+    } else if (play.concept_direction === '-') {
+      uiConceptDirection = 'minus'
+    }
+
+    return {
+      ...play,
+      concept_direction: uiConceptDirection,
+      // Convert null values to empty strings for better UI handling
+      // Use empty string for fields that should show "none" option, null will be handled by the || "none" in selects
+      shifts: play.shifts || null,
+      to_motions: play.to_motions || null,
+      tags: play.tags || null,
+      from_motions: play.from_motions || null,
+      pass_protections: play.pass_protections || null,
+      concept_tag: play.concept_tag || null,
+      rpo_tag: play.rpo_tag || null,
+      notes: play.notes || ''
+    }
+  }
+
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -465,7 +491,7 @@ export default function MasterPlayPoolPage() {
       const { error: updateError } = await supabase
         .from('master_play_pool')
         .update(playData)
-        .eq('id', editingPlay.id)
+        .eq('play_id', editingPlay.play_id)
 
       if (updateError) throw updateError
 
@@ -739,21 +765,32 @@ export default function MasterPlayPoolPage() {
                           Coverage
                         </Button>
                       </td>
-                      <td className="p-2">
-                        <div className="flex items-center justify-center space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => {
-                              setPlayToDelete(play)
-                              setIsDeleteConfirmOpen(true)
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3 text-red-500" />
-                          </Button>
-                        </div>
-                      </td>
+                                              <td className="p-2">
+                          <div className="flex items-center justify-center space-x-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => {
+                                setEditingPlay(preparePlayForEditing(play))
+                                setIsEditPlayOpen(true)
+                              }}
+                            >
+                              <Pencil className="h-3 w-3 text-blue-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => {
+                                setPlayToDelete(play)
+                                setIsDeleteConfirmOpen(true)
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3 text-red-500" />
+                            </Button>
+                          </div>
+                        </td>
                     </tr>
                   ))}
                 </tbody>
@@ -812,6 +849,9 @@ export default function MasterPlayPoolPage() {
 
         {/* Edit Play Modal */}
         <Dialog open={isEditPlayOpen} onOpenChange={(open) => {
+          if (open) {
+            fetchTerminology()
+          }
           setIsEditPlayOpen(open)
           if (!open) {
             setEditingPlay(null)
@@ -830,50 +870,303 @@ export default function MasterPlayPoolPage() {
                 </div>
               </div>
             )}
-            <div className="grid gap-4 py-4">
-              {/* Category Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="category">Category *</Label>
-                <Select
-                  value={editingPlay?.category || ''}
-                  onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, category: value }) : null)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    <SelectItem value="run_game">Run Game</SelectItem>
-                    <SelectItem value="rpo_game">RPO Game</SelectItem>
-                    <SelectItem value="quick_game">Quick Game</SelectItem>
-                    <SelectItem value="dropback_game">Dropback Game</SelectItem>
-                    <SelectItem value="screen_game">Screen Game</SelectItem>
-                    <SelectItem value="shot_plays">Shot Plays</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="grid gap-3 py-2 overflow-y-auto max-h-[60vh]">
+              {/* Main Play Information - 3 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Category Selection */}
+                <div className="space-y-1">
+                  <Label htmlFor="category">Category *</Label>
+                  <Select
+                    value={editingPlay?.category || ''}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, category: value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="run_game">Run Game</SelectItem>
+                      <SelectItem value="rpo_game">RPO Game</SelectItem>
+                      <SelectItem value="quick_game">Quick Game</SelectItem>
+                      <SelectItem value="dropback_game">Dropback Game</SelectItem>
+                      <SelectItem value="screen_game">Screen Game</SelectItem>
+                      <SelectItem value="shot_plays">Shot Plays</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Formation */}
+                <div className="space-y-1">
+                  <Label htmlFor="formations">Formation *</Label>
+                  <Select
+                    value={editingPlay?.formations || ''}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, formations: value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select formation" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {formations.map(formation => (
+                        <SelectItem key={formation.id} value={formation.concept}>
+                          {formation.label || formation.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Formation Tag */}
+                <div className="space-y-1">
+                  <Label htmlFor="tags">Formation Tag</Label>
+                  <Select
+                    value={editingPlay?.tags || "none"}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, tags: value === "none" ? "" : value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select formation tag" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {tags.map(tag => (
+                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
+                          {tag.label || tag.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Formation */}
-              <div className="space-y-2">
-                <Label htmlFor="formations">Formation *</Label>
-                <Select
-                  value={editingPlay?.formations || ''}
-                  onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, formations: value }) : null)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select formation" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {formations.map(formation => (
-                      <SelectItem key={formation.id} value={formation.concept}>
-                        {formation.label || formation.concept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Motion and Shifts - 3 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Shifts */}
+                <div className="space-y-1">
+                  <Label htmlFor="shifts">Shifts</Label>
+                  <Select
+                    value={editingPlay?.shifts || "none"}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, shifts: value === "none" ? "" : value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select shifts" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {shifts.map(shift => (
+                        <SelectItem key={shift.id} value={shift.concept}>
+                          {shift.label || shift.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* To Motion */}
+                <div className="space-y-1">
+                  <Label htmlFor="to_motions">To Motion</Label>
+                  <Select
+                    value={editingPlay?.to_motions || "none"}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, to_motions: value === "none" ? "" : value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select to motion" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {toMotions.map(motion => (
+                        <SelectItem key={motion.id} value={motion.label || motion.concept}>
+                          {motion.label || motion.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* From Motion */}
+                <div className="space-y-1">
+                  <Label htmlFor="from_motions">From Motion</Label>
+                  <Select
+                    value={editingPlay?.from_motions || "none"}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, from_motions: value === "none" ? "" : value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select from motion" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {fromMotions.map(motion => (
+                        <SelectItem key={motion.id} value={motion.label || motion.concept}>
+                          {motion.label || motion.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Add other fields similar to Add Play modal but for editing */}
-              {/* ... */}
+              {/* Concept and Protection - 3 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Concept */}
+                <div className="space-y-1">
+                  <Label htmlFor="concept">Concept *</Label>
+                  <Select
+                    value={editingPlay?.concept || ''}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, concept: value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select concept" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {concepts.map(concept => (
+                        <SelectItem key={concept.id} value={concept.label || concept.concept}>
+                          {concept.label || concept.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Concept Direction */}
+                <div className="space-y-1">
+                  <Label htmlFor="concept_direction">Concept Direction</Label>
+                  <Select
+                    value={editingPlay?.concept_direction || "none"}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, concept_direction: value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select direction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="plus">Plus (+)</SelectItem>
+                      <SelectItem value="minus">Minus (-)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Pass Protection */}
+                <div className="space-y-1">
+                  <Label htmlFor="pass_protections">Pass Protection</Label>
+                  <Select
+                    value={editingPlay?.pass_protections || "none"}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, pass_protections: value === "none" ? "" : value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select protection" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {passProtections.map(protection => (
+                        <SelectItem key={protection.id} value={protection.label || protection.concept}>
+                          {protection.label || protection.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Tags - 2 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Concept Tag */}
+                <div className="space-y-1">
+                  <Label htmlFor="concept_tag">Concept Tag</Label>
+                  <Select
+                    value={editingPlay?.concept_tag || "none"}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, concept_tag: value === "none" ? "" : value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select concept tag" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {conceptTags.map(tag => (
+                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
+                          {tag.label || tag.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* RPO Tag */}
+                <div className="space-y-1">
+                  <Label htmlFor="rpo_tag">RPO Tag</Label>
+                  <Select
+                    value={editingPlay?.rpo_tag || "none"}
+                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, rpo_tag: value === "none" ? "" : value }) : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select RPO tag" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="none">None</SelectItem>
+                      {rpoTags.map(tag => (
+                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
+                          {tag.label || tag.concept}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Down & Distance Checkboxes */}
+              <div className="space-y-2">
+                <Label>Down & Distance</Label>
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="third_s"
+                      checked={editingPlay?.third_s || false}
+                      onCheckedChange={(checked) => setEditingPlay(prev => prev ? ({ ...prev, third_s: checked as boolean }) : null)}
+                    />
+                    <Label htmlFor="third_s" className="text-sm">3rd Short</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="third_m"
+                      checked={editingPlay?.third_m || false}
+                      onCheckedChange={(checked) => setEditingPlay(prev => prev ? ({ ...prev, third_m: checked as boolean }) : null)}
+                    />
+                    <Label htmlFor="third_m" className="text-sm">3rd Medium</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="third_l"
+                      checked={editingPlay?.third_l || false}
+                      onCheckedChange={(checked) => setEditingPlay(prev => prev ? ({ ...prev, third_l: checked as boolean }) : null)}
+                    />
+                    <Label htmlFor="third_l" className="text-sm">3rd Long</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="rz"
+                      checked={editingPlay?.rz || false}
+                      onCheckedChange={(checked) => setEditingPlay(prev => prev ? ({ ...prev, rz: checked as boolean }) : null)}
+                    />
+                    <Label htmlFor="rz" className="text-sm">Red Zone</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="gl"
+                      checked={editingPlay?.gl || false}
+                      onCheckedChange={(checked) => setEditingPlay(prev => prev ? ({ ...prev, gl: checked as boolean }) : null)}
+                    />
+                    <Label htmlFor="gl" className="text-sm">Goal Line</Label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={editingPlay?.notes || ''}
+                  onChange={(e) => setEditingPlay(prev => prev ? ({ ...prev, notes: e.target.value }) : null)}
+                  placeholder="Additional notes about this play..."
+                  className="min-h-[60px]"
+                />
+              </div>
 
             </div>
             <DialogFooter>
