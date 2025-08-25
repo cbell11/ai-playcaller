@@ -569,6 +569,9 @@ export default function PracticePage() {
         // Show success message
         setTemplateSaveSuccess(`Template "${templateName}" saved successfully!`)
         
+        // Refresh templates to include the newly created one
+        await fetchTemplates()
+        
         // Reset state
         setShowSaveTemplateModal(false)
         setSelectedSectionForTemplate(null)
