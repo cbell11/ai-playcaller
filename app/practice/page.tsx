@@ -494,22 +494,53 @@ export default function PracticePage() {
   }
 
   const generatePlaysForSection = async (section: PracticeSection) => {
-    if (section.type !== 'Inside Run') {
+    let allPlays: GamePlanPlay[] = []
+
+    if (section.type === 'Inside Run') {
+      // Filter gameplan plays for Run Game and RPO Game
+      const runGamePlays = gameplanPlays.filter(play => play.section === 'run_game')
+      const rpoGamePlays = gameplanPlays.filter(play => play.section === 'rpo_game')
+      
+      if (runGamePlays.length === 0 && rpoGamePlays.length === 0) {
+        console.log('No Run Game or RPO Game plays available in gameplan')
+        return
+      }
+
+      // Combine all available plays
+      allPlays = [...runGamePlays, ...rpoGamePlays]
+    } else if (section.type === 'Skelly') {
+      // Filter gameplan plays for Quick Game, Dropback Game, and Shot Plays
+      const quickGamePlays = gameplanPlays.filter(play => play.section === 'quick_game')
+      const dropbackGamePlays = gameplanPlays.filter(play => play.section === 'dropback_game')
+      const shotPlays = gameplanPlays.filter(play => play.section === 'shot_plays')
+      
+      if (quickGamePlays.length === 0 && dropbackGamePlays.length === 0 && shotPlays.length === 0) {
+        console.log('No Quick Game, Dropback Game, or Shot Plays available in gameplan')
+        return
+      }
+
+      // Combine all available plays
+      allPlays = [...quickGamePlays, ...dropbackGamePlays, ...shotPlays]
+    } else if (section.type === 'Team') {
+      // Filter gameplan plays from all categories
+      const runGamePlays = gameplanPlays.filter(play => play.section === 'run_game')
+      const rpoGamePlays = gameplanPlays.filter(play => play.section === 'rpo_game')
+      const quickGamePlays = gameplanPlays.filter(play => play.section === 'quick_game')
+      const dropbackGamePlays = gameplanPlays.filter(play => play.section === 'dropback_game')
+      const screenGamePlays = gameplanPlays.filter(play => play.section === 'screen_game')
+      const shotPlays = gameplanPlays.filter(play => play.section === 'shot_plays')
+      
+      // Combine all available plays from every category
+      allPlays = [...runGamePlays, ...rpoGamePlays, ...quickGamePlays, ...dropbackGamePlays, ...screenGamePlays, ...shotPlays]
+      
+      if (allPlays.length === 0) {
+        console.log('No plays available in gameplan for Team sections')
+        return
+      }
+    } else {
       console.log('Auto-generation not yet implemented for:', section.type)
       return
     }
-
-    // Filter gameplan plays for Run Game and RPO Game
-    const runGamePlays = gameplanPlays.filter(play => play.section === 'run_game')
-    const rpoGamePlays = gameplanPlays.filter(play => play.section === 'rpo_game')
-    
-    if (runGamePlays.length === 0 && rpoGamePlays.length === 0) {
-      console.log('No Run Game or RPO Game plays available in gameplan')
-      return
-    }
-
-    // Combine all available plays
-    const allPlays = [...runGamePlays, ...rpoGamePlays]
     
         // Generate new plays with scout cards
     const newPlays = await Promise.all(section.plays.map(async (play, index) => {
@@ -1647,11 +1678,23 @@ export default function PracticePage() {
                 const printWindow = window.open('', '_blank');
                 if (!printWindow) return;
 
-                const uniqueCards = new Set<string>();
+                // Collect cards with their context (section and play info)
+                const cardsWithContext: Array<{
+                  imageUrl: string;
+                  sectionName: string;
+                  playNumber: number;
+                  playId: string;
+                }> = [];
+
                 sections.forEach((section: PracticeSection) => {
                   section.plays.forEach((play: PracticePlay) => {
                     if (play.scout_card) {
-                      uniqueCards.add(play.scout_card.image_url);
+                      cardsWithContext.push({
+                        imageUrl: play.scout_card.image_url,
+                        sectionName: section.name,
+                        playNumber: play.number,
+                        playId: play.id
+                      });
                     }
                   });
                 });
@@ -1671,6 +1714,7 @@ export default function PracticePage() {
                           width: 100%;
                           height: 100vh;
                           display: flex;
+                          flex-direction: column;
                           justify-content: center;
                           align-items: center;
                           page-break-after: always;
@@ -1678,9 +1722,22 @@ export default function PracticePage() {
                         .card-container:last-child {
                           page-break-after: avoid;
                         }
+                        .card-header {
+                          text-align: center;
+                          margin-bottom: 20px;
+                        }
+                        .section-title {
+                          font-size: 24px;
+                          font-weight: bold;
+                          margin-bottom: 5px;
+                        }
+                        .play-number {
+                          font-size: 18px;
+                          color: #666;
+                        }
                         img {
                           max-width: 100%;
-                          max-height: 90vh;
+                          max-height: 80vh;
                           object-fit: contain;
                         }
                         @media print {
@@ -1705,9 +1762,13 @@ export default function PracticePage() {
                         <button onclick="window.print()">Print</button>
                         <hr>
                       </div>
-                      ${Array.from(uniqueCards).map(url => `
+                      ${cardsWithContext.map(card => `
                         <div class="card-container">
-                          <img src="${url}" alt="Scout card">
+                          <div class="card-header">
+                            <div class="section-title">${card.sectionName}</div>
+                            <div class="play-number">Play #${card.playNumber}</div>
+                          </div>
+                          <img src="${card.imageUrl}" alt="Scout card">
                         </div>
                       `).join('')}
                     </body>
