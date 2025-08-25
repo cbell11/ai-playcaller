@@ -78,6 +78,8 @@ export default function PracticePage() {
   const [gameplanPlays, setGameplanPlays] = useState<GamePlanPlay[]>([])
   const [scoutingFronts, setScoutingFronts] = useState<ScoutingOption[]>([])
   const [scoutingCoverages, setScoutingCoverages] = useState<ScoutingOption[]>([])
+  const [scoutingFrontsPercentages, setScoutingFrontsPercentages] = useState<Record<string, number>>({})
+  const [scoutingCoveragesPercentages, setScoutingCoveragesPercentages] = useState<Record<string, number>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [isSelectPlayOpen, setIsSelectPlayOpen] = useState(false)
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
@@ -346,15 +348,25 @@ export default function PracticePage() {
         // Set the scouting data state
         setScoutingFronts(reportData.fronts || [])
         setScoutingCoverages(reportData.coverages || [])
+        setScoutingFrontsPercentages(reportData.fronts_pct || {})
+        setScoutingCoveragesPercentages(reportData.coverages_pct || {})
+        
+        // Log percentage data for debugging
+        console.log('Fronts percentages:', reportData.fronts_pct)
+        console.log('Coverages percentages:', reportData.coverages_pct)
       } else {
         console.error('Failed to load scouting report:', scoutingReportResult.error)
         setScoutingFronts([])
         setScoutingCoverages([])
+        setScoutingFrontsPercentages({})
+        setScoutingCoveragesPercentages({})
       }
     } catch (error) {
       console.error('Error loading scouting data:', error)
       setScoutingFronts([])
       setScoutingCoverages([])
+      setScoutingFrontsPercentages({})
+      setScoutingCoveragesPercentages({})
     }
   }
 
@@ -493,6 +505,34 @@ export default function PracticePage() {
     }
   }
 
+  // Weighted random selection based on percentages
+  const selectWeightedOption = (options: ScoutingOption[], percentages: Record<string, number>): string => {
+    if (options.length === 0) return ''
+    
+    // If no percentage data, fall back to random selection
+    if (Object.keys(percentages).length === 0) {
+      return options[Math.floor(Math.random() * options.length)].name.toLowerCase()
+    }
+
+    // Create weighted array based on percentages
+    const weightedOptions: string[] = []
+    options.forEach(option => {
+      const percentage = percentages[option.name] || 0
+      // Add option multiple times based on percentage (scaled to reasonable numbers)
+      const weight = Math.max(1, Math.round(percentage))
+      for (let i = 0; i < weight; i++) {
+        weightedOptions.push(option.name.toLowerCase())
+      }
+    })
+
+    if (weightedOptions.length === 0) {
+      // Fallback to random if no weights
+      return options[Math.floor(Math.random() * options.length)].name.toLowerCase()
+    }
+
+    return weightedOptions[Math.floor(Math.random() * weightedOptions.length)]
+  }
+
   const generatePlaysForSection = async (section: PracticeSection) => {
     let allPlays: GamePlanPlay[] = []
 
@@ -574,16 +614,12 @@ export default function PracticePage() {
       ]
       const randomDownDist = downDistOptions[Math.floor(Math.random() * downDistOptions.length)]
       
-      // Select random front and coverage
-      const randomFront = scoutingFronts.length > 0 
-        ? scoutingFronts[Math.floor(Math.random() * scoutingFronts.length)].name.toLowerCase()
-        : ''
-      const randomCoverage = scoutingCoverages.length > 0 
-        ? scoutingCoverages[Math.floor(Math.random() * scoutingCoverages.length)].name.toLowerCase()
-        : ''
+      // Select weighted front and coverage based on scouting percentages
+      const weightedFront = selectWeightedOption(scoutingFronts, scoutingFrontsPercentages)
+      const weightedCoverage = selectWeightedOption(scoutingCoverages, scoutingCoveragesPercentages)
 
       // Find matching scout card
-      const scoutCard = randomFront ? await findMatchingScoutCard(randomFront, randomCoverage) : undefined
+      const scoutCard = weightedFront ? await findMatchingScoutCard(weightedFront, weightedCoverage) : undefined
 
       return {
         ...play,
@@ -593,8 +629,8 @@ export default function PracticePage() {
         dist: randomDownDist.dist,
         hash,
         play: randomPlay?.customized_edit || randomPlay?.combined_call || '',
-        vs_front: randomFront,
-        vs_coverage: randomCoverage,
+        vs_front: weightedFront,
+        vs_coverage: weightedCoverage,
         scout_card: scoutCard || undefined
       }
     }))
