@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Timer, Plus, Trash2, Search, Star, Image, Loader2, Printer, Wand2 } from 'lucide-react'
+import { Timer, Plus, Trash2, Search, Star, Image, Loader2, Printer, Wand2, Save } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getScoutingReport } from '@/lib/scouting'
 
@@ -120,6 +120,24 @@ export default function PracticePage() {
 
   // Add state to track if Cloudinary widget is open
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
+
+  // Add state for template saving
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false)
+  const [selectedSectionForTemplate, setSelectedSectionForTemplate] = useState<PracticeSection | null>(null)
+  const [templateName, setTemplateName] = useState('')
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false)
+  const [templateSaveSuccess, setTemplateSaveSuccess] = useState<string | null>(null)
+
+  // Add state for template loading
+  const [availableTemplates, setAvailableTemplates] = useState<Array<{
+    id: string;
+    template_name: string;
+    section_type: string;
+    section_name: string;
+    sections: any;
+  }>>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -377,6 +395,14 @@ export default function PracticePage() {
     }
   }, [teamId, opponentId])
 
+  // Add effect to load templates when teamId becomes available
+  useEffect(() => {
+    if (teamId) {
+      console.log('TeamId changed, fetching templates:', teamId)
+      fetchTemplates()
+    }
+  }, [teamId])
+
   const fetchGamePlanSections = async () => {
     if (!teamId || !opponentId) return
 
@@ -502,6 +528,96 @@ export default function PracticePage() {
     } catch (err) {
       console.error('Error in handleSavePracticePlan:', err)
       setIsSaving(false)
+    }
+  }
+
+  const saveAsTemplate = async () => {
+    if (!selectedSectionForTemplate || !templateName.trim() || !teamId) {
+      return
+    }
+
+    setIsSavingTemplate(true)
+
+    try {
+      // Create a clean version of the section with blank play, vs_front, and vs_coverage
+      const cleanSection = {
+        ...selectedSectionForTemplate,
+        plays: selectedSectionForTemplate.plays.map(play => ({
+          ...play,
+          play: '', // Clear play content
+          vs_front: '', // Clear front
+          vs_coverage: '', // Clear coverage
+          scout_card: undefined // Remove scout card
+        }))
+      }
+
+      const { error } = await supabase
+        .from('practice_section_templates')
+        .insert({
+          team_id: teamId,
+          template_name: templateName.trim(),
+          section_type: selectedSectionForTemplate.type,
+          section_name: selectedSectionForTemplate.name,
+          sections: cleanSection
+        })
+
+      if (error) {
+        console.error('Error saving template:', error)
+        alert('Failed to save template. Please try again.')
+      } else {
+        console.log('Template saved successfully')
+        // Show success message
+        setTemplateSaveSuccess(`Template "${templateName}" saved successfully!`)
+        
+        // Reset state
+        setShowSaveTemplateModal(false)
+        setSelectedSectionForTemplate(null)
+        setTemplateName('')
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => {
+          setTemplateSaveSuccess(null)
+        }, 5000)
+      }
+    } catch (err) {
+      console.error('Error in saveAsTemplate:', err)
+      setTemplateSaveSuccess('Failed to save template. Please try again.')
+      setTimeout(() => {
+        setTemplateSaveSuccess(null)
+      }, 5000)
+    } finally {
+      setIsSavingTemplate(false)
+    }
+  }
+
+  const fetchTemplates = async () => {
+    if (!teamId) {
+      console.log('No teamId available for fetching templates')
+      return
+    }
+
+    setIsLoadingTemplates(true)
+    try {
+      console.log('Fetching templates for team:', teamId)
+      
+      const { data, error } = await supabase
+        .from('practice_section_templates')
+        .select('id, template_name, section_type, section_name, sections')
+        .eq('team_id', teamId)
+        .order('template_name', { ascending: true })
+
+      if (error) {
+        console.error('Error fetching templates:', error)
+        setAvailableTemplates([])
+      } else {
+        console.log('Fetched templates:', data)
+        setAvailableTemplates(data || [])
+      }
+    } catch (err) {
+      console.error('Error in fetchTemplates:', err)
+      setAvailableTemplates([])
+    } finally {
+      setIsLoadingTemplates(false)
     }
   }
 
@@ -701,27 +817,53 @@ export default function PracticePage() {
   }
 
   const handleAddSection = () => {
-    const existingSectionsOfType = sections.filter(s => s.type === newSectionType)
-    const newSection: PracticeSection = {
-      id: crypto.randomUUID(),
-      name: `${newSectionType} ${existingSectionsOfType.length + 1}`,
-      type: newSectionType,
-      play_count: 10, // Default play count
-      plays: Array.from({ length: 10 }, (_, i) => ({
+    if (selectedTemplateId && selectedTemplateId !== "") {
+      // Create section from template
+      const template = availableTemplates.find(t => t.id === selectedTemplateId)
+      if (template) {
+        const templateSection = template.sections
+        const existingSectionsOfType = sections.filter(s => s.type === templateSection.type)
+        
+        const newSection: PracticeSection = {
+          ...templateSection,
+          id: crypto.randomUUID(), // Generate new ID
+          name: existingSectionsOfType.length > 0 
+            ? `${templateSection.name} ${existingSectionsOfType.length + 1}`
+            : templateSection.name,
+          plays: templateSection.plays.map((play: any, i: number) => ({
+            ...play,
+            id: crypto.randomUUID(), // Generate new ID for each play
+            number: i + 1
+          }))
+        }
+        setSections([...sections, newSection])
+      }
+    } else {
+      // Create new section from scratch
+      const existingSectionsOfType = sections.filter(s => s.type === newSectionType)
+      const newSection: PracticeSection = {
         id: crypto.randomUUID(),
-        number: i + 1,
-        set: '1',
-        personnel: '',
-        dn: '',
-        dist: '',
-        hash: 'none',
-        play: '',
-        vs_front: '',
-        vs_coverage: '',
-      }))
+        name: `${newSectionType} ${existingSectionsOfType.length + 1}`,
+        type: newSectionType,
+        play_count: 10, // Default play count
+        plays: Array.from({ length: 10 }, (_, i) => ({
+          id: crypto.randomUUID(),
+          number: i + 1,
+          set: '1',
+          personnel: '',
+          dn: '',
+          dist: '',
+          hash: 'none',
+          play: '',
+          vs_front: '',
+          vs_coverage: '',
+        }))
+      }
+      setSections([...sections, newSection])
     }
-    setSections([...sections, newSection])
+    
     setIsAddSectionOpen(false)
+    setSelectedTemplateId('')
   }
 
   const renderPlayCell = (section: PracticeSection, play: PracticePlay, playIndex: number) => (
@@ -1599,6 +1741,16 @@ export default function PracticePage() {
 
   return (
     <div className="space-y-4">
+      {/* Template Save Success Message */}
+      {templateSaveSuccess && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span>{templateSaveSuccess}</span>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -1878,6 +2030,18 @@ export default function PracticePage() {
               >
                 <Wand2 className="h-4 w-4" />
               </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  setSelectedSectionForTemplate(section)
+                  setShowSaveTemplateModal(true)
+                }}
+                className="text-green-500 hover:text-green-600"
+                title="Save as template"
+              >
+                <Save className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="sm" onClick={() => {
                 setSections(sections.filter(s => s.id !== section.id))
               }}>
@@ -1999,31 +2163,77 @@ export default function PracticePage() {
         </Card>
       ))}
 
-      <Dialog open={isAddSectionOpen} onOpenChange={setIsAddSectionOpen}>
+      <Dialog open={isAddSectionOpen} onOpenChange={(open) => {
+        if (open) {
+          fetchTemplates() // Load templates when dialog opens
+        } else {
+          setSelectedTemplateId('')
+        }
+        setIsAddSectionOpen(open)
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Practice Section</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="section-type">Section Type</Label>
-            <Select
-              value={newSectionType}
-              onValueChange={(value: 'Walk Through' | 'Inside Run' | 'Skelly' | 'Team') => setNewSectionType(value)}
-            >
-              <SelectTrigger id="section-type">
-                <SelectValue placeholder="Select a section type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Walk Through">Walk Through</SelectItem>
-                <SelectItem value="Inside Run">Inside Run</SelectItem>
-                <SelectItem value="Skelly">Skelly</SelectItem>
-                <SelectItem value="Team">Team</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="py-4 space-y-4">
+            <div>
+              <Label htmlFor="section-type">Section Type</Label>
+              <Select
+                value={newSectionType}
+                onValueChange={(value: 'Walk Through' | 'Inside Run' | 'Skelly' | 'Team') => {
+                  setNewSectionType(value)
+                  setSelectedTemplateId('') // Clear template selection when type changes
+                }}
+              >
+                <SelectTrigger id="section-type">
+                  <SelectValue placeholder="Select a section type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Walk Through">Walk Through</SelectItem>
+                  <SelectItem value="Inside Run">Inside Run</SelectItem>
+                  <SelectItem value="Skelly">Skelly</SelectItem>
+                  <SelectItem value="Team">Team</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label htmlFor="template-select">Your Templates (Optional)</Label>
+              {availableTemplates.length > 0 ? (
+                <Select
+                  value={selectedTemplateId}
+                  onValueChange={setSelectedTemplateId}
+                >
+                  <SelectTrigger id="template-select">
+                    <SelectValue placeholder={isLoadingTemplates ? "Loading templates..." : "Select a template"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.template_name}
+                        <span className="text-xs text-gray-500 ml-2">({template.section_type})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center justify-center p-3 border border-dashed border-gray-300 rounded-md bg-gray-50">
+                  <span className="text-sm text-gray-500">No templates found - save a section to create your first template</span>
+                </div>
+              )}
+              <p className="text-sm text-gray-500 mt-1">
+                {selectedTemplateId ? "Using template structure with blank plays, fronts, and coverages" : "Create a new section from scratch"}
+              </p>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddSectionOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddSection}>Add Section</Button>
+            <Button variant="outline" onClick={() => {
+              setIsAddSectionOpen(false)
+              setSelectedTemplateId('')
+            }}>Cancel</Button>
+            <Button onClick={handleAddSection}>
+              {selectedTemplateId ? "Add From Template" : "Add New Section"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2080,6 +2290,76 @@ export default function PracticePage() {
 
       {/* Add Scout Card Modal */}
       {renderAddScoutCardModal()}
+
+      {/* Save Template Modal */}
+      <Dialog open={showSaveTemplateModal} onOpenChange={(open) => {
+        if (!open) {
+          setShowSaveTemplateModal(false)
+          setSelectedSectionForTemplate(null)
+          setTemplateName('')
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save Section as Template</DialogTitle>
+            <DialogDescription>
+              Save this section as a reusable template. The template will include the section structure, down/distance, hash, set, and personnel, but plays, fronts, and coverages will be left blank for future customization.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="templateName">Template Name</Label>
+              <Input
+                id="templateName"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Enter template name..."
+                maxLength={50}
+              />
+              <p className="text-sm text-gray-500">
+                Choose a descriptive name for this template (e.g., "Red Zone Inside Run", "3rd Down Skelly")
+              </p>
+            </div>
+            {selectedSectionForTemplate && (
+              <div className="bg-gray-50 p-3 rounded-md">
+                <p className="text-sm font-medium">Section Details:</p>
+                <p className="text-sm text-gray-600">Type: {selectedSectionForTemplate.type}</p>
+                <p className="text-sm text-gray-600">Name: {selectedSectionForTemplate.name}</p>
+                <p className="text-sm text-gray-600">Plays: {selectedSectionForTemplate.plays.length}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSaveTemplateModal(false)
+                setSelectedSectionForTemplate(null)
+                setTemplateName('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={saveAsTemplate}
+              disabled={!templateName.trim() || isSavingTemplate}
+              className="bg-green-500 hover:bg-green-600 text-white"
+            >
+              {isSavingTemplate ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Template
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )
