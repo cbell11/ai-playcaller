@@ -24,6 +24,8 @@ interface ScoutCard {
 interface PracticePlay {
   id: string;
   number: number;
+  set: string;
+  personnel: string;
   dn: string;
   dist: string;
   hash: string;  // Add hash field
@@ -509,6 +511,8 @@ export default function PracticePage() {
             newPlays.push({
               id: crypto.randomUUID(),
               number: i + 1,
+              set: '1',
+              personnel: '',
               dn: '',
               dist: '',
               hash: 'none',
@@ -557,6 +561,8 @@ export default function PracticePage() {
       plays: Array.from({ length: 10 }, (_, i) => ({
         id: crypto.randomUUID(),
         number: i + 1,
+        set: '1',
+        personnel: '',
         dn: '',
         dist: '',
         hash: 'none',
@@ -762,13 +768,17 @@ export default function PracticePage() {
 
               <div className="space-y-1 overflow-y-auto" style={{ maxHeight: playPoolFilterType === 'search' ? '400px' : '450px' }}>
                 {filteredPlays.map((play) => {
-                  // Highlight matching text in search mode
-                  let displayText = play.customized_edit || play.combined_call
-                  if (playPoolFilterType === 'search' && searchQuery) {
-                    const searchTerms = searchQuery.toLowerCase().split(' ')
+                  const originalText = play.customized_edit || play.combined_call
+                  
+                  // Create highlighted version only for display
+                  let displayContent = originalText
+                  if (playPoolFilterType === 'search' && searchQuery.trim()) {
+                    const searchTerms = searchQuery.toLowerCase().split(' ').filter(term => term.length > 0)
                     searchTerms.forEach(term => {
-                      const regex = new RegExp(`(${term})`, 'gi')
-                      displayText = displayText.replace(regex, '<mark>$1</mark>')
+                      // Escape special regex characters
+                      const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                      const regex = new RegExp(`(${escapedTerm})`, 'gi')
+                      displayContent = displayContent.replace(regex, '<mark class="bg-yellow-200">$1</mark>')
                     })
                   }
 
@@ -780,17 +790,24 @@ export default function PracticePage() {
                         if (selectedSectionId && selectedPlayIndex !== null) {
                           const section = sections.find(s => s.id === selectedSectionId)
                           if (section) {
-                            handlePlayChange(selectedSectionId, section.plays[selectedPlayIndex].id, 'play', play.customized_edit || play.combined_call)
+                            // Always use the original text, not the highlighted version
+                            handlePlayChange(selectedSectionId, section.plays[selectedPlayIndex].id, 'play', originalText)
                             setSelectedSectionId(null)
                             setSelectedPlayIndex(null)
                           }
                         }
                       }}
                     >
-                      <div 
-                        className="text-xs font-mono truncate flex-1"
-                        dangerouslySetInnerHTML={{ __html: displayText }}
-                      />
+                      {playPoolFilterType === 'search' && searchQuery.trim() ? (
+                        <div 
+                          className="text-xs font-mono truncate flex-1"
+                          dangerouslySetInnerHTML={{ __html: displayContent }}
+                        />
+                      ) : (
+                        <div className="text-xs font-mono truncate flex-1">
+                          {originalText}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -1503,6 +1520,8 @@ export default function PracticePage() {
                           <thead>
                             <tr>
                               <th>#</th>
+                              <th>Set</th>
+                              <th>Personnel</th>
                               <th>Dn</th>
                               <th>Dist</th>
                               <th>Hash</th>
@@ -1515,6 +1534,8 @@ export default function PracticePage() {
                             ${section.plays.map((play: PracticePlay) => `
                               <tr>
                                 <td>${play.number}</td>
+                                <td>${play.set || '1'}</td>
+                                <td>${play.personnel || ''}</td>
                                 <td>${play.dn || ''}</td>
                                 <td>${play.dist || ''}</td>
                                 <td>${play.hash === 'none' ? '' : play.hash}</td>
@@ -1640,8 +1661,15 @@ export default function PracticePage() {
                 <Input
                   id={`play-count-${section.id}`}
                   type="number"
+                  min="1"
+                  max="50"
                   value={section.play_count}
-                  onChange={(e) => handlePlayCountChange(section.id, parseInt(e.target.value, 10))}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10)
+                    if (value >= 1 && value <= 50) {
+                      handlePlayCountChange(section.id, value)
+                    }
+                  }}
                   className="w-16 h-8"
                 />
               </div>
@@ -1657,6 +1685,8 @@ export default function PracticePage() {
               <thead>
                 <tr className="border-b">
                   <th className="p-2 text-left w-8">#</th>
+                  <th className="p-2 text-left w-16">Set</th>
+                  <th className="p-2 text-left w-20">Personnel</th>
                   <th className="p-2 text-left w-16">Dn</th>
                   <th className="p-2 text-left w-16">Dist</th>
                   <th className="p-2 text-left w-16">Hash</th>
@@ -1672,6 +1702,31 @@ export default function PracticePage() {
                 {section.plays.map((play, playIndex) => (
                   <tr key={play.id} className="border-b">
                     <td className="p-2">{play.number}</td>
+                    <td className="p-2">
+                      <Select
+                        value={play.set || "1"}
+                        onValueChange={(value) => handlePlayChange(section.id, play.id, 'set', value)}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="Set" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1</SelectItem>
+                          <SelectItem value="2">2</SelectItem>
+                          <SelectItem value="3">3</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="text"
+                        value={play.personnel || ''}
+                        className="h-8"
+                        placeholder="11"
+                        maxLength={8}
+                        onChange={(e) => handlePlayChange(section.id, play.id, 'personnel', e.target.value)}
+                      />
+                    </td>
                     <td className="p-2">
                       <Input
                         type="text"

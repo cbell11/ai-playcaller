@@ -767,8 +767,8 @@ export default function MasterPlayPoolPage() {
                       </td>
                                               <td className="p-2">
                           <div className="flex items-center justify-center space-x-1">
-                            <Button
-                              variant="ghost"
+                          <Button
+                            variant="ghost"
                               size="sm"
                               className="h-6 w-6 p-0"
                               onClick={() => {
@@ -782,15 +782,15 @@ export default function MasterPlayPoolPage() {
                               variant="ghost"
                               size="sm"
                               className="h-6 w-6 p-0"
-                              onClick={() => {
-                                setPlayToDelete(play)
-                                setIsDeleteConfirmOpen(true)
-                              }}
-                            >
+                            onClick={() => {
+                              setPlayToDelete(play)
+                              setIsDeleteConfirmOpen(true)
+                            }}
+                          >
                               <Trash2 className="h-3 w-3 text-red-500" />
-                            </Button>
-                          </div>
-                        </td>
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -873,46 +873,46 @@ export default function MasterPlayPoolPage() {
             <div className="grid gap-3 py-2 overflow-y-auto max-h-[60vh]">
               {/* Main Play Information - 3 columns */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {/* Category Selection */}
+              {/* Category Selection */}
                 <div className="space-y-1">
-                  <Label htmlFor="category">Category *</Label>
-                  <Select
-                    value={editingPlay?.category || ''}
-                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, category: value }) : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      <SelectItem value="run_game">Run Game</SelectItem>
-                      <SelectItem value="rpo_game">RPO Game</SelectItem>
-                      <SelectItem value="quick_game">Quick Game</SelectItem>
-                      <SelectItem value="dropback_game">Dropback Game</SelectItem>
-                      <SelectItem value="screen_game">Screen Game</SelectItem>
-                      <SelectItem value="shot_plays">Shot Plays</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Label htmlFor="category">Category *</Label>
+                <Select
+                  value={editingPlay?.category || ''}
+                  onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, category: value }) : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="run_game">Run Game</SelectItem>
+                    <SelectItem value="rpo_game">RPO Game</SelectItem>
+                    <SelectItem value="quick_game">Quick Game</SelectItem>
+                    <SelectItem value="dropback_game">Dropback Game</SelectItem>
+                    <SelectItem value="screen_game">Screen Game</SelectItem>
+                    <SelectItem value="shot_plays">Shot Plays</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                {/* Formation */}
+              {/* Formation */}
                 <div className="space-y-1">
-                  <Label htmlFor="formations">Formation *</Label>
-                  <Select
-                    value={editingPlay?.formations || ''}
-                    onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, formations: value }) : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select formation" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {formations.map(formation => (
-                        <SelectItem key={formation.id} value={formation.concept}>
-                          {formation.label || formation.concept}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Label htmlFor="formations">Formation *</Label>
+                <Select
+                  value={editingPlay?.formations || ''}
+                  onValueChange={(value) => setEditingPlay(prev => prev ? ({ ...prev, formations: value }) : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select formation" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {formations.map(formation => (
+                      <SelectItem key={formation.id} value={formation.concept}>
+                        {formation.label || formation.concept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
                 {/* Formation Tag */}
                 <div className="space-y-1">
