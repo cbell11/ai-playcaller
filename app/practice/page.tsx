@@ -1655,7 +1655,22 @@ export default function PracticePage() {
         <Card key={section.id}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="flex items-center gap-4">
-              <CardTitle>{section.name}</CardTitle>
+              <div className="flex flex-col">
+                <Input
+                  type="text"
+                  value={section.name}
+                  onChange={(e) => {
+                    const newSections = sections.map(s => 
+                      s.id === section.id ? { ...s, name: e.target.value } : s
+                    )
+                    setSections(newSections)
+                  }}
+                  className="text-lg font-semibold border-none p-0 h-auto bg-transparent focus:bg-white focus:border focus:px-2 focus:py-1"
+                />
+                {section.name !== `${section.type} ${sections.filter(s => s.type === section.type).findIndex(s => s.id === section.id) + 1}` && (
+                  <span className="text-sm text-gray-500 mt-1">Section Type: {section.type}</span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <Label htmlFor={`play-count-${section.id}`} className="text-sm font-medium">Plays:</Label>
                 <Input
