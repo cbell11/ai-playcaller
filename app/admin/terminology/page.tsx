@@ -55,6 +55,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [newConcept, setNewConcept] = useState({ concept: '', label: '', image_url: '' })
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [showAddImageDialog, setShowAddImageDialog] = useState(false)
+  const [newImageUrl, setNewImageUrl] = useState('')
+  const [isUpdatingImage, setIsUpdatingImage] = useState(false)
 
   // Check if user is admin when component mounts
   useEffect(() => {
@@ -166,6 +169,67 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     } catch (error) {
       console.error('Error deleting term:', error)
       alert('Failed to delete term')
+    }
+  }
+
+  const handleUpdateImage = async () => {
+    if (!selectedImage?.concept) return;
+    
+    try {
+      setIsUpdatingImage(true)
+
+      // Find the term in the default team that matches this concept
+      const { data: termData, error: findError } = await supabase
+        .from('terminology')
+        .select('id')
+        .eq('concept', selectedImage.concept)
+        .eq('category', category)
+        .eq('team_id', DEFAULT_TEAM_ID)
+        .single()
+
+      if (findError) {
+        throw new Error('Failed to find terminology item')
+      }
+
+      // Update the image_url for this terminology item
+      const { error: updateError } = await supabase
+        .from('terminology')
+        .update({ image_url: newImageUrl })
+        .eq('id', termData.id)
+
+      if (updateError) {
+        throw new Error('Failed to update image URL')
+      }
+
+      // Update local state
+      const updatedTerms = localTerms.map(term => 
+        term.concept === selectedImage.concept 
+          ? { ...term, image_url: newImageUrl }
+          : term
+      )
+      setLocalTerms(updatedTerms)
+      onUpdate(updatedTerms)
+
+      // Update selectedImage to reflect the change
+      setSelectedImage({ ...selectedImage, url: newImageUrl })
+
+      // Show success message
+      setSaveSuccess('Image updated successfully!')
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSaveSuccess(null)
+      }, 3000)
+
+      // Close the dialog
+      setShowAddImageDialog(false)
+      setNewImageUrl('')
+
+    } catch (error) {
+      console.error('Error updating image:', error)
+      alert('Failed to update image. Please try again.')
+    } finally {
+      setIsUpdatingImage(false)
     }
   }
 
@@ -364,6 +428,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     }
   }
 
+
+
   if (!isAdmin) {
     return null
   }
@@ -536,7 +602,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                       />
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 h-[95vh] w-full">
+                    <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 min-h-[200px] w-full">
                       <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">No Image Available</h3>
                       <p className="text-gray-500">This item doesn't have an image associated with it.</p>
@@ -544,8 +610,66 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   )}
                 </div>
                 <DialogFooter className="pt-1 justify-center">
-                  <Button variant="secondary" onClick={() => setSelectedImage(null)}>
-                    Close
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setNewImageUrl(selectedImage?.url || '')
+                        setShowAddImageDialog(true)
+                      }}
+                    >
+                      {selectedImage?.url ? 'Update Image' : 'Add Image'}
+                    </Button>
+                    <Button variant="secondary" onClick={() => setSelectedImage(null)}>
+                      Close
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Dialog for adding/updating image URL */}
+            <Dialog open={showAddImageDialog} onOpenChange={setShowAddImageDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Image for {selectedImage?.concept}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="imageUrl">Image URL</Label>
+                    <Input
+                      id="imageUrl"
+                      value={newImageUrl}
+                      onChange={(e) => setNewImageUrl(e.target.value)}
+                      placeholder="Enter image URL..."
+                    />
+                    <p className="text-sm text-gray-500">
+                      Provide a URL for an image that represents this concept.
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddImageDialog(false)
+                      setNewImageUrl('')
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleUpdateImage}
+                    disabled={isUpdatingImage || !newImageUrl.trim()}
+                  >
+                    {isUpdatingImage ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      'Update Image'
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>
