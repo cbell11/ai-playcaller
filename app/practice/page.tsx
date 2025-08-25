@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Timer, Plus, Trash2, Search, Star, Image, Loader2, Printer } from 'lucide-react'
+import { Timer, Plus, Trash2, Search, Star, Image, Loader2, Printer, Wand2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getScoutingReport } from '@/lib/scouting'
 
@@ -491,6 +491,88 @@ export default function PracticePage() {
       console.error('Error in handleSavePracticePlan:', err)
       setIsSaving(false)
     }
+  }
+
+  const generatePlaysForSection = async (section: PracticeSection) => {
+    if (section.type !== 'Inside Run') {
+      console.log('Auto-generation not yet implemented for:', section.type)
+      return
+    }
+
+    // Filter gameplan plays for Run Game and RPO Game
+    const runGamePlays = gameplanPlays.filter(play => play.section === 'run_game')
+    const rpoGamePlays = gameplanPlays.filter(play => play.section === 'rpo_game')
+    
+    if (runGamePlays.length === 0 && rpoGamePlays.length === 0) {
+      console.log('No Run Game or RPO Game plays available in gameplan')
+      return
+    }
+
+    // Combine all available plays
+    const allPlays = [...runGamePlays, ...rpoGamePlays]
+    
+        // Generate new plays with scout cards
+    const newPlays = await Promise.all(section.plays.map(async (play, index) => {
+      // Select random play
+      const randomPlay = allPlays[Math.floor(Math.random() * allPlays.length)]
+      
+      // Calculate set ratio (3:2 for Set 1:Set 2)
+      const set = (index % 5) < 3 ? '1' : '2'
+      
+      // Hash pattern: L -> M -> R -> M -> L (repeating every 4)
+      const hashPattern = ['L', 'M', 'R', 'M']
+      const hash = hashPattern[index % 4]
+      
+      // Generate distance from 10 down to 1, distributed across the section length
+      const totalPlays = section.plays.length
+      const distanceRange = Math.max(10 - totalPlays + 1, 1) // Ensure we don't go below 1
+      const minDistance = Math.max(1, 11 - totalPlays) // Start distance based on section length
+      const maxDistance = 10
+      
+      // Random distance between minDistance and maxDistance
+      const randomDistance = Math.floor(Math.random() * (maxDistance - minDistance + 1)) + minDistance
+      
+      // Random down and distance combinations
+      const downDistOptions = [
+        { dn: '1', dist: randomDistance.toString() },
+        { dn: '2', dist: Math.max(1, randomDistance - 2).toString() },
+        { dn: '2', dist: Math.max(1, randomDistance - 1).toString() },
+        { dn: '3', dist: Math.max(1, randomDistance - 3).toString() },
+        { dn: '3', dist: Math.max(1, randomDistance - 2).toString() },
+        { dn: '3', dist: Math.max(1, randomDistance - 1).toString() }
+      ]
+      const randomDownDist = downDistOptions[Math.floor(Math.random() * downDistOptions.length)]
+      
+      // Select random front and coverage
+      const randomFront = scoutingFronts.length > 0 
+        ? scoutingFronts[Math.floor(Math.random() * scoutingFronts.length)].name.toLowerCase()
+        : ''
+      const randomCoverage = scoutingCoverages.length > 0 
+        ? scoutingCoverages[Math.floor(Math.random() * scoutingCoverages.length)].name.toLowerCase()
+        : ''
+
+      // Find matching scout card
+      const scoutCard = randomFront ? await findMatchingScoutCard(randomFront, randomCoverage) : undefined
+
+      return {
+        ...play,
+        set,
+        personnel: '', // Leave blank as requested
+        dn: randomDownDist.dn,
+        dist: randomDownDist.dist,
+        hash,
+        play: randomPlay?.customized_edit || randomPlay?.combined_call || '',
+        vs_front: randomFront,
+        vs_coverage: randomCoverage,
+        scout_card: scoutCard || undefined
+      }
+    }))
+
+    // Update the section with generated plays
+    const newSections = sections.map(s => 
+      s.id === section.id ? { ...s, plays: newPlays } : s
+    )
+    setSections(newSections)
   }
 
   // Add auto-save when sections change
@@ -1689,11 +1771,22 @@ export default function PracticePage() {
                 />
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => {
-              setSections(sections.filter(s => s.id !== section.id))
-            }}>
-              <Trash2 className="h-4 w-4 text-red-500" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => generatePlaysForSection(section)}
+                className="text-blue-500 hover:text-blue-600"
+                title="Auto-generate plays"
+              >
+                <Wand2 className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => {
+                setSections(sections.filter(s => s.id !== section.id))
+              }}>
+                <Trash2 className="h-4 w-4 text-red-500" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <table className="w-full text-sm">
