@@ -132,6 +132,10 @@ export default function MasterPlayPoolPage() {
   const [formationFilter, setFormationFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   
+  // Sorting states
+  const [sortBy, setSortBy] = useState<'play_id' | null>(null)
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  
   // Unique values for filters
   const [uniqueConcepts, setUniqueConcepts] = useState<string[]>([])
   const [uniqueFormations, setUniqueFormations] = useState<string[]>([])
@@ -175,6 +179,36 @@ export default function MasterPlayPoolPage() {
       ...prev,
       [playId]: !prev[playId]
     }))
+  }
+
+  // Handle sorting by play_id
+  const handleSort = (column: 'play_id') => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortOrder('asc')
+    }
+  }
+
+  // Get sorted and filtered plays
+  const getSortedPlays = () => {
+    let sortedPlays = [...plays]
+    
+    if (sortBy === 'play_id') {
+      sortedPlays.sort((a, b) => {
+        const aValue = a.play_id
+        const bValue = b.play_id
+        
+        if (sortOrder === 'asc') {
+          return aValue - bValue
+        } else {
+          return bValue - aValue
+        }
+      })
+    }
+    
+    return sortedPlays
   }
 
   const supabase = createBrowserClient(
@@ -639,71 +673,84 @@ export default function MasterPlayPoolPage() {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : (
-            <div className="rounded-md border">
-              <table className="w-full">
+            <div className="rounded-md border overflow-x-auto">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="h-10 px-4 text-left font-medium">ID</th>
-                    <th className="h-10 px-4 text-left font-medium">Category</th>
-                    <th className="h-10 px-4 text-left font-medium">Shifts</th>
-                    <th className="h-10 px-4 text-left font-medium">To Motions</th>
-                    <th className="h-10 px-4 text-left font-medium">Formation</th>
-                    <th className="h-10 px-4 text-left font-medium">Formation Tag</th>
-                    <th className="h-10 px-4 text-left font-medium">From Motions</th>
-                    <th className="h-10 px-4 text-left font-medium">Concept</th>
-                    <th className="h-10 px-4 text-left font-medium">Concept Tag</th>
-                    <th className="h-10 px-4 text-left font-medium">Direction</th>
-                    <th className="h-10 px-4 text-left font-medium">RPO Tag</th>
-                    <th className="h-10 px-4 text-left font-medium">Front Beaters</th>
-                    <th className="h-10 px-4 text-left font-medium">Coverage Beaters</th>
-                    <th className="h-10 px-4 text-center font-medium">Actions</th>
+                    <th 
+                      className="h-8 px-2 text-left text-xs font-medium cursor-pointer hover:bg-muted/70 select-none"
+                      onClick={() => handleSort('play_id')}
+                    >
+                      <div className="flex items-center gap-1">
+                        ID
+                        {sortBy === 'play_id' && (
+                          <span className="text-xs">
+                            {sortOrder === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">Category</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">Shifts</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">To Motions</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">Formation</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">Formation Tag</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">From Motions</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">Concept</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">Concept Tag</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">Direction</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">RPO Tag</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">Front Beaters</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">Coverage Beaters</th>
+                    <th className="h-8 px-2 text-center text-xs font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {plays.map((play, index) => (
+                  {getSortedPlays().map((play, index) => (
                     <tr key={play.id || index} className="border-b">
-                      <td className="p-4">{play.play_id}</td>
-                      <td className="p-4">{play.category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
-                      <td className="p-4">{play.shifts}</td>
-                      <td className="p-4">{play.to_motions}</td>
-                      <td className="p-4">{play.formations}</td>
-                      <td className="p-4">{play.tags}</td>
-                      <td className="p-4">{play.from_motions}</td>
-                      <td className="p-4">{play.concept}</td>
-                      <td className="p-4">{play.concept_tag}</td>
-                      <td className="p-4">{play.concept_direction}</td>
-                      <td className="p-4">{play.rpo_tag}</td>
-                      <td className="p-4 max-w-[200px]">
+                      <td className="p-2 text-xs">{play.play_id}</td>
+                      <td className="p-2 text-xs">{play.category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
+                      <td className="p-2 text-xs">{play.shifts}</td>
+                      <td className="p-2 text-xs">{play.to_motions}</td>
+                      <td className="p-2 text-xs">{play.formations}</td>
+                      <td className="p-2 text-xs">{play.tags}</td>
+                      <td className="p-2 text-xs">{play.from_motions}</td>
+                      <td className="p-2 text-xs">{play.concept}</td>
+                      <td className="p-2 text-xs">{play.concept_tag}</td>
+                      <td className="p-2 text-xs">{play.concept_direction}</td>
+                      <td className="p-2 text-xs">{play.rpo_tag}</td>
+                      <td className="p-2 max-w-[120px]">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="p-0 h-6"
+                          className="p-1 h-6 text-xs"
                           onClick={() => setSelectedBeaters({ play, type: 'front' })}
                         >
-                          View Front Beaters
+                          Front
                         </Button>
                       </td>
-                      <td className="p-4 max-w-[200px]">
+                      <td className="p-2 max-w-[120px]">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="p-0 h-6"
+                          className="p-1 h-6 text-xs"
                           onClick={() => setSelectedBeaters({ play, type: 'coverage' })}
                         >
-                          View Coverage Beaters
+                          Coverage
                         </Button>
                       </td>
-                      <td className="p-4">
-                        <div className="flex items-center justify-center space-x-2">
+                      <td className="p-2">
+                        <div className="flex items-center justify-center space-x-1">
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="sm"
+                            className="h-6 w-6 p-0"
                             onClick={() => {
                               setPlayToDelete(play)
                               setIsDeleteConfirmOpen(true)
                             }}
                           >
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                            <Trash2 className="h-3 w-3 text-red-500" />
                           </Button>
                         </div>
                       </td>
