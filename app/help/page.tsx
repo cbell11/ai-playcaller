@@ -1,11 +1,113 @@
 "use client"
 
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getHelpVideos, HelpVideo } from '@/app/actions/help-videos'
+import { convertToEmbedUrl } from '@/lib/utils'
+import { Loader2, Play } from 'lucide-react'
 
 export default function HelpPage() {
+  const [videos, setVideos] = useState<HelpVideo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchVideos = async () => {
+      try {
+        const result = await getHelpVideos()
+        if (result.success && result.data) {
+          setVideos(result.data)
+        } else {
+          setError('Failed to load help videos')
+        }
+      } catch (err) {
+        setError('Error loading videos')
+        console.error('Error fetching help videos:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchVideos()
+  }, [])
+
+  const showcaseVideos = videos.filter(v => v.video_type === 'showcase')
+  const tutorialVideos = videos.filter(v => v.video_type === 'tutorial')
+
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-8">Help & Documentation</h1>
+
+      {/* Video Section */}
+      <div className="mb-12">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <span className="ml-2">Loading videos...</span>
+          </div>
+        ) : error ? (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md mb-6">
+            {error}
+          </div>
+        ) : (
+          <>
+            {/* Showcase Video - Prominent at top */}
+            {showcaseVideos.length > 0 && (
+              <div className="mb-8">
+                <div className="text-center mb-6">
+                  <h2 className="text-2xl font-bold mb-2">{showcaseVideos[0].title}</h2>
+                  <p className="text-gray-600">Get a complete overview of the AI Playcaller platform</p>
+                </div>
+                <div className="flex justify-center">
+                  <div className="w-full max-w-4xl">
+                    <div className="relative w-full pb-[56.25%] h-0 rounded-lg overflow-hidden shadow-lg">
+                      <iframe
+                        src={convertToEmbedUrl(showcaseVideos[0].loom_url)}
+                        frameBorder="0"
+                        allow="autoplay; fullscreen; picture-in-picture"
+                        allowFullScreen
+                        className="absolute top-0 left-0 w-full h-full"
+                        title={showcaseVideos[0].title}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tutorial Videos Grid */}
+            {tutorialVideos.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold mb-6 text-center">Tutorial Videos</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  {tutorialVideos.map((video) => (
+                    <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Play className="h-5 w-5 text-blue-500" />
+                          {video.title}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="relative w-full pb-[56.25%] h-0 rounded overflow-hidden">
+                          <iframe
+                            src={convertToEmbedUrl(video.loom_url)}
+                            frameBorder="0"
+                            allow="autoplay; fullscreen; picture-in-picture"
+                            allowFullScreen
+                            className="absolute top-0 left-0 w-full h-full"
+                            title={video.title}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       <div className="grid gap-6">
         <Card>
