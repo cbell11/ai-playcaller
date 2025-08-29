@@ -314,9 +314,10 @@ export default function MasterPlayPoolPage() {
         return
       }
 
-      // Find the formation object to get its label
-      const formationObj = formations.find(f => f.concept === newPlay.formations)
-      const formationLabel = formationObj ? formationObj.label : newPlay.formations
+      // Since we're now storing the label in newPlay.formations, use it directly
+      // But ensure we have the label, not the concept
+      const formationObj = formations.find(f => (f.label || f.concept) === newPlay.formations)
+      const formationLabel = formationObj ? (formationObj.label || formationObj.concept) : newPlay.formations
 
       // Convert beaters arrays to comma-separated strings
       const front_beaters = newPlay.front_beaters.join(', ')
@@ -477,9 +478,10 @@ export default function MasterPlayPoolPage() {
       const dbConceptDirection = editingPlay.concept_direction === 'none' ? '' : 
                                editingPlay.concept_direction === 'plus' ? '+' : '-';
 
-      // Find the formation object to get its label
-      const formationObj = formations.find(f => f.concept === editingPlay.formations)
-      const formationLabel = formationObj ? formationObj.label : editingPlay.formations
+      // Since we're now storing the label in editingPlay.formations, use it directly
+      // But ensure we have the label, not the concept
+      const formationObj = formations.find(f => (f.label || f.concept) === editingPlay.formations)
+      const formationLabel = formationObj ? (formationObj.label || formationObj.concept) : editingPlay.formations
 
       // Prepare play data
       const playData = {
@@ -851,6 +853,7 @@ export default function MasterPlayPoolPage() {
         <Dialog open={isEditPlayOpen} onOpenChange={(open) => {
           if (open) {
             fetchTerminology()
+            fetchScoutingTerms()
           }
           setIsEditPlayOpen(open)
           if (!open) {
@@ -906,7 +909,7 @@ export default function MasterPlayPoolPage() {
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
                     {formations.map(formation => (
-                      <SelectItem key={formation.id} value={formation.concept}>
+                      <SelectItem key={formation.id} value={formation.label || formation.concept}>
                         {formation.label || formation.concept}
                       </SelectItem>
                     ))}
@@ -951,7 +954,7 @@ export default function MasterPlayPoolPage() {
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
                       {shifts.map(shift => (
-                        <SelectItem key={shift.id} value={shift.concept}>
+                        <SelectItem key={shift.id} value={shift.label || shift.concept}>
                           {shift.label || shift.concept}
                         </SelectItem>
                       ))}
@@ -1215,6 +1218,7 @@ export default function MasterPlayPoolPage() {
         <Dialog open={isAddPlayOpen} onOpenChange={(open) => {
           if (open) {
             fetchTerminology()
+            fetchScoutingTerms()
           }
           setIsAddPlayOpen(open)
           if (!open) {
@@ -1329,7 +1333,7 @@ export default function MasterPlayPoolPage() {
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
                       {shifts.map(shift => (
-                        <SelectItem key={shift.id} value={shift.concept}>
+                        <SelectItem key={shift.id} value={shift.label || shift.concept}>
                           {shift.label || shift.concept}
                         </SelectItem>
                       ))}
@@ -1399,7 +1403,7 @@ export default function MasterPlayPoolPage() {
                           return c.category === newPlay.category
                         })
                         .map(concept => (
-                          <SelectItem key={concept.id} value={concept.concept}>
+                          <SelectItem key={concept.id} value={concept.label || concept.concept}>
                             {concept.label || concept.concept}
                           </SelectItem>
                         ))}
@@ -1464,7 +1468,7 @@ export default function MasterPlayPoolPage() {
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
                       {passProtections.map(protection => (
-                        <SelectItem key={protection.id} value={protection.concept}>
+                        <SelectItem key={protection.id} value={protection.label || protection.concept}>
                           {protection.label || protection.concept}
                         </SelectItem>
                       ))}
