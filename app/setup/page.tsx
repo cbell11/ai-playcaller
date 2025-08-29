@@ -1095,25 +1095,58 @@ function SetupPageContent() {
               setTeamName(teamData.name)
             }
           }
+
+          // First, get all default team terminology that has image_urls
+          const { data: defaultTerminology, error: defaultError } = await supabase
+            .from('terminology')
+            .select('*')
+            .eq('team_id', DEFAULT_TEAM_ID)
+            .not('image_url', 'is', null);
+
+          if (defaultError) {
+            console.error('Error fetching default terminology:', defaultError);
+          }
+
+          // Create a map of concept to image_url from default team
+          const defaultImageUrls = new Map();
+          defaultTerminology?.forEach(term => {
+            if (term.image_url) {
+              defaultImageUrls.set(term.concept, term.image_url);
+            }
+          });
           
           // Load terminology from API
           const data = await getTerminology(teamId)
-          setTerminology(data)
+
+          // Merge default image_urls with user terminology
+          const mergedData = data.map(term => {
+            // If this term has a matching concept in default team with an image_url, use that
+            const defaultImageUrl = defaultImageUrls.get(term.concept);
+            if (defaultImageUrl) {
+              return {
+                ...term,
+                image_url: defaultImageUrl
+              };
+            }
+            return term;
+          });
+
+          setTerminology(mergedData)
           
           // Group terminology by category
-          const formations = data.filter(term => term.category === 'formations')
-          const formTags = data.filter(term => term.category === 'form_tags')
-          const shifts = data.filter(term => term.category === 'shifts')
-          const toMotions = data.filter(term => term.category === 'to_motions')
-          const fromMotions = data.filter(term => term.category === 'from_motions')
-          const runGame = data.filter(term => term.category === 'run_game')
-          const rpoTags = data.filter(term => term.category === 'rpo_tag')
-          const passProtections = data.filter(term => term.category === 'pass_protections')
-          const quickGame = data.filter(term => term.category === 'quick_game')
-          const dropbackGame = data.filter(term => term.category === 'dropback_game')
-          const screenGame = data.filter(term => term.category === 'screen_game')
-          const shotPlays = data.filter(term => term.category === 'shot_plays')
-          const conceptTags = data.filter(term => term.category === 'concept_tags')
+          const formations = mergedData.filter(term => term.category === 'formations')
+          const formTags = mergedData.filter(term => term.category === 'form_tags')
+          const shifts = mergedData.filter(term => term.category === 'shifts')
+          const toMotions = mergedData.filter(term => term.category === 'to_motions')
+          const fromMotions = mergedData.filter(term => term.category === 'from_motions')
+          const runGame = mergedData.filter(term => term.category === 'run_game')
+          const rpoTags = mergedData.filter(term => term.category === 'rpo_tag')
+          const passProtections = mergedData.filter(term => term.category === 'pass_protections')
+          const quickGame = mergedData.filter(term => term.category === 'quick_game')
+          const dropbackGame = mergedData.filter(term => term.category === 'dropback_game')
+          const screenGame = mergedData.filter(term => term.category === 'screen_game')
+          const shotPlays = mergedData.filter(term => term.category === 'shot_plays')
+          const conceptTags = mergedData.filter(term => term.category === 'concept_tags')
           
           setFormationsSet(formations as TerminologyWithUI[])
           setFormTagsSet(formTags as TerminologyWithUI[])
@@ -1141,8 +1174,9 @@ function SetupPageContent() {
 
   // Handle navigation save event
   useEffect(() => {
-    const handleSaveBeforeNavigation = async (event: CustomEvent) => {
-      const targetUrl = event.detail?.targetUrl
+    const handleSaveBeforeNavigation = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const targetUrl = customEvent.detail?.targetUrl;
       if (targetUrl) {
         console.log('Auto-saving terminology before navigation to:', targetUrl)
         try {
@@ -1174,11 +1208,11 @@ function SetupPageContent() {
     }
 
     // Add event listener
-    window.addEventListener('saveTerminologyBeforeNavigation', handleSaveBeforeNavigation as EventListener)
+    window.addEventListener('saveTerminologyBeforeNavigation', handleSaveBeforeNavigation)
 
     // Cleanup
     return () => {
-      window.removeEventListener('saveTerminologyBeforeNavigation', handleSaveBeforeNavigation as EventListener)
+      window.removeEventListener('saveTerminologyBeforeNavigation', handleSaveBeforeNavigation)
     }
   }, [profileInfo.team_id, formationsSet, formTagsSet, shiftsSet, toMotionsSet, fromMotionsSet, runGameSet, rpoTagsSet, passProtectionsSet, quickGameSet, dropbackGameSet, screenGameSet, shotPlaysSet, conceptTagsSet])
   
