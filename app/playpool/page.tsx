@@ -51,7 +51,8 @@ const CATEGORIES = {
   quick_game: 'Quick Game',
   dropback_game: 'Dropback Game',
   shot_plays: 'Shot Plays',
-  screen_game: 'Screen Game'
+  screen_game: 'Screen Game',
+  moving_pocket: 'Moving Pocket'  // Add moving pocket category
 } as const
 
 function formatPlay(play: ExtendedPlay): string {
@@ -91,7 +92,7 @@ interface ScoutingOption {
 
 // Helper function to determine if a category is a pass play category
 function isPassPlayCategory(category: string): boolean {
-  return ['quick_game', 'dropback_game', 'shot_plays', 'screen_game'].includes(category);
+  return ['quick_game', 'dropback_game', 'shot_plays', 'screen_game', 'moving_pocket'].includes(category);
 }
 
 // Add custom event type declaration at the top of the file

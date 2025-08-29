@@ -285,6 +285,7 @@ const CATEGORIES = {
   quick_game: 'Quick Game',
   dropback_game: 'Dropback Game',
   screen_game: 'Screen Game',
+  moving_pocket: 'Moving Pocket',
   shot_plays: 'Shot Plays'
 } as const
 
@@ -841,6 +842,7 @@ interface CategoryColors {
   quick_game: string;
   dropback_game: string;
   screen_game: string;
+  moving_pocket: string;
   shot_plays: string;
 }
 
@@ -1411,6 +1413,7 @@ export default function PlanPage() {
         quick_game: 'bg-yellow-100',
         dropback_game: 'bg-purple-100',
         screen_game: 'bg-pink-100',
+        moving_pocket: 'bg-orange-300',
         shot_plays: 'bg-red-100'
       };
     }
@@ -1420,6 +1423,7 @@ export default function PlanPage() {
       quick_game: 'bg-yellow-100', 
       dropback_game: 'bg-purple-100',
       screen_game: 'bg-pink-100',
+              moving_pocket: 'bg-orange-300',
       shot_plays: 'bg-red-100'
     };
   })
@@ -2935,10 +2939,10 @@ export default function PlanPage() {
           return play.category === 'quick_game';
         } else if (playPoolCategory === 'dropback_game') {
           return play.category === 'dropback_game';
+        } else if (playPoolCategory === 'moving_pocket') {
+          return play.category === 'moving_pocket';
         } else if (playPoolCategory === 'shot_plays') {
           return play.category === 'shot_plays';
-        } else if (playPoolCategory === 'screen_game') {
-          return play.category === 'screen_game';
         }
         return play.category === Object.keys(CATEGORIES)[0];
     });
@@ -4013,7 +4017,7 @@ export default function PlanPage() {
           }
           // For Opening Script, ensure a balanced mix of plays
           if (section === 'openingScript') {
-            return ['run_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'].includes(p.category);
+            return ['run_game', 'quick_game', 'dropback_game', 'moving_pocket', 'shot_plays'].includes(p.category);
           }
           // For Deep Shots section, only include shot_plays and dropback_game
           if (section === 'deepShots') {

@@ -239,11 +239,11 @@ export async function getPlayPool(): Promise<Play[]> {
 
       // Format the beaters for each play based on current defensive data
       const formattedPlays = plays.map(play => {
-        const isPassPlay = ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(play.category);
+        const isPassPlay = ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game', 'moving_pocket'];
         
         try {
           // Ensure beaters are properly formatted
-          if (isPassPlay && play.coverage_beaters) {
+          if (isPassPlay.includes(play.category) && play.coverage_beaters) {
             // For pass plays, format coverage beaters
             const coverages: ScoutingOption[] = scoutingData.coverages || [];
             const coveragesPct = scoutingData.coverages_pct || {};
@@ -258,7 +258,7 @@ export async function getPlayPool(): Promise<Play[]> {
               .filter((c: string) => currentCoverages.has(c.toLowerCase()));
             
             play.coverage_beaters = beatersList.join(', ');
-          } else if (!isPassPlay && play.front_beaters) {
+          } else if (!isPassPlay.includes(play.category) && play.front_beaters) {
             // For run plays, format front beaters
             const fronts: ScoutingOption[] = scoutingData.fronts || [];
             const frontsPct = scoutingData.fronts_pct || {};
@@ -276,14 +276,14 @@ export async function getPlayPool(): Promise<Play[]> {
           }
 
           // If no beaters after filtering, use most common defense
-          if (isPassPlay && !play.coverage_beaters) {
+          if (isPassPlay.includes(play.category) && !play.coverage_beaters) {
             const coveragesPct = scoutingData.coverages_pct || {};
             const mostCommonCoverage = Object.entries(coveragesPct)
               .sort((a, b) => Number(b[1]) - Number(a[1]))[0];
             if (mostCommonCoverage) {
               play.coverage_beaters = mostCommonCoverage[0];
             }
-          } else if (!isPassPlay && !play.front_beaters) {
+          } else if (!isPassPlay.includes(play.category) && !play.front_beaters) {
             const frontsPct = scoutingData.fronts_pct || {};
             const mostCommonFront = Object.entries(frontsPct)
               .sort((a, b) => Number(b[1]) - Number(a[1]))[0];
@@ -650,7 +650,7 @@ export async function regeneratePlayPool(): Promise<void> {
     // Constants - special case for run plays
     const MAX_RUN_PLAYS = 15;
     const MAX_PLAYS_PER_CATEGORY = 20;
-    const categories = ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'];
+    const categories = ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game', 'moving_pocket'];
     
     // First, get all locked plays
     const { data: lockedPlays, error: lockedError } = await supabase
@@ -928,16 +928,16 @@ export async function updatePlayPoolTerminology(): Promise<void> {
     })
 
     // Debug: Log terminology data to understand the structure
-    console.log('Terminology translation debug info:', {
-      formations_count: terminologyMaps.formations.size,
-      formations_sample: Array.from(terminologyMaps.formations.entries()).slice(0, 3),
-      passProtections_count: terminologyMaps.pass_protections.size, 
-      passProtections_sample: Array.from(terminologyMaps.pass_protections.entries()).slice(0, 3),
-      screens_count: terminologyMaps.screen_game.size,
-      screens_sample: Array.from(terminologyMaps.screen_game.entries()).slice(0, 3),
-      conceptTags_count: terminologyMaps.concept_tags.size,
-      rpoTags_count: terminologyMaps.rpo_tag.size
-    })
+    // console.log('Terminology translation debug info:', {
+    //   formations_count: terminologyMaps.formations.size,
+    //   formations_sample: Array.from(terminologyMaps.formations.entries()).slice(0, 3),
+    //   passProtections_count: terminologyMaps.pass_protections.size, 
+    //   passProtections_sample: Array.from(terminologyMaps.pass_protections.entries()).slice(0, 3),
+    //   screens_count: terminologyMaps.screen_game.size,
+    //   screens_sample: Array.from(terminologyMaps.screen_game.entries()).slice(0, 3),
+    //   conceptTags_count: terminologyMaps.concept_tags.size,
+    //   rpoTags_count: terminologyMaps.rpo_tag.size
+    // })
 
     // Update each play with new terminology
     const updatedPlays = plays.map(play => {

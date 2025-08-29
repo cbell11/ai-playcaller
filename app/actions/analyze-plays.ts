@@ -78,19 +78,19 @@ function formatFrontBeaters(frontBeaters: string, frontPercentages: { front: str
   
   const beatersList = frontBeaters.split(',').map(f => f.trim());
   
-  // Log for debugging
-  console.log('Front beaters debug:', {
-    original: frontBeaters,
-    normalized: beatersList.map(normalizeName),
-    availableFronts: frontPercentages.map(fp => fp.front),
-    normalizedFronts: frontPercentages.map(fp => normalizeName(fp.front))
-  });
+  // Comment out front beaters debug
+  // console.log('Front beaters debug:', {
+  //   original: frontBeaters,
+  //   normalized: beatersList.map(normalizeName),
+  //   availableFronts: frontPercentages.map(fp => fp.front),
+  //   normalizedFronts: frontPercentages.map(fp => normalizeName(fp.front))
+  // });
 
-  const relevantBeaters = beatersList.filter(front => 
+  const relevantFrontBeaters = beatersList.filter(front => 
     frontPercentages.some(fp => normalizeName(fp.front) === normalizeName(front))
   );
   
-  return relevantBeaters.join(', ');
+  return relevantFrontBeaters.join(', ');
 }
 
 // Helper function to format coverage beaters with percentages
@@ -98,11 +98,11 @@ function formatCoverageBeaters(coverageBeaters: string, coveragePercentages: { c
   if (!coverageBeaters) return '';
   
   const beatersList = coverageBeaters.split(',').map(c => c.trim());
-  const relevantBeaters = beatersList.filter(coverage => 
+  const relevantCoverageBeaters = beatersList.filter(coverage => 
     coveragePercentages.some(cp => normalizeName(cp.coverage) === normalizeName(coverage))
   );
   
-  return relevantBeaters.join(', ');
+  return relevantCoverageBeaters.join(', ');
 }
 
 // Helper function to determine if a play has motion components
@@ -113,7 +113,7 @@ function hasMotionComponents(play: any): boolean {
 // Helper function to determine if a category is a pass play category
 function isPassPlayCategory(category: string): boolean {
   // RPO plays are treated like run plays since they beat fronts, not coverages
-  return ['quick_game', 'dropback_game', 'shot_plays', 'screen_game'].includes(category);
+  return ['quick_game', 'dropback_game', 'shot_plays', 'screen_game', 'moving_pocket'].includes(category);
 }
 
 function isRunBasedCategory(category: string): boolean {
@@ -184,18 +184,10 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       throw new Error(`Failed to fetch team terminology: ${terminologyError.message}`);
     }
 
-    // Log terminology by category
-    const terminologyByCategory = {
-      run_game: teamTerminology?.filter(t => t.category === 'run_game').length || 0,
-      rpo_game: teamTerminology?.filter(t => t.category === 'rpo_game').length || 0,
-      quick_game: teamTerminology?.filter(t => t.category === 'quick_game').length || 0,
-      dropback_game: teamTerminology?.filter(t => t.category === 'dropback_game').length || 0,
-      shot_plays: teamTerminology?.filter(t => t.category === 'shot_plays').length || 0,
-      screen_game: teamTerminology?.filter(t => t.category === 'screen_game').length || 0
-    };
-    console.log('Terminology by category:', terminologyByCategory);
-
-    // Create a map of default team labels → user team labels
+    // Comment out noisy terminology logs
+    // console.log('Terminology by category:', terminologyByCategory);
+    
+    // Build global terminology mapping
     const terminologyMap = new Map<string, string>();
     defaultTerminology?.forEach((defaultTerm: Terminology) => {
       if (!defaultTerm.concept || !defaultTerm.label) return
@@ -209,7 +201,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       if (userTerm && userTerm.label) {
         // Map: default team label → user team label
         terminologyMap.set(defaultTerm.label.toLowerCase(), userTerm.label);
-        console.log(`Global terminology mapping: ${defaultTerm.category} | "${defaultTerm.label}" → "${userTerm.label}"`)
+        // console.log(`Global terminology mapping: ${defaultTerm.category} | "${defaultTerm.label}" → "${userTerm.label}"`)
       }
     });
 
@@ -244,7 +236,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     const { data: allMasterPlays, error: queryError } = await supabase
       .from('master_play_pool')
       .select('*')
-      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game']);
+      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game', 'moving_pocket']);
 
     if (queryError) {
       console.error('❌ Master play pool query error:', queryError);
@@ -264,7 +256,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         quick_game: allMasterPlays.filter(p => p.category === 'quick_game').length,
         dropback_game: allMasterPlays.filter(p => p.category === 'dropback_game').length,
         shot_plays: allMasterPlays.filter(p => p.category === 'shot_plays').length,
-        screen_game: allMasterPlays.filter(p => p.category === 'screen_game').length
+        screen_game: allMasterPlays.filter(p => p.category === 'screen_game').length,
+        moving_pocket: allMasterPlays.filter(p => p.category === 'moving_pocket').length
       }
     });
 
@@ -364,6 +357,34 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       return hasTerminology;
     });
 
+    // Add prominent moving pocket analysis
+    console.log('\n🎯 MOVING POCKET ANALYSIS 🎯');
+    console.log('----------------------------------------');
+    
+    // Debug: Log all moving pocket plays from master pool
+    const allMovingPocketPlays = allMasterPlays.filter(p => p.category === 'moving_pocket');
+    console.log('Initial Moving Pocket Plays:', {
+      count: allMovingPocketPlays.length,
+      plays: allMovingPocketPlays.map(play => ({
+        play_id: play.play_id,
+        concept: play.concept,
+        formations: play.formations,
+        coverage_beaters: play.coverage_beaters
+      }))
+    });
+
+    // After terminology mapping, check moving pocket plays again
+    const movingPocketAfterTerminology = availableMasterPlays.filter(p => p.category === 'moving_pocket');
+    console.log('\nMoving Pocket Plays After Terminology:', {
+      count: movingPocketAfterTerminology.length,
+      plays: movingPocketAfterTerminology.map(play => ({
+        play_id: play.play_id,
+        concept: play.concept,
+        formations: play.formations,
+        coverage_beaters: play.coverage_beaters
+      }))
+    });
+
     // Log available plays by category before defensive filtering
     console.log('Available plays before defensive filtering:', {
       run_game: availableMasterPlays.filter(p => p.category === 'run_game').length,
@@ -371,7 +392,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       quick_game: availableMasterPlays.filter(p => p.category === 'quick_game').length,
       dropback_game: availableMasterPlays.filter(p => p.category === 'dropback_game').length,
       shot_plays: availableMasterPlays.filter(p => p.category === 'shot_plays').length,
-      screen_game: availableMasterPlays.filter(p => p.category === 'screen_game').length
+      screen_game: availableMasterPlays.filter(p => p.category === 'screen_game').length,
+      moving_pocket: availableMasterPlays.filter(p => p.category === 'moving_pocket').length
     });
 
     // Debug: Log run game plays after terminology filtering
@@ -392,76 +414,70 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       const isPassPlay = isPassPlayCategory(play.category);
       const isRunPlay = !isPassPlay && play.category !== 'rpo_game';
       const isRPO = play.category === 'rpo_game';
+      const isMovingPocket = play.category === 'moving_pocket';
       
-      console.log(`\n--- Analyzing Play: ${play.concept} (${play.category}) ---`);
-      console.log('Play details:', {
-        play_id: play.play_id,
-        concept: play.concept,
-        category: play.category,
-        front_beaters: play.front_beaters,
-        coverage_beaters: play.coverage_beaters,
-        isPassPlay,
-        isRunPlay,
-        isRPO
-      });
-
-      // Additional debugging for run game categorization
-      if (play.category === 'run_game') {
-        console.log('🔍 DETAILED RUN GAME CATEGORIZATION:', {
-          category: play.category,
-          isPassPlay_result: isPassPlay,
-          isPassPlay_calculation: isPassPlayCategory(play.category),
-          category_not_rpo: play.category !== 'rpo_game',
-          final_isRunPlay: isRunPlay,
-          should_enter_run_block: isRunPlay
-        });
+      // Temporarily treat moving pocket plays like regular pass plays
+      if (isMovingPocket) {
+        // If no coverage beaters, include the play anyway for now
+        if (!play.coverage_beaters) {
+          return true; // Include plays without coverage beaters for debugging
+        }
+        
+        const beatersList = play.coverage_beaters.split(',').map((c: string) => c.trim());
+        const availableCoverages = scoutingReport.coverages.map((c: any) => c.name);
+        
+        for (const beater of beatersList) {
+          for (const availableCoverage of availableCoverages) {
+            if (normalizeName(beater) === normalizeName(availableCoverage)) {
+              return true;
+            }
+          }
+        }
+        
+        // If no coverage matches found, still include for debugging
+        return true;
       }
-      
+
+      // Rest of the existing filtering logic for other play types
+      if (isPassPlay) {
+        if (!play.coverage_beaters) {
+          // console.log(`✗ Pass Play ${play.concept} EXCLUDED - no coverage_beaters specified`);
+          return false;
+        }
+        
+        const beatersList = play.coverage_beaters.split(',').map((c: string) => c.trim());
+        const availableCoverages = scoutingReport.coverages.map((c: any) => c.name);
+        
+        // console.log('Pass Coverage check:', {
+        //   coverage_beaters: beatersList,
+        //   available_coverages: availableCoverages
+        // });
+        
+        for (const beater of beatersList) {
+          for (const availableCoverage of availableCoverages) {
+            if (normalizeName(beater) === normalizeName(availableCoverage)) {
+              // console.log(`✓ Pass Play ${play.concept} INCLUDED - matches coverage: "${beater}" === "${availableCoverage}" (normalized)`);
+              return true;
+            }
+          }
+        }
+        
+        // console.log(`✗ Pass Play ${play.concept} EXCLUDED - no matching coverage beaters`);
+        return false;
+      }
+
       // For RPO plays, check both front_beaters AND coverage_beaters
       if (isRPO) {
         let hasMatchingBeater = false;
-        
-        // Special debugging for the specific play mentioned by user
-        if (play.play_id === '263' || play.concept === 'IZ -') {
-          console.log('\n🔍 DEBUGGING SPECIFIC RPO PLAY:', {
-            play_id: play.play_id,
-            concept: play.concept,
-            front_beaters_raw: play.front_beaters,
-            category: play.category
-          });
-        }
         
         // Check front_beaters
         if (play.front_beaters) {
           const frontBeatersList = play.front_beaters.split(',').map((f: string) => f.trim());
           const availableFronts = scoutingReport.fronts.map((f: any) => f.name);
           
-          console.log('RPO Front check:', {
-            play_concept: play.concept,
-            front_beaters: frontBeatersList,
-            available_fronts: availableFronts
-          });
-          
-          // Special debugging for the specific play
-          if (play.play_id === '263' || play.concept === 'IZ -') {
-            console.log('🔍 DETAILED FRONT MATCHING for IZ -:', {
-              front_beaters_list: frontBeatersList,
-              available_fronts_list: availableFronts,
-              looking_for: '3-4 Split +',
-              found_in_beaters: frontBeatersList.includes('3-4 Split +'),
-              found_in_available: availableFronts.includes('3-4 Split +')
-            });
-            
-            // Check each beater individually
-            frontBeatersList.forEach((beater: string, index: number) => {
-              console.log(`  Beater ${index}: "${beater}" - Match found: ${availableFronts.includes(beater)}`);
-            });
-          }
-          
           for (const beater of frontBeatersList) {
             for (const availableFront of availableFronts) {
               if (normalizeName(beater) === normalizeName(availableFront)) {
-                console.log(`✓ RPO Play ${play.concept} INCLUDED - matches front: "${beater}" === "${availableFront}" (normalized)`);
                 hasMatchingBeater = true;
                 return true;
               }
@@ -474,15 +490,9 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
           const coverageBeatersList = play.coverage_beaters.split(',').map((c: string) => c.trim());
           const availableCoverages = scoutingReport.coverages.map((c: any) => c.name);
           
-          console.log('RPO Coverage check:', {
-            coverage_beaters: coverageBeatersList,
-            available_coverages: availableCoverages
-          });
-          
           for (const beater of coverageBeatersList) {
             for (const availableCoverage of availableCoverages) {
               if (normalizeName(beater) === normalizeName(availableCoverage)) {
-                console.log(`✓ RPO Play ${play.concept} INCLUDED - matches coverage: "${beater}" === "${availableCoverage}" (normalized)`);
                 hasMatchingBeater = true;
                 return true;
               }
@@ -490,56 +500,22 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
           }
         }
 
-        // If no beaters or no matches found
-        if (!play.front_beaters && !play.coverage_beaters) {
-          console.log(`✗ RPO Play ${play.concept} EXCLUDED - no beaters specified`);
-        } else {
-          console.log(`✗ RPO Play ${play.concept} EXCLUDED - no matching beaters`);
-        }
-        return false;
-      }
-      
-      // For pass plays, check coverage_beaters
-      if (isPassPlay) {
-        if (!play.coverage_beaters) {
-          console.log(`✗ Pass Play ${play.concept} EXCLUDED - no coverage_beaters specified`);
-          return false;
-        }
-        
-        const beatersList = play.coverage_beaters.split(',').map((c: string) => c.trim());
-        const availableCoverages = scoutingReport.coverages.map((c: any) => c.name);
-        
-        console.log('Pass Coverage check:', {
-          coverage_beaters: beatersList,
-          available_coverages: availableCoverages
-        });
-        
-        for (const beater of beatersList) {
-          for (const availableCoverage of availableCoverages) {
-            if (normalizeName(beater) === normalizeName(availableCoverage)) {
-              console.log(`✓ Pass Play ${play.concept} INCLUDED - matches coverage: "${beater}" === "${availableCoverage}" (normalized)`);
-              return true;
-            }
-          }
-        }
-        
-        console.log(`✗ Pass Play ${play.concept} EXCLUDED - no matching coverage beaters`);
         return false;
       }
       
       // For run plays, check front_beaters
       if (isRunPlay) {
-        console.log(`🏃 ANALYZING RUN PLAY: ${play.concept} (category: ${play.category})`);
-        console.log('Run play details:', {
-          play_id: play.play_id,
-          concept: play.concept,
-          category: play.category,
-          front_beaters: play.front_beaters,
-          has_front_beaters: !!play.front_beaters
-        });
+        // console.log(`🏃 ANALYZING RUN PLAY: ${play.concept} (category: ${play.category})`);
+        // console.log('Run play details:', {
+        //   play_id: play.play_id,
+        //   concept: play.concept,
+        //   category: play.category,
+        //   front_beaters: play.front_beaters,
+        //   has_front_beaters: !!play.front_beaters
+        // });
         
         if (!play.front_beaters) {
-          console.log(`⚠️  Run Play ${play.concept} has no front_beaters - including anyway to debug`);
+          // console.log(`⚠️  Run Play ${play.concept} has no front_beaters - including anyway to debug`);
           // For now, include run plays without front_beaters to help debug the issue
           return true;
         }
@@ -547,34 +523,47 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         const beatersList = play.front_beaters.split(',').map((f: string) => f.trim());
         const availableFronts = scoutingReport.fronts.map((f: any) => f.name);
         
-        console.log('Run Front check:', {
-          play_concept: play.concept,
-          front_beaters: beatersList,
-          available_fronts: availableFronts
-        });
+        // console.log('Run Front check:', {
+        //   play_concept: play.concept,
+        //   front_beaters: beatersList,
+        //   available_fronts: availableFronts
+        // });
         
         // Use case-insensitive matching for fronts
         for (const beater of beatersList) {
           for (const availableFront of availableFronts) {
             if (normalizeName(beater) === normalizeName(availableFront)) {
-              console.log(`✓ Run Play ${play.concept} INCLUDED - matches front: "${beater}" === "${availableFront}" (normalized)`);
+              // console.log(`✓ Run Play ${play.concept} INCLUDED - matches front: "${beater}" === "${availableFront}" (normalized)`);
               return true;
             }
           }
         }
         
-        console.log(`✗ Run Play ${play.concept} EXCLUDED - no matching front beaters`);
-        console.log('  Available fronts:', availableFronts);
-        console.log('  Available fronts (normalized):', availableFronts.map(normalizeName));
-        console.log('  Play front beaters:', beatersList);
-        console.log('  Play front beaters (normalized):', beatersList.map(normalizeName));
+        // console.log(`✗ Run Play ${play.concept} EXCLUDED - no matching front beaters`);
+        // console.log('  Available fronts:', availableFronts);
+        // console.log('  Available fronts (normalized):', availableFronts.map(normalizeName));
+        // console.log('  Play front beaters:', beatersList);
+        // console.log('  Play front beaters (normalized):', beatersList.map(normalizeName));
         return false;
       }
       
       // Should not reach here, but exclude by default
-      console.log(`✗ Play ${play.concept} EXCLUDED - unknown category or no valid beaters`);
+      // console.log(`✗ Play ${play.concept} EXCLUDED - unknown category or no valid beaters`);
       return false;
     });
+
+    // After defensive filtering, check moving pocket plays one final time
+    const finalMovingPocketPlays = availableMasterPlays.filter(p => p.category === 'moving_pocket');
+    console.log('\nFinal Moving Pocket Plays:', {
+      count: finalMovingPocketPlays.length,
+      plays: finalMovingPocketPlays.map(play => ({
+        play_id: play.play_id,
+        concept: play.concept,
+        formations: play.formations,
+        coverage_beaters: play.coverage_beaters
+      }))
+    });
+    console.log('----------------------------------------\n');
 
     // Log available plays after defensive filtering
     console.log('Available plays after defensive filtering:', {
@@ -583,7 +572,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       quick_game: availableMasterPlays.filter(p => p.category === 'quick_game').length,
       dropback_game: availableMasterPlays.filter(p => p.category === 'dropback_game').length,
       shot_plays: availableMasterPlays.filter(p => p.category === 'shot_plays').length,
-      screen_game: availableMasterPlays.filter(p => p.category === 'screen_game').length
+      screen_game: availableMasterPlays.filter(p => p.category === 'screen_game').length,
+      moving_pocket: availableMasterPlays.filter(p => p.category === 'moving_pocket').length
     });
 
     // Log available plays with matching terminology
@@ -614,6 +604,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     let selectedDropbackPlays: any[] = [];
     let selectedShotPlays: any[] = [];
     let selectedScreenPlays: any[] = [];
+    let selectedMovingPocketPlays: any[] = [];
     const selectedPlayIds = new Set<string>();
 
     const selectPlaysForCategory = (
@@ -630,11 +621,11 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       
       // Special handling for screen plays
       if (category === 'screen_game') {
-        console.log('Selecting screen plays:', {
-          playsToSelect,
-          availablePlays: availablePlays.length,
-          defensePercentages: defensePercentages.length
-        });
+        // console.log('Selecting screen plays:', {
+        //   playsToSelect,
+        //   availablePlays: availablePlays.length,
+        //   defensePercentages: defensePercentages.length
+        // });
       }
 
       for (const defenseItem of defensePercentages) {
@@ -717,20 +708,20 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
         // Log for screen plays
         if (category === 'screen_game') {
-          console.log('Filling remaining screen plays:', {
-            needed: remainingPlays,
-            available: remainingAvailablePlays.length
-          });
+          // console.log('Filling remaining screen plays:', {
+          //   needed: remainingPlays,
+          //   available: remainingAvailablePlays.length
+          // });
         }
 
         // For RPO plays, log the count
         if (category === 'rpo_game') {
-          console.log('Filling remaining RPO plays:', {
-            currentCount: selectedPlaysArray.length,
-            needed: remainingPlays,
-            available: remainingAvailablePlays.length,
-            minimumRequired: minimumPlays
-          });
+          // console.log('Filling remaining RPO plays:', {
+          //   currentCount: selectedPlaysArray.length,
+          //   needed: remainingPlays,
+          //   available: remainingAvailablePlays.length,
+          //   minimumRequired: minimumPlays
+          // });
         }
 
         for (let i = 0; i < remainingPlays && remainingAvailablePlays.length > 0; i++) {
@@ -773,7 +764,12 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     selectedShotPlays.push(...availableShotPlays);
     selectedScreenPlays.push(...availableScreenPlays);
 
+    // Select moving pocket plays
+    const availableMovingPocketPlays = availableMasterPlays.filter(p => p.category === 'moving_pocket');
+    selectedMovingPocketPlays.push(...availableMovingPocketPlays);
+
     console.log('Final screen plays selected:', selectedScreenPlays.length);
+    console.log('Final moving pocket plays selected:', selectedMovingPocketPlays.length);
 
     // Combine all selected plays
     const selectedPlays = [
@@ -782,7 +778,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       ...selectedQuickPlays,
       ...selectedDropbackPlays,
       ...selectedShotPlays,
-      ...selectedScreenPlays
+      ...selectedScreenPlays,
+      ...selectedMovingPocketPlays
     ];
 
     // Keep all motion components, no filtering
@@ -859,26 +856,26 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
           if (userTerm && userTerm.label) {
             // Map: default team label → user team label
             terminologyMaps[category].set(defaultTerm.label.toLowerCase(), userTerm.label)
-            console.log(`Added terminology mapping: ${defaultTerm.category} | "${defaultTerm.label}" → "${userTerm.label}"`)
+            // console.log(`Added terminology mapping: ${defaultTerm.category} | "${defaultTerm.label}" → "${userTerm.label}"`)
           }
         } else {
-          console.log(`Skipped terminology for unknown category: ${defaultTerm.category}`)
+          // console.log(`Skipped terminology for unknown category: ${defaultTerm.category}`)
         }
       })
 
       // Debug: Show all terminology maps
-      console.log('Final terminology maps:', {
-        formations: Array.from(terminologyMaps.formations.entries()),
-        form_tags: Array.from(terminologyMaps.form_tags.entries()),
-        pass_protections: Array.from(terminologyMaps.pass_protections.entries()),
-        concept_tags: Array.from(terminologyMaps.concept_tags.entries()),
-        rpo_tag: Array.from(terminologyMaps.rpo_tag.entries()),
-        run_game: Array.from(terminologyMaps.run_game.entries()),
-        quick_game: Array.from(terminologyMaps.quick_game.entries()),
-        dropback_game: Array.from(terminologyMaps.dropback_game.entries()),
-        shot_plays: Array.from(terminologyMaps.shot_plays.entries()),
-        screen_game: Array.from(terminologyMaps.screen_game.entries())
-      })
+      // console.log('Final terminology maps:', {
+      //   formations: Array.from(terminologyMaps.formations.entries()),
+      //   form_tags: Array.from(terminologyMaps.form_tags.entries()),
+      //   pass_protections: Array.from(terminologyMaps.pass_protections.entries()),
+      //   concept_tags: Array.from(terminologyMaps.concept_tags.entries()),
+      //   rpo_tag: Array.from(terminologyMaps.rpo_tag.entries()),
+      //   run_game: Array.from(terminologyMaps.run_game.entries()),
+      //   quick_game: Array.from(terminologyMaps.quick_game.entries()),
+      //   dropback_game: Array.from(terminologyMaps.dropback_game.entries()),
+      //   shot_plays: Array.from(terminologyMaps.shot_plays.entries()),
+      //   screen_game: Array.from(terminologyMaps.screen_game.entries())
+      // })
 
       // Helper function to translate terminology
       const translateField = (value: string | null, map: Map<string, string>): string | null => {
@@ -888,16 +885,16 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         
         // Debug logging for failed translations
         if (!translated && map.size > 0) {
-          console.log(`🔍 Translation MISS for "${value}":`, {
-            lowercase: lowerValue,
-            available_keys: Array.from(map.keys()).slice(0, 5), // First 5 keys
-            map_size: map.size
-          })
+          // console.log(`🔍 Translation MISS for "${value}":`, {
+          //   lowercase: lowerValue,
+          //   available_keys: Array.from(map.keys()).slice(0, 5), // First 5 keys
+          //   map_size: map.size
+          // })
           
           // Special debug for formations to see what concepts are actually used
-          if (map === terminologyMaps.formations) {
-            console.log(`🔧 Formations debug - Need to map concept "${value}" to your terminology`)
-          }
+          // if (map === terminologyMaps.formations) {
+          //   console.log(`🔧 Formations debug - Need to map concept "${value}" to your terminology`)
+          // }
         }
         
         return translated || value
@@ -920,58 +917,58 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
       // Special debug for screen game plays
       if (play.category === 'screen_game') {
-        console.log(`🎬 Screen game debug for play ${play.play_id}:`, {
-          original_concept: play.concept,
-          original_concept_lowercase: play.concept?.toLowerCase(),
-          translated_concept: teamConcept,
-          category: play.category,
-          screen_map_size: terminologyMaps.screen_game.size,
-          screen_map_has_key: terminologyMaps.screen_game.has(play.concept?.toLowerCase() || ''),
-          screen_map_entries: Array.from(terminologyMaps.screen_game.entries())
-        });
+        // console.log(`🎬 Screen game debug for play ${play.play_id}:`, {
+        //   original_concept: play.concept,
+        //   original_concept_lowercase: play.concept?.toLowerCase(),
+        //   translated_concept: teamConcept,
+        //   category: play.category,
+        //   screen_map_size: terminologyMaps.screen_game.size,
+        //   screen_map_has_key: terminologyMaps.screen_game.has(play.concept?.toLowerCase() || ''),
+        //   screen_map_entries: Array.from(terminologyMaps.screen_game.entries())
+        // });
       }
 
       // Special debug for RPO game plays
       if (play.category === 'rpo_game') {
-        console.log(`🏈 RPO game debug for play ${play.play_id}:`, {
-          original_concept: play.concept,
-          translated_concept: teamConcept,
-          original_rpo_tag: play.rpo_tag,
-          translated_rpo_tag: teamRpoTag,
-          category: play.category,
-          using_run_game_map: true,
-          run_game_map_size: terminologyMaps.run_game.size,
-          rpo_tag_map_size: terminologyMaps.rpo_tag.size
-        });
+        // console.log(`🏈 RPO game debug for play ${play.play_id}:`, {
+        //   original_concept: play.concept,
+        //   translated_concept: teamConcept,
+        //   original_rpo_tag: play.rpo_tag,
+        //   translated_rpo_tag: teamRpoTag,
+        //   category: play.category,
+        //   using_run_game_map: true,
+        //   run_game_map_size: terminologyMaps.run_game.size,
+        //   rpo_tag_map_size: terminologyMaps.rpo_tag.size
+        // });
       }
 
       // Debug logging for terminology translation
-      console.log('Terminology translation debug for play:', play.play_id, {
-        original: {
-          formations: play.formations,
-          tags: play.tags,
-          pass_protections: play.pass_protections,
-          concept_tag: play.concept_tag,
-          rpo_tag: play.rpo_tag,
-          concept: play.concept,
-          category: play.category
-        },
-        translated: {
-          formations: teamFormations,
-          tags: teamTags,
-          pass_protections: teamPassProtections,
-          concept_tag: teamConceptTag,
-          rpo_tag: teamRpoTag,
-          concept: teamConcept
-        },
-        terminology_maps_sizes: {
-          formations: terminologyMaps.formations.size,
-          form_tags: terminologyMaps.form_tags.size,
-          pass_protections: terminologyMaps.pass_protections.size,
-          concept_tags: terminologyMaps.concept_tags.size,
-          rpo_tag: terminologyMaps.rpo_tag.size
-        }
-      });
+      // console.log('Terminology translation debug for play:', play.play_id, {
+      //   original: {
+      //     formations: play.formations,
+      //     tags: play.tags,
+      //     pass_protections: play.pass_protections,
+      //     concept_tag: play.concept_tag,
+      //     rpo_tag: play.rpo_tag,
+      //     concept: play.concept,
+      //     category: play.category
+      //   },
+      //   translated: {
+      //     formations: teamFormations,
+      //     tags: teamTags,
+      //     pass_protections: teamPassProtections,
+      //     concept_tag: teamConceptTag,
+      //     rpo_tag: teamRpoTag,
+      //     concept: teamConcept
+      //   },
+      //   terminology_maps_sizes: {
+      //     formations: terminologyMaps.formations.size,
+      //     form_tags: terminologyMaps.form_tags.size,
+      //     pass_protections: terminologyMaps.pass_protections.size,
+      //     concept_tags: terminologyMaps.concept_tags.size,
+      //     rpo_tag: terminologyMaps.rpo_tag.size
+      //   }
+      // });
       
       return {
         team_id: teamId,
