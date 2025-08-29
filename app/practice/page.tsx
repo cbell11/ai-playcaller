@@ -67,6 +67,7 @@ const CATEGORIES = {
   'quick_game': 'Quick Game',
   'dropback_game': 'Dropback Game',
   'screen_game': 'Screen Game',
+  'moving_pocket': 'Moving Pocket',
   'shot_plays': 'Shot Plays'
 } as const;
 
@@ -724,10 +725,11 @@ export default function PracticePage() {
       const quickGamePlays = gameplanPlays.filter(play => play.section === 'quick_game')
       const dropbackGamePlays = gameplanPlays.filter(play => play.section === 'dropback_game')
       const screenGamePlays = gameplanPlays.filter(play => play.section === 'screen_game')
+      const movingPocketPlays = gameplanPlays.filter(play => play.section === 'moving_pocket')
       const shotPlays = gameplanPlays.filter(play => play.section === 'shot_plays')
       
       // Combine all available plays from every category
-      allPlays = [...runGamePlays, ...rpoGamePlays, ...quickGamePlays, ...dropbackGamePlays, ...screenGamePlays, ...shotPlays]
+      allPlays = [...runGamePlays, ...rpoGamePlays, ...quickGamePlays, ...dropbackGamePlays, ...screenGamePlays, ...movingPocketPlays, ...shotPlays]
       
       if (allPlays.length === 0) {
         console.log('No plays available in gameplan for Team sections')
