@@ -3919,6 +3919,103 @@ export default function PlanPage() {
         return;
       }
 
+      // Special handling for Play Action - use manual filtering instead of AI
+      if (section === 'playAction') {
+        const count = sectionSizes[section];
+        
+        // Filter plays for Play Action: Shot Plays + plays with PA or Boot pass protection
+        const selectedPlays = playPool.filter(p => {
+          // Include shot plays
+          if (p.category === 'shot_plays') {
+            return true;
+          }
+          // Include plays with PA or Boot pass protection
+          if (p.pass_protections) {
+            const passProtection = p.pass_protections.toLowerCase();
+            return passProtection.includes('pa') || passProtection.includes('boot');
+          }
+          return false;
+        });
+
+        // Randomly shuffle and select the needed number of plays
+        const shuffled = [...selectedPlays].sort(() => Math.random() - 0.5);
+        const finalSelectedPlays = shuffled.slice(0, count);
+        
+        if (finalSelectedPlays.length === 0) {
+          setNotification({
+            message: 'No play action plays found (shot plays or plays with PA/Boot protection)',
+            type: 'error'
+          });
+          return;
+        }
+
+        // Delete existing unlocked plays for this section
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toLowerCase())
+          .eq('is_locked', false);
+
+        if (deleteError) {
+          throw new Error('Failed to clear unlocked plays');
+        }
+
+        // Calculate available positions after locked plays
+        const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+        let currentPosition = 0;
+        const insertData = [];
+
+        // Insert new plays into available positions
+        for (const play of finalSelectedPlays) {
+          // Find next available position
+          while (currentPosition < count && lockedPositions.has(currentPosition)) {
+            currentPosition++;
+          }
+          
+          if (currentPosition < count) {
+            insertData.push({
+              team_id,
+              opponent_id,
+              play_id: play.play_id,
+              section: section.toLowerCase(),
+              position: currentPosition,
+              combined_call: formatPlayFromPool(play),
+              customized_edit: play.customized_edit,
+              is_locked: false,
+              category: play.category
+            });
+            currentPosition++;
+          }
+        }
+
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+
+        setNotification({
+          message: `Updated Play Action with ${insertData.length} plays`,
+          type: 'success'
+        });
+        return;
+      }
+
       // For other sections, continue with existing AI-based logic
       const isBasePackage = section.startsWith('basePackage');
       const selectedConcept = isBasePackage ? basePackageConcepts[section] : null;

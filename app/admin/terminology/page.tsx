@@ -620,8 +620,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                     >
                       {selectedImage?.url ? 'Update Image' : 'Add Image'}
                     </Button>
-                    <Button variant="secondary" onClick={() => setSelectedImage(null)}>
-                      Close
+                  <Button variant="secondary" onClick={() => setSelectedImage(null)}>
+                    Close
                     </Button>
                   </div>
                 </DialogFooter>
