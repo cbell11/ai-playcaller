@@ -330,6 +330,30 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         return true;
       }
 
+      // Special handling for moving pocket plays - check quick_game OR dropback_game terminology
+      if (play.category === 'moving_pocket') {
+        const hasQuickGameTerminology = teamTerminology?.some(t => 
+          t.category === 'quick_game' && t.concept.toLowerCase() === play.concept?.toLowerCase()
+        );
+        const hasDropbackGameTerminology = teamTerminology?.some(t => 
+          t.category === 'dropback_game' && t.concept.toLowerCase() === play.concept?.toLowerCase()
+        );
+        
+        const hasMovingPocketTerminology = hasQuickGameTerminology || hasDropbackGameTerminology;
+        
+        if (!hasMovingPocketTerminology) {
+          console.log('Skipping moving pocket play due to missing terminology:', {
+            category: play.category,
+            concept: play.concept,
+            concept_lowercase: play.concept?.toLowerCase(),
+            hasQuickGameTerminology,
+            hasDropbackGameTerminology
+          });
+        }
+        
+        return hasMovingPocketTerminology;
+      }
+
       // Check if the concept exists in team's terminology
       const hasTerminology = terminologyMap.has(play.concept.toLowerCase());
       if (!hasTerminology) {
@@ -357,12 +381,28 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       return hasTerminology;
     });
 
+    // Log moving pocket plays after terminology filtering
+    const movingPocketFilteredPlays = availableMasterPlays.filter(p => p.category === 'moving_pocket');
+    console.log('\n🎯 MOVING POCKET TERMINOLOGY FILTERING 🎯');
+    console.log('----------------------------------------');
+    console.log('Moving pocket plays after terminology filtering:', movingPocketFilteredPlays.length);
+    movingPocketFilteredPlays.forEach(play => {
+      const hasQuickGame = teamTerminology?.some(t => 
+        t.category === 'quick_game' && t.concept.toLowerCase() === play.concept?.toLowerCase()
+      );
+      const hasDropback = teamTerminology?.some(t => 
+        t.category === 'dropback_game' && t.concept.toLowerCase() === play.concept?.toLowerCase()
+      );
+      console.log(`✅ ${play.play_id}: ${play.concept} (Quick: ${hasQuickGame}, Dropback: ${hasDropback})`);
+    });
+
     // Add prominent moving pocket analysis
     console.log('\n🎯 MOVING POCKET ANALYSIS 🎯');
     console.log('----------------------------------------');
     
     // Debug: Log all moving pocket plays from master pool
     const allMovingPocketPlays = allMasterPlays.filter(p => p.category === 'moving_pocket');
+    console.log('All moving pocket plays from master pool:', allMovingPocketPlays.length);
     console.log('Initial Moving Pocket Plays:', {
       count: allMovingPocketPlays.length,
       plays: allMovingPocketPlays.map(play => ({
@@ -374,10 +414,10 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     });
 
     // After terminology mapping, check moving pocket plays again
-    const movingPocketAfterTerminology = availableMasterPlays.filter(p => p.category === 'moving_pocket');
+    const movingPocketPlaysFiltered = availableMasterPlays.filter(p => p.category === 'moving_pocket');
     console.log('\nMoving Pocket Plays After Terminology:', {
-      count: movingPocketAfterTerminology.length,
-      plays: movingPocketAfterTerminology.map(play => ({
+      count: movingPocketPlaysFiltered.length,
+      plays: movingPocketPlaysFiltered.map(play => ({
         play_id: play.play_id,
         concept: play.concept,
         formations: play.formations,
@@ -416,26 +456,34 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       const isRPO = play.category === 'rpo_game';
       const isMovingPocket = play.category === 'moving_pocket';
       
-      // Temporarily treat moving pocket plays like regular pass plays
+      // Moving pocket plays are pass plays that should beat coverages
       if (isMovingPocket) {
-        // If no coverage beaters, include the play anyway for now
         if (!play.coverage_beaters) {
-          return true; // Include plays without coverage beaters for debugging
+          console.log(`✗ Moving Pocket Play ${play.concept} EXCLUDED - no coverage_beaters specified`);
+          return false;
         }
         
         const beatersList = play.coverage_beaters.split(',').map((c: string) => c.trim());
         const availableCoverages = scoutingReport.coverages.map((c: any) => c.name);
         
+        console.log('Moving Pocket Coverage check:', {
+          play_id: play.play_id,
+          concept: play.concept,
+          coverage_beaters: beatersList,
+          available_coverages: availableCoverages
+        });
+        
         for (const beater of beatersList) {
           for (const availableCoverage of availableCoverages) {
             if (normalizeName(beater) === normalizeName(availableCoverage)) {
+              console.log(`✓ Moving Pocket Play ${play.concept} INCLUDED - matches coverage: "${beater}" === "${availableCoverage}" (normalized)`);
               return true;
             }
           }
         }
         
-        // If no coverage matches found, still include for debugging
-        return true;
+        console.log(`✗ Moving Pocket Play ${play.concept} EXCLUDED - no matching coverage beaters`);
+        return false;
       }
 
       // Rest of the existing filtering logic for other play types
@@ -902,9 +950,20 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
       // Get team translations for all terminology fields
       // Special case: RPO games use run_game terminology for concepts since they're run plays with RPO tags
-      const conceptMap = play.category === 'rpo_game' 
-        ? terminologyMaps.run_game 
-        : terminologyMaps[play.category as keyof typeof terminologyMaps] || new Map();
+      // Special case: Moving pocket plays use quick_game and dropback_game terminology
+      let conceptMap: Map<string, string>;
+      if (play.category === 'rpo_game') {
+        conceptMap = terminologyMaps.run_game;
+      } else if (play.category === 'moving_pocket') {
+        // For moving pocket, combine quick_game and dropback_game terminology
+        conceptMap = new Map(terminologyMaps.quick_game);
+        // Add dropback_game entries (dropback will override quick if there are conflicts)
+        terminologyMaps.dropback_game.forEach((value, key) => {
+          conceptMap.set(key, value);
+        });
+      } else {
+        conceptMap = terminologyMaps[play.category as keyof typeof terminologyMaps] || new Map();
+      }
       const teamConcept = translateField(play.concept, conceptMap);
       const teamFormations = translateField(play.formations, terminologyMaps.formations);
       const teamTags = translateField(play.tags, terminologyMaps.form_tags);
@@ -939,6 +998,19 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
         //   using_run_game_map: true,
         //   run_game_map_size: terminologyMaps.run_game.size,
         //   rpo_tag_map_size: terminologyMaps.rpo_tag.size
+        // });
+      }
+
+      // Special debug for moving pocket plays
+      if (play.category === 'moving_pocket') {
+        // console.log(`🏃 Moving pocket debug for play ${play.play_id}:`, {
+        //   original_concept: play.concept,
+        //   translated_concept: teamConcept,
+        //   category: play.category,
+        //   using_combined_quick_dropback_map: true,
+        //   quick_game_map_size: terminologyMaps.quick_game.size,
+        //   dropback_game_map_size: terminologyMaps.dropback_game.size,
+        //   combined_map_size: conceptMap.size
         // });
       }
 
@@ -1022,7 +1094,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       .delete()
       .eq('team_id', teamId)
       .eq('opponent_id', opponentId)
-      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'])
+      .in('category', ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game', 'moving_pocket'])
       .eq('is_locked', false);
 
     if (deleteError) {
