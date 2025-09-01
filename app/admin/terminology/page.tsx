@@ -105,10 +105,17 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     return () => clearTimeout(timer)
   }, [])
 
-  const filteredTerms = localTerms.filter(term => 
-    term.concept?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    term.label?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredTerms = localTerms
+    .filter(term => 
+      term.concept?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      term.label?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Sort alphabetically by label (customized name), falling back to concept if no label
+      const aSort = (a.label || a.concept || '').toLowerCase()
+      const bSort = (b.label || b.concept || '').toLowerCase()
+      return aSort.localeCompare(bSort)
+    })
 
   const addRow = () => {
     const newTerm: TerminologyWithUI = {

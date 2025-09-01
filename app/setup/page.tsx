@@ -832,14 +832,20 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                      category === "concept_tags" ? "Concept Tag" : ""}
               </SelectTrigger>
               <SelectContent>
-                {availableItems.map((item) => (
-                  <SelectItem 
-                    key={item.concept || ''} 
-                    value={item.concept || ''}
-                  >
-                    {item.concept || ''}
-                  </SelectItem>
-                ))}
+                {availableItems
+                  .sort((a, b) => {
+                    const aSort = (a.label || a.concept || '').toLowerCase()
+                    const bSort = (b.label || b.concept || '').toLowerCase()
+                    return aSort.localeCompare(bSort)
+                  })
+                  .map((item) => (
+                    <SelectItem 
+                      key={item.concept || ''} 
+                      value={item.concept || ''}
+                    >
+                      {item.concept || ''}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           )}
@@ -866,7 +872,14 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             {category === "formations" && <div></div>}
           </div>
 
-          {localTerms && localTerms.map((term) => (
+          {localTerms && localTerms
+            .sort((a, b) => {
+              // Sort alphabetically by label (customized name), falling back to concept if no label
+              const aSort = (a.label || a.concept || '').toLowerCase()
+              const bSort = (b.label || b.concept || '').toLowerCase()
+              return aSort.localeCompare(bSort)
+            })
+            .map((term) => (
             <div key={term.id} className={`grid grid-cols-[2fr_auto_1fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} items-center py-2 border-b border-gray-100`}>
               <div className="flex items-center">
                 <Select 
@@ -898,6 +911,12 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                       category === "concept_tags" ? defaultConceptTags :
                       defaultRpoTags)
                       .filter(item => item.concept !== term.concept) // Filter out current concept as it's already added above
+                      .sort((a, b) => {
+                        // Sort alphabetically by label (customized name), falling back to concept if no label
+                        const aSort = (a.label || a.concept || '').toLowerCase()
+                        const bSort = (b.label || b.concept || '').toLowerCase()
+                        return aSort.localeCompare(bSort)
+                      })
                       .map((item, index) => {
                         const isAlreadySelected = localTerms.some(t => t.id !== term.id && t.concept === item.concept);
                         return (
