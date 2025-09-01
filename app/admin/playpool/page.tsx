@@ -115,6 +115,7 @@ export default function MasterPlayPoolPage() {
   const [error, setError] = useState<string | null>(null)
   const [isAddPlayOpen, setIsAddPlayOpen] = useState(false)
   const [newPlay, setNewPlay] = useState<NewPlay>(defaultNewPlay)
+  const [playText, setPlayText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [notification, setNotification] = useState<{
     type: 'success' | 'error',
@@ -299,6 +300,237 @@ export default function MasterPlayPoolPage() {
   useEffect(() => {
     fetchPlays()
   }, [conceptFilter, formationFilter, categoryFilter])
+
+  const handleFillPlayFromText = () => {
+    if (!playText.trim() || !newPlay.category) {
+      setNotification({
+        type: 'error',
+        message: 'Please select a category and enter play text before filling'
+      })
+      return
+    }
+
+    try {
+      // Split the play text into parts, handling quoted strings
+      const parts = playText.trim().match(/(?:[^\s"]+|"[^"]*")+/g) || []
+      // Remove quotes from quoted parts
+      const cleanParts = parts.map(part => part.replace(/^"(.*)"$/, '$1'))
+
+      // Helper function to find matching terminology with better scoring
+      const findMatch = (searchText: string, terminologyArray: Terminology[], allowPartial = true) => {
+        if (!searchText) return null
+        
+        const searchLower = searchText.toLowerCase()
+        
+        // First try exact match on label or concept
+        let match = terminologyArray.find(term => 
+          (term.label && term.label.toLowerCase() === searchLower) ||
+          (term.concept && term.concept.toLowerCase() === searchLower)
+        )
+        
+        if (match) return match
+        
+        // If no exact match and partial allowed, try partial match
+        if (allowPartial) {
+          match = terminologyArray.find(term => 
+            (term.label && term.label.toLowerCase().includes(searchLower)) ||
+            (term.concept && term.concept.toLowerCase().includes(searchLower))
+          )
+        }
+        
+        return match
+      }
+
+      // Helper function to try multiple parts for compound terms (like "Gun Ace")
+      const findCompoundMatch = (startIndex: number, maxWords: number, terminologyArray: Terminology[]) => {
+        for (let wordCount = maxWords; wordCount >= 1; wordCount--) {
+          if (startIndex + wordCount > cleanParts.length) continue
+          
+          const compoundTerm = cleanParts.slice(startIndex, startIndex + wordCount).join(' ')
+          const match = findMatch(compoundTerm, terminologyArray, false) // Only exact matches for compounds
+          
+          if (match) {
+            return { match, wordsUsed: wordCount }
+          }
+        }
+        return null
+      }
+
+      let updatedPlay = { ...newPlay }
+      let currentIndex = 0
+      let fieldsChanged = 0
+
+      // Get available concepts for later use
+      const availableConcepts = concepts.filter(c => {
+        if (newPlay.category === 'rpo_game') {
+          return c.category === 'run_game'
+        }
+        return c.category === newPlay.category
+      })
+
+      const isPassPlay = ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(newPlay.category)
+
+      // Process each part flexibly
+      while (currentIndex < cleanParts.length) {
+        let matched = false
+
+        // Try to match formation first (most important and often appears early)
+        if (!updatedPlay.formations) {
+          const result = findCompoundMatch(currentIndex, 3, formations)
+          if (result) {
+            updatedPlay.formations = result.match.label || result.match.concept
+            currentIndex += result.wordsUsed
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // Try concept (required field)
+        if (!updatedPlay.concept) {
+          const result = findCompoundMatch(currentIndex, 3, availableConcepts)
+          if (result) {
+            updatedPlay.concept = result.match.label || result.match.concept
+            currentIndex += result.wordsUsed
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // Try pass protection for pass plays (can have + and -)
+        if (isPassPlay && !updatedPlay.pass_protections) {
+          const result = findCompoundMatch(currentIndex, 3, passProtections)
+          if (result) {
+            updatedPlay.pass_protections = result.match.label || result.match.concept
+            currentIndex += result.wordsUsed
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // Try shifts
+        if (!updatedPlay.shifts) {
+          const match = findMatch(cleanParts[currentIndex], shifts)
+          if (match) {
+            updatedPlay.shifts = match.label || match.concept
+            currentIndex++
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // Try to motion
+        if (!updatedPlay.to_motions) {
+          const result = findCompoundMatch(currentIndex, 2, toMotions)
+          if (result) {
+            updatedPlay.to_motions = result.match.label || result.match.concept
+            currentIndex += result.wordsUsed
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // Try formation tags
+        if (!updatedPlay.tags) {
+          const result = findCompoundMatch(currentIndex, 2, tags)
+          if (result) {
+            updatedPlay.tags = result.match.label || result.match.concept
+            currentIndex += result.wordsUsed
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // Try from motion
+        if (!updatedPlay.from_motions) {
+          const result = findCompoundMatch(currentIndex, 2, fromMotions)
+          if (result) {
+            updatedPlay.from_motions = result.match.label || result.match.concept
+            currentIndex += result.wordsUsed
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // Try concept tags
+        if (!updatedPlay.concept_tag) {
+          const result = findCompoundMatch(currentIndex, 2, conceptTags)
+          if (result) {
+            updatedPlay.concept_tag = result.match.label || result.match.concept
+            currentIndex += result.wordsUsed
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // Try RPO tags
+        if (!updatedPlay.rpo_tag) {
+          const match = findMatch(cleanParts[currentIndex], rpoTags)
+          if (match) {
+            updatedPlay.rpo_tag = match.label || match.concept
+            currentIndex++
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // Try direction (but only if it's a standalone +/- or plus/minus, not part of a formation/protection)
+        if (!updatedPlay.concept_direction || updatedPlay.concept_direction === 'none') {
+          const directionText = cleanParts[currentIndex].toLowerCase()
+          if (directionText === '+' || directionText === 'plus') {
+            updatedPlay.concept_direction = 'plus'
+            currentIndex++
+            fieldsChanged++
+            matched = true
+            continue
+          } else if (directionText === '-' || directionText === 'minus') {
+            updatedPlay.concept_direction = 'minus'
+            currentIndex++
+            fieldsChanged++
+            matched = true
+            continue
+          }
+        }
+
+        // If nothing matched, move to next part
+        if (!matched) {
+          currentIndex++
+        }
+      }
+
+      setNewPlay(updatedPlay)
+      
+      // Show success message
+      const message = fieldsChanged > 0 
+        ? `Successfully filled ${fieldsChanged} field${fieldsChanged !== 1 ? 's' : ''} from play text`
+        : 'No matching fields found. Try adjusting your play text or terminology.'
+      
+      setNotification({
+        type: fieldsChanged > 0 ? 'success' : 'error',
+        message
+      })
+      
+      // Clear message after 3 seconds
+      setTimeout(() => {
+        setNotification(null)
+      }, 3000)
+      
+    } catch (error) {
+      console.error('Error parsing play text:', error)
+      setNotification({
+        type: 'error',
+        message: 'Error parsing play text. Please check the format and try again.'
+      })
+    }
+  }
 
   const handleAddPlay = async () => {
     try {
@@ -1415,6 +1647,7 @@ export default function MasterPlayPoolPage() {
           if (!open) {
             setNotification(null)
             setNewPlay(defaultNewPlay)
+            setPlayText('')
           }
         }}>
           <DialogContent className="w-[90vw] max-w-[1200px] h-[85vh] flex flex-col">
@@ -1444,6 +1677,45 @@ export default function MasterPlayPoolPage() {
                 </div>
               </div>
             )}
+            {notification && notification.type === 'success' && (
+              <div className="bg-green-50 text-green-700 border border-green-200 rounded-md p-2 mb-2 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4" />
+                  {notification.message}
+                </div>
+              </div>
+            )}
+            
+            {/* Play Text Input and Fill Button */}
+            {newPlay.category && (
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-3 flex-shrink-0">
+                <div className="space-y-2">
+                  <Label htmlFor="playText" className="text-sm font-medium">Quick Fill from Play Text</Label>
+                  <p className="text-xs text-gray-600">
+                    Enter your play call and click Fill to auto-populate fields. Not all components need to be present.
+                    System will intelligently match: Formation, Concept, Pass Protection, Shifts, Motions, Tags, Directions (+/-), etc.
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      id="playText"
+                      value={playText}
+                      onChange={(e) => setPlayText(e.target.value)}
+                      placeholder="e.g. Gun Ace + Jet 5 Go or I Formation Power + RPO"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleFillPlayFromText}
+                      disabled={!playText.trim() || !newPlay.category}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Fill
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="grid gap-3 py-2 overflow-y-auto flex-grow">{/* Rest of the content */}
               {/* Main Play Information - 3 columns */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
