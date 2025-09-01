@@ -651,11 +651,13 @@ export default function MasterPlayPoolPage() {
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   <SelectItem value="all">All Categories</SelectItem>
-                  {uniqueCategories.map(category => (
-                    <SelectItem key={category} value={category}>
-                      {category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </SelectItem>
-                  ))}
+                  {uniqueCategories
+                    .sort((a, b) => a.localeCompare(b))
+                    .map(category => (
+                      <SelectItem key={category} value={category}>
+                        {category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -668,11 +670,13 @@ export default function MasterPlayPoolPage() {
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   <SelectItem value="all">All Formations</SelectItem>
-                  {uniqueFormations.map(formation => (
-                    <SelectItem key={formation} value={formation}>
-                      {formation}
-                    </SelectItem>
-                  ))}
+                  {uniqueFormations
+                    .sort((a, b) => a.localeCompare(b))
+                    .map(formation => (
+                      <SelectItem key={formation} value={formation}>
+                        {formation}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -685,11 +689,13 @@ export default function MasterPlayPoolPage() {
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   <SelectItem value="all">All Concepts</SelectItem>
-                  {uniqueConcepts.map(concept => (
-                    <SelectItem key={concept} value={concept}>
-                      {concept}
-                    </SelectItem>
-                  ))}
+                  {uniqueConcepts
+                    .sort((a, b) => a.localeCompare(b))
+                    .map(concept => (
+                      <SelectItem key={concept} value={concept}>
+                        {concept}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -908,11 +914,17 @@ export default function MasterPlayPoolPage() {
                     <SelectValue placeholder="Select formation" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
-                    {formations.map(formation => (
-                      <SelectItem key={formation.id} value={formation.label || formation.concept}>
-                        {formation.label || formation.concept}
-                      </SelectItem>
-                    ))}
+                    {formations
+                      .sort((a, b) => {
+                        const aLabel = a.label || a.concept
+                        const bLabel = b.label || b.concept
+                        return aLabel.localeCompare(bLabel)
+                      })
+                      .map(formation => (
+                        <SelectItem key={formation.id} value={formation.label || formation.concept}>
+                          {formation.label || formation.concept}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -929,11 +941,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {tags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
-                          {tag.label || tag.concept}
-                        </SelectItem>
-                      ))}
+                      {tags
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(tag => (
+                          <SelectItem key={tag.id} value={tag.label || tag.concept}>
+                            {tag.label || tag.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -953,11 +971,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {shifts.map(shift => (
-                        <SelectItem key={shift.id} value={shift.label || shift.concept}>
-                          {shift.label || shift.concept}
-                        </SelectItem>
-                      ))}
+                      {shifts
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(shift => (
+                          <SelectItem key={shift.id} value={shift.label || shift.concept}>
+                            {shift.label || shift.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -974,11 +998,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {toMotions.map(motion => (
-                        <SelectItem key={motion.id} value={motion.label || motion.concept}>
-                          {motion.label || motion.concept}
-                        </SelectItem>
-                      ))}
+                      {toMotions
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(motion => (
+                          <SelectItem key={motion.id} value={motion.label || motion.concept}>
+                            {motion.label || motion.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -995,11 +1025,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {fromMotions.map(motion => (
-                        <SelectItem key={motion.id} value={motion.label || motion.concept}>
-                          {motion.label || motion.concept}
-                        </SelectItem>
-                      ))}
+                      {fromMotions
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(motion => (
+                          <SelectItem key={motion.id} value={motion.label || motion.concept}>
+                            {motion.label || motion.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1018,11 +1054,25 @@ export default function MasterPlayPoolPage() {
                       <SelectValue placeholder="Select concept" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
-                      {concepts.map(concept => (
-                        <SelectItem key={concept.id} value={concept.label || concept.concept}>
-                          {concept.label || concept.concept}
-                        </SelectItem>
-                      ))}
+                      {concepts
+                        .filter(c => {
+                          if (!editingPlay?.category) return true
+                          // RPO games use run_game concepts since they're run plays with RPO tags
+                          if (editingPlay.category === 'rpo_game') {
+                            return c.category === 'run_game'
+                          }
+                          return c.category === editingPlay.category
+                        })
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(concept => (
+                          <SelectItem key={concept.id} value={concept.label || concept.concept}>
+                            {concept.label || concept.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1057,11 +1107,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {passProtections.map(protection => (
-                        <SelectItem key={protection.id} value={protection.label || protection.concept}>
-                          {protection.label || protection.concept}
-                        </SelectItem>
-                      ))}
+                      {passProtections
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(protection => (
+                          <SelectItem key={protection.id} value={protection.label || protection.concept}>
+                            {protection.label || protection.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1081,11 +1137,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {conceptTags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
-                          {tag.label || tag.concept}
-                        </SelectItem>
-                      ))}
+                      {conceptTags
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(tag => (
+                          <SelectItem key={tag.id} value={tag.label || tag.concept}>
+                            {tag.label || tag.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1102,11 +1164,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {rpoTags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
-                          {tag.label || tag.concept}
-                        </SelectItem>
-                      ))}
+                      {rpoTags
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(tag => (
+                          <SelectItem key={tag.id} value={tag.label || tag.concept}>
+                            {tag.label || tag.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1155,6 +1223,129 @@ export default function MasterPlayPoolPage() {
                       onCheckedChange={(checked) => setEditingPlay(prev => prev ? ({ ...prev, gl: checked as boolean }) : null)}
                     />
                     <Label htmlFor="gl" className="text-sm">Goal Line</Label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Beaters Section */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Beaters</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Front Beaters */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Front Beaters</Label>
+                    <div className="max-h-[150px] overflow-y-auto border rounded-md p-2">
+                      <div className="space-y-1">
+                        {scoutingTerms.fronts.map((front) => (
+                          <div
+                            key={front.id}
+                            className="flex items-center"
+                          >
+                            <Checkbox
+                              id={`edit-front-${front.id}`}
+                              checked={editingPlay?.front_beaters?.split(',').map(b => b.trim()).includes(front.name) || false}
+                              onCheckedChange={(checked) => {
+                                setEditingPlay(prev => {
+                                  if (!prev) return null;
+                                  const currentBeaters = prev.front_beaters?.split(',').map(b => b.trim()).filter(b => b) || [];
+                                  const newBeaters = checked
+                                    ? [...currentBeaters, front.name]
+                                    : currentBeaters.filter(f => f !== front.name);
+                                  return {
+                                    ...prev,
+                                    front_beaters: newBeaters.length > 0 ? newBeaters.join(',') : ''
+                                  };
+                                });
+                              }}
+                            />
+                            <Label
+                              htmlFor={`edit-front-${front.id}`}
+                              className="ml-2 text-xs font-normal"
+                            >
+                              {front.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Coverage Beaters */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Coverage Beaters</Label>
+                    <div className="max-h-[150px] overflow-y-auto border rounded-md p-2">
+                      <div className="space-y-1">
+                        {scoutingTerms.coverages.map((coverage) => (
+                          <div
+                            key={coverage.id}
+                            className="flex items-center"
+                          >
+                            <Checkbox
+                              id={`edit-coverage-${coverage.id}`}
+                              checked={editingPlay?.coverage_beaters?.split(',').map(b => b.trim()).includes(coverage.name) || false}
+                              onCheckedChange={(checked) => {
+                                setEditingPlay(prev => {
+                                  if (!prev) return null;
+                                  const currentBeaters = prev.coverage_beaters?.split(',').map(b => b.trim()).filter(b => b) || [];
+                                  const newBeaters = checked
+                                    ? [...currentBeaters, coverage.name]
+                                    : currentBeaters.filter(c => c !== coverage.name);
+                                  return {
+                                    ...prev,
+                                    coverage_beaters: newBeaters.length > 0 ? newBeaters.join(',') : ''
+                                  };
+                                });
+                              }}
+                            />
+                            <Label
+                              htmlFor={`edit-coverage-${coverage.id}`}
+                              className="ml-2 text-xs font-normal"
+                            >
+                              {coverage.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Blitz Beaters */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Blitz Beaters</Label>
+                    <div className="max-h-[150px] overflow-y-auto border rounded-md p-2">
+                      <div className="space-y-1">
+                        {scoutingTerms.blitzes.map((blitz) => (
+                          <div
+                            key={blitz.id}
+                            className="flex items-center"
+                          >
+                            <Checkbox
+                              id={`edit-blitz-${blitz.id}`}
+                              checked={editingPlay?.blitz_beaters?.split(',').map(b => b.trim()).includes(blitz.name) || false}
+                              onCheckedChange={(checked) => {
+                                setEditingPlay(prev => {
+                                  if (!prev) return null;
+                                  const currentBeaters = prev.blitz_beaters?.split(',').map(b => b.trim()).filter(b => b) || [];
+                                  const newBeaters = checked
+                                    ? [...currentBeaters, blitz.name]
+                                    : currentBeaters.filter(b => b !== blitz.name);
+                                  return {
+                                    ...prev,
+                                    blitz_beaters: newBeaters.length > 0 ? newBeaters.join(',') : ''
+                                  };
+                                });
+                              }}
+                            />
+                            <Label
+                              htmlFor={`edit-blitz-${blitz.id}`}
+                              className="ml-2 text-xs font-normal"
+                            >
+                              {blitz.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1288,11 +1479,17 @@ export default function MasterPlayPoolPage() {
                       <SelectValue placeholder="Select formation" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
-                      {formations.map(formation => (
-                        <SelectItem key={formation.id} value={formation.label || formation.concept}>
-                          {formation.label || formation.concept}
-                        </SelectItem>
-                      ))}
+                      {formations
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(formation => (
+                          <SelectItem key={formation.id} value={formation.label || formation.concept}>
+                            {formation.label || formation.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1308,11 +1505,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {tags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
-                          {tag.label || tag.concept}
-                        </SelectItem>
-                      ))}
+                      {tags
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(tag => (
+                          <SelectItem key={tag.id} value={tag.label || tag.concept}>
+                            {tag.label || tag.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1332,11 +1535,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {shifts.map(shift => (
-                        <SelectItem key={shift.id} value={shift.label || shift.concept}>
-                          {shift.label || shift.concept}
-                        </SelectItem>
-                      ))}
+                      {shifts
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(shift => (
+                          <SelectItem key={shift.id} value={shift.label || shift.concept}>
+                            {shift.label || shift.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1353,11 +1562,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {toMotions.map(motion => (
-                        <SelectItem key={motion.id} value={motion.label || motion.concept}>
-                          {motion.label || motion.concept}
-                        </SelectItem>
-                      ))}
+                      {toMotions
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(motion => (
+                          <SelectItem key={motion.id} value={motion.label || motion.concept}>
+                            {motion.label || motion.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1374,11 +1589,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {fromMotions.map(motion => (
-                        <SelectItem key={motion.id} value={motion.label || motion.concept}>
-                          {motion.label || motion.concept}
-                        </SelectItem>
-                      ))}
+                      {fromMotions
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(motion => (
+                          <SelectItem key={motion.id} value={motion.label || motion.concept}>
+                            {motion.label || motion.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1400,7 +1621,16 @@ export default function MasterPlayPoolPage() {
                       {concepts
                         .filter(c => {
                           if (!newPlay.category) return true
+                          // RPO games use run_game concepts since they're run plays with RPO tags
+                          if (newPlay.category === 'rpo_game') {
+                            return c.category === 'run_game'
+                          }
                           return c.category === newPlay.category
+                        })
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
                         })
                         .map(concept => (
                           <SelectItem key={concept.id} value={concept.label || concept.concept}>
@@ -1423,11 +1653,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {conceptTags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
-                          {tag.label || tag.concept}
-                        </SelectItem>
-                      ))}
+                      {conceptTags
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(tag => (
+                          <SelectItem key={tag.id} value={tag.label || tag.concept}>
+                            {tag.label || tag.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1467,11 +1703,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {passProtections.map(protection => (
-                        <SelectItem key={protection.id} value={protection.label || protection.concept}>
-                          {protection.label || protection.concept}
-                        </SelectItem>
-                      ))}
+                      {passProtections
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(protection => (
+                          <SelectItem key={protection.id} value={protection.label || protection.concept}>
+                            {protection.label || protection.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1488,11 +1730,17 @@ export default function MasterPlayPoolPage() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <SelectItem value="none">None</SelectItem>
-                      {rpoTags.map(tag => (
-                        <SelectItem key={tag.id} value={tag.label || tag.concept}>
-                          {tag.label || tag.concept}
-                        </SelectItem>
-                      ))}
+                      {rpoTags
+                        .sort((a, b) => {
+                          const aLabel = a.label || a.concept
+                          const bLabel = b.label || b.concept
+                          return aLabel.localeCompare(bLabel)
+                        })
+                        .map(tag => (
+                          <SelectItem key={tag.id} value={tag.label || tag.concept}>
+                            {tag.label || tag.concept}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
