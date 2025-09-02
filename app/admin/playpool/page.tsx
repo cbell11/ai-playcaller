@@ -807,10 +807,10 @@ export default function MasterPlayPoolPage() {
             return invalidBeaters
           }
           
-          // Validate category (keep original CSV categories)
-          const validCategories = ['moving_pocket', 'screen_game', 'shot_plays', 'run_game', 'rpo_game']
+          // Validate category (all valid database categories)
+          const validCategories = ['moving_pocket', 'screen_game', 'shot_plays', 'run_game', 'rpo_game', 'quick_game', 'dropback_game']
           if (rowData['Category'] && !validCategories.includes(rowData['Category'])) {
-            errors.push(`Invalid category: ${rowData['Category']} (valid: moving_pocket, screen_game, shot_plays, run_game, rpo_game)`)
+            errors.push(`Invalid category: ${rowData['Category']} (valid: moving_pocket, screen_game, shot_plays, run_game, rpo_game, quick_game, dropback_game)`)
           }
           
           // Validate shift (optional)
