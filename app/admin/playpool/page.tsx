@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { PlayCircle, Loader2, Check, X, Plus, AlertCircle, Pencil, Trash2, ChevronDown } from 'lucide-react'
+import { PlayCircle, Loader2, Check, X, Plus, AlertCircle, Pencil, Trash2, ChevronDown, Upload, FileSpreadsheet } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -174,6 +174,19 @@ export default function MasterPlayPoolPage() {
     play: null,
     type: null
   })
+
+  // Bulk upload states
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
+  const [bulkUploadFile, setBulkUploadFile] = useState<File | null>(null)
+  const [bulkUploadResults, setBulkUploadResults] = useState<{
+    play: any,
+    status: 'success' | 'error' | 'duplicate',
+    message: string,
+    csvData?: { [key: string]: string },
+    row?: number
+  }[]>([])
+  const [isBulkUploading, setIsBulkUploading] = useState(false)
+  const [cameFromBulkUpload, setCameFromBulkUpload] = useState(false)
 
   const toggleRowExpansion = (playId: string) => {
     setExpandedRows(prev => ({
@@ -368,7 +381,7 @@ export default function MasterPlayPoolPage() {
         return c.category === newPlay.category
       })
 
-      const isPassPlay = ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game'].includes(newPlay.category)
+      const isPassPlay = ['quick_game', 'dropback_game', 'shot_plays', 'rpo_game', 'screen_game', 'moving_pocket'].includes(newPlay.category)
 
       // Process each part flexibly
       while (currentIndex < cleanParts.length) {
@@ -532,6 +545,497 @@ export default function MasterPlayPoolPage() {
     }
   }
 
+  const handleEditFromCsv = (csvData: { [key: string]: string }) => {
+    // No category mapping needed - use original CSV categories directly
+
+    // Normalize concept direction
+    let conceptDirection: 'plus' | 'minus' | 'none' = 'none'
+    if (csvData['Concept_Direction']) {
+      const dir = csvData['Concept_Direction'].trim()
+      if (dir === '+') {
+        conceptDirection = 'plus'
+      } else if (dir === '-') {
+        conceptDirection = 'minus'
+      } else if (['plus', 'minus', 'none'].includes(dir)) {
+        conceptDirection = dir as 'plus' | 'minus' | 'none'
+      }
+    }
+
+    // Parse beaters from CSV
+    const frontBeaters = csvData['Front Beaters'] ? 
+      csvData['Front Beaters'].split(',').map(b => b.trim()).filter(b => b) : []
+    const coverageBeaters = csvData['Coverage Beaters'] ? 
+      csvData['Coverage Beaters'].split(',').map(b => b.trim()).filter(b => b) : []
+    const blitzBeaters = csvData['Blitz Beaters'] ? 
+      csvData['Blitz Beaters'].split(',').map(b => b.trim()).filter(b => b) : []
+
+    // Populate the newPlay state with CSV data
+    setNewPlay({
+      play_id: '',
+      shifts: csvData['Shift'] || '',
+      to_motions: csvData['TO_Motions'] || '',
+      formations: csvData['Formations'] || '',
+      tags: csvData['Tags'] || '',
+      from_motions: csvData['From_Motions'] || '',
+      pass_protections: csvData['Pass_Protections'] || '',
+      concept: csvData['Concept'] || '',
+      concept_direction: conceptDirection,
+      concept_tag: csvData['Concept_Tag'] || '',
+      rpo_tag: csvData['RPO_Tag'] || '',
+      category: csvData['Category'] || '',
+      third_s: csvData['3rd & S']?.toUpperCase() === 'TRUE',
+      third_m: csvData['3rd & M']?.toUpperCase() === 'TRUE',
+      third_l: csvData['3rd & L']?.toUpperCase() === 'TRUE',
+      rz: csvData['RZ']?.toUpperCase() === 'TRUE',
+      gl: csvData['GL']?.toUpperCase() === 'TRUE',
+      front_beaters: frontBeaters,
+      coverage_beaters: coverageBeaters,
+      blitz_beaters: blitzBeaters,
+      notes: ''
+    })
+
+    // Set the play text from Full Play Call and clear it first
+    setPlayText(csvData['Full Play Call'] || '')
+    
+    // Mark that we came from bulk upload
+    setCameFromBulkUpload(true)
+    
+    // Close bulk upload modal and open add play modal
+    setIsBulkUploadOpen(false)
+    setIsAddPlayOpen(true)
+  }
+
+  const handleBulkUpload = async () => {
+    if (!bulkUploadFile) {
+      setNotification({
+        type: 'error',
+        message: 'Please select a CSV file to upload'
+      })
+      return
+    }
+
+    try {
+      setIsBulkUploading(true)
+      setBulkUploadResults([])
+
+      const fileText = await bulkUploadFile.text()
+      const lines = fileText.split('\n').filter(line => line.trim())
+      
+      if (lines.length < 2) {
+        throw new Error('CSV file must have header row and at least one data row')
+      }
+
+      // Parse header row
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
+      
+      // Expected columns (exactly as in Excel sheet)
+      const expectedColumns = [
+        'Full Play Call', 'Shift', 'TO_Motions', 'Formations', 'Tags', 'From_Motions', 
+        'Pass_Protections', 'Concept', 'Concept_Tag', 'Concept_Direction', 'RPO_Tag', 
+        'Category', '3rd & S', '3rd & M', '3rd & L', 'RZ', 'GL', 
+        'Front Beaters', 'Coverage Beaters', 'Blitz Beaters'
+      ]
+
+      // Check if all required columns exist
+      const missingColumns = expectedColumns.slice(1).filter(col => !headers.includes(col)) // Skip 'Full Play Call'
+      if (missingColumns.length > 0) {
+        throw new Error(`Missing required columns: ${missingColumns.join(', ')}`)
+      }
+
+      const results: typeof bulkUploadResults = []
+
+      // Get the next available play_id
+      const { data: maxPlayId, error: maxPlayIdError } = await supabase
+        .from('master_play_pool')
+        .select('play_id')
+        .order('play_id', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (maxPlayIdError && maxPlayIdError.code !== 'PGRST116') {
+        throw new Error(`Failed to get next play ID: ${maxPlayIdError.message}`)
+      }
+
+      let nextPlayId = maxPlayId ? maxPlayId.play_id + 1 : 1
+
+      // Process each data row
+      for (let i = 1; i < lines.length; i++) {
+        const row = lines[i]
+        if (!row.trim()) continue
+
+        try {
+          // Parse CSV row (properly handle quoted values with commas)
+          const values: string[] = []
+          let current = ''
+          let inQuotes = false
+          let i = 0
+          
+          while (i < row.length) {
+            const char = row[i]
+            
+            if (char === '"') {
+              inQuotes = !inQuotes
+            } else if (char === ',' && !inQuotes) {
+              values.push(current.trim())
+              current = ''
+              i++
+              continue
+            } else {
+              current += char
+            }
+            i++
+          }
+          
+          // Add the last value
+          if (current || values.length > 0) {
+            values.push(current.trim())
+          }
+          
+          const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim())
+
+          // Create column mapping
+          const rowData: { [key: string]: string } = {}
+          headers.forEach((header, index) => {
+            rowData[header] = cleanValues[index] || ''
+          })
+
+          console.log(`Row ${i + 1} data:`, rowData)
+
+          // Skip rows that are completely empty or only have FALSE/empty values
+          const hasValidData = cleanValues.some((value, index) => {
+            const header = headers[index]
+            return value && 
+                   value !== 'FALSE' && 
+                   value !== '' && 
+                   header !== 'Full Play Call' && 
+                   header !== 'Duplicate?' &&
+                   !header.includes('3rd &') && 
+                   !header.includes('RZ') && 
+                   !header.includes('GL')
+          })
+          
+          if (!hasValidData) continue
+
+          // Check if required fields are present
+          if (!rowData['Category'] || (!rowData['Formations'] && !rowData['Concept'])) {
+            results.push({
+              row: i + 1,
+              play: { fullPlayCall: rowData['Full Play Call'] || `Row ${i + 1}` },
+              status: 'error',
+              message: 'Missing required fields (Category, Formation, or Concept)',
+              csvData: rowData
+            })
+            continue
+          }
+
+          // Validate each field against dropdown options
+          const errors: string[] = []
+          
+          // Helper function to find terminology item
+          const findTerminologyItem = (category: string, value: string) => {
+            if (!value) return null
+            let terminologyList: Terminology[] = []
+            
+            switch (category) {
+              case 'shifts':
+                terminologyList = shifts
+                break
+              case 'to_motions':
+                terminologyList = toMotions
+                break
+              case 'formations':
+                terminologyList = formations
+                break
+              case 'tags':
+                terminologyList = tags
+                break
+              case 'from_motions':
+                terminologyList = fromMotions
+                break
+              case 'pass_protections':
+                terminologyList = passProtections
+                break
+              case 'concept_tags':
+                terminologyList = conceptTags
+                break
+              case 'rpo_tags':
+                terminologyList = rpoTags
+                break
+              default:
+                return null
+            }
+            
+            return terminologyList.find(t => t.label === value || t.concept === value)
+          }
+          
+          // Helper function to validate beaters
+          const validateBeaters = (beaterType: string, values: string) => {
+            if (!values) return []
+            const beaterList = values.split(',').map(b => b.trim()).filter(b => b)
+            const invalidBeaters: string[] = []
+            
+            beaterList.forEach(beater => {
+              let found = false
+              if (beaterType === 'front') {
+                // Check against scouting terms (fronts array has different structure)
+                found = scoutingTerms.fronts.some(f => f.name === beater)
+              } else if (beaterType === 'coverage') {
+                // Check against scouting terms
+                found = scoutingTerms.coverages.some(c => c.name === beater)
+              } else if (beaterType === 'blitz') {
+                // Check against scouting terms
+                found = scoutingTerms.blitzes.some(b => b.name === beater)
+              }
+              if (!found) {
+                invalidBeaters.push(beater)
+              }
+            })
+            
+            return invalidBeaters
+          }
+          
+          // Validate category (keep original CSV categories)
+          const validCategories = ['moving_pocket', 'screen_game', 'shot_plays', 'run_game', 'rpo_game']
+          if (rowData['Category'] && !validCategories.includes(rowData['Category'])) {
+            errors.push(`Invalid category: ${rowData['Category']} (valid: moving_pocket, screen_game, shot_plays, run_game, rpo_game)`)
+          }
+          
+          // Validate shift (optional)
+          if (rowData['Shift'] && rowData['Shift'].trim() && !findTerminologyItem('shifts', rowData['Shift'])) {
+            errors.push(`Invalid shift: ${rowData['Shift']}`)
+          }
+          
+          // Validate TO motions (optional)  
+          if (rowData['TO_Motions'] && rowData['TO_Motions'].trim() && !findTerminologyItem('to_motions', rowData['TO_Motions'])) {
+            errors.push(`Invalid TO motion: ${rowData['TO_Motions']}`)
+          }
+          
+          // Validate formation (optional for now)
+          if (rowData['Formations'] && rowData['Formations'].trim() && !findTerminologyItem('formations', rowData['Formations'])) {
+            errors.push(`Invalid formation: ${rowData['Formations']}`)
+          }
+          
+          // Validate tag (optional)
+          if (rowData['Tags'] && rowData['Tags'].trim() && !findTerminologyItem('tags', rowData['Tags'])) {
+            errors.push(`Invalid tag: ${rowData['Tags']}`)
+          }
+          
+          // Validate FROM motions (optional)
+          if (rowData['From_Motions'] && rowData['From_Motions'].trim() && !findTerminologyItem('from_motions', rowData['From_Motions'])) {
+            errors.push(`Invalid FROM motion: ${rowData['From_Motions']}`)
+          }
+          
+          // Validate pass protection (optional)
+          if (rowData['Pass_Protections'] && rowData['Pass_Protections'].trim() && !findTerminologyItem('pass_protections', rowData['Pass_Protections'])) {
+            errors.push(`Invalid pass protection: ${rowData['Pass_Protections']}`)
+          }
+          
+          // Validate concept (optional for now)
+          if (rowData['Concept'] && rowData['Concept'].trim()) {
+            let conceptFound = false
+            
+            if (rowData['Category'] === 'rpo_game') {
+              // RPO concepts come from run_game
+              conceptFound = concepts.some(t => 
+                t.category === 'run_game' && 
+                (t.label === rowData['Concept'] || t.concept === rowData['Concept'])
+              )
+              if (!conceptFound) {
+                errors.push(`Invalid concept for ${rowData['Category']}: ${rowData['Concept']} (looking in run_game)`)
+              }
+            } else if (rowData['Category'] === 'moving_pocket') {
+              // moving_pocket concepts can be from quick_game, dropback_game, or shot_plays
+              conceptFound = concepts.some(t => 
+                (t.category === 'quick_game' || t.category === 'dropback_game' || t.category === 'shot_plays') &&
+                (t.label === rowData['Concept'] || t.concept === rowData['Concept'])
+              )
+              if (!conceptFound) {
+                errors.push(`Invalid concept for ${rowData['Category']}: ${rowData['Concept']} (must be from quick_game, dropback_game, or shot_plays)`)
+              }
+            } else {
+              // For other categories (run_game, screen_game, shot_plays), validate directly
+              conceptFound = concepts.some(t => 
+                t.category === rowData['Category'] && 
+                (t.label === rowData['Concept'] || t.concept === rowData['Concept'])
+              )
+              if (!conceptFound) {
+                errors.push(`Invalid concept for ${rowData['Category']}: ${rowData['Concept']} (looking in ${rowData['Category']})`)
+              }
+            }
+          }
+          
+          // Validate concept tag
+          if (rowData['Concept_Tag'] && !findTerminologyItem('concept_tags', rowData['Concept_Tag'])) {
+            errors.push(`Invalid concept tag: ${rowData['Concept_Tag']}`)
+          }
+          
+          // Validate and normalize concept direction
+          let normalizedDirection = 'none'
+          if (rowData['Concept_Direction']) {
+            const dir = rowData['Concept_Direction'].trim()
+            if (dir === '+') {
+              normalizedDirection = 'plus'
+            } else if (dir === '-') {
+              normalizedDirection = 'minus'
+            } else if (['plus', 'minus', 'none'].includes(dir)) {
+              normalizedDirection = dir
+            } else {
+              errors.push(`Invalid concept direction: ${rowData['Concept_Direction']} (must be +, -, plus, minus, or none)`)
+            }
+          }
+          
+          // Validate RPO tag
+          if (rowData['RPO_Tag'] && !findTerminologyItem('rpo_tags', rowData['RPO_Tag'])) {
+            errors.push(`Invalid RPO tag: ${rowData['RPO_Tag']}`)
+          }
+          
+          // Validate beaters
+          const invalidFrontBeaters = validateBeaters('front', rowData['Front Beaters'] || '')
+          if (invalidFrontBeaters.length > 0) {
+            errors.push(`Invalid front beaters: ${invalidFrontBeaters.join(', ')}`)
+          }
+          
+          const invalidCoverageBeaters = validateBeaters('coverage', rowData['Coverage Beaters'] || '')
+          if (invalidCoverageBeaters.length > 0) {
+            errors.push(`Invalid coverage beaters: ${invalidCoverageBeaters.join(', ')}`)
+          }
+          
+          const invalidBlitzBeaters = validateBeaters('blitz', rowData['Blitz Beaters'] || '')
+          if (invalidBlitzBeaters.length > 0) {
+            errors.push(`Invalid blitz beaters: ${invalidBlitzBeaters.join(', ')}`)
+          }
+          
+          // If there are validation errors, mark as error
+          if (errors.length > 0) {
+            console.log(`Row ${i + 1} validation errors:`, errors)
+            results.push({
+              row: i + 1,
+              play: { fullPlayCall: rowData['Full Play Call'] || `Row ${i + 1}` },
+              status: 'error',
+              message: errors.join('; '),
+              csvData: rowData
+            })
+            continue
+          }
+
+          console.log(`Row ${i + 1} passed validation, creating play data...`)
+
+          // Build play object
+          const playData = {
+            play_id: nextPlayId++,
+            shifts: rowData['Shift'] || '',
+            to_motions: rowData['TO_Motions'] || '',
+            formations: rowData['Formations'] || '',
+            tags: rowData['Tags'] || '',
+            from_motions: rowData['From_Motions'] || '',
+            pass_protections: rowData['Pass_Protections'] || '',
+            concept: rowData['Concept'] || '',
+            concept_tag: rowData['Concept_Tag'] || '',
+            concept_direction: normalizedDirection as 'plus' | 'minus' | 'none',
+            rpo_tag: rowData['RPO_Tag'] || '',
+            category: rowData['Category'] || '',
+            third_s: rowData['3rd & S']?.toUpperCase() === 'TRUE',
+            third_m: rowData['3rd & M']?.toUpperCase() === 'TRUE',
+            third_l: rowData['3rd & L']?.toUpperCase() === 'TRUE',
+            rz: rowData['RZ']?.toUpperCase() === 'TRUE',
+            gl: rowData['GL']?.toUpperCase() === 'TRUE',
+            front_beaters: (rowData['Front Beaters'] || '').split(',').map(b => b.trim()).filter(b => b),
+            coverage_beaters: (rowData['Coverage Beaters'] || '').split(',').map(b => b.trim()).filter(b => b),
+            blitz_beaters: (rowData['Blitz Beaters'] || '').split(',').map(b => b.trim()).filter(b => b),
+            notes: ''
+          }
+
+          // Validate required fields
+          if (!playData.category || !playData.formations || !playData.concept) {
+            results.push({
+              play: { fullPlayCall: rowData['Full Play Call'] || `Row ${i}` },
+              status: 'error',
+              message: 'Missing required fields: Category, Formation, or Concept'
+            })
+            continue
+          }
+
+          // Check for duplicate (same category, formation, and concept)
+          const isDuplicate = plays.some(existingPlay => 
+            existingPlay.category === playData.category &&
+            existingPlay.formations === playData.formations &&
+            existingPlay.concept === playData.concept &&
+            existingPlay.tags === playData.tags &&
+            existingPlay.concept_direction === playData.concept_direction
+          )
+
+          if (isDuplicate) {
+            results.push({
+              play: { fullPlayCall: rowData['Full Play Call'] || `Row ${i}` },
+              status: 'duplicate',
+              message: 'Play already exists in master pool'
+            })
+            continue
+          }
+
+          // Convert arrays to comma-separated strings for database
+          const dbPlay = {
+            ...playData,
+            front_beaters: playData.front_beaters.join(','),
+            coverage_beaters: playData.coverage_beaters.join(','),
+            blitz_beaters: playData.blitz_beaters.join(',')
+          }
+
+          // Insert into database
+          const { data, error } = await supabase
+            .from('master_play_pool')
+            .insert([dbPlay])
+            .select()
+            .single()
+
+          if (error) {
+            results.push({
+              play: { fullPlayCall: rowData['Full Play Call'] || `Row ${i}` },
+              status: 'error',
+              message: `Database error: ${error.message}`
+            })
+          } else {
+            results.push({
+              play: { fullPlayCall: rowData['Full Play Call'] || `Row ${i}` },
+              status: 'success',
+              message: 'Successfully added to master pool'
+            })
+          }
+
+        } catch (rowError) {
+          results.push({
+            play: { fullPlayCall: `Row ${i}` },
+            status: 'error',
+            message: `Row parsing error: ${rowError instanceof Error ? rowError.message : 'Unknown error'}`
+          })
+        }
+      }
+
+      setBulkUploadResults(results)
+      
+      // Refresh plays list
+      await fetchPlays()
+
+      const successCount = results.filter(r => r.status === 'success').length
+      const errorCount = results.filter(r => r.status === 'error').length
+      const duplicateCount = results.filter(r => r.status === 'duplicate').length
+
+      setNotification({
+        type: successCount > 0 ? 'success' : 'error',
+        message: `Upload complete: ${successCount} added, ${duplicateCount} duplicates, ${errorCount} errors`
+      })
+
+    } catch (error) {
+      console.error('Bulk upload error:', error)
+      setNotification({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to process CSV file'
+      })
+    } finally {
+      setIsBulkUploading(false)
+    }
+  }
+
   const handleAddPlay = async () => {
     try {
       setIsSubmitting(true)
@@ -623,6 +1127,29 @@ export default function MasterPlayPoolPage() {
       })
       setIsAddPlayOpen(false)
       setNewPlay(defaultNewPlay)
+      setPlayText('')
+      
+      // If we came from bulk upload, return to it and update the result status
+      if (cameFromBulkUpload) {
+        setCameFromBulkUpload(false)
+        setIsBulkUploadOpen(true)
+        
+        // Update the bulk upload results to mark this play as successfully added
+        setBulkUploadResults(prevResults => 
+          prevResults.map(result => {
+            // Find the result that matches the play we just added (by Full Play Call)
+            if (result.status === 'error' && result.csvData && 
+                result.csvData['Full Play Call'] === playText) {
+              return {
+                ...result,
+                status: 'success' as const,
+                message: 'Successfully added after manual correction'
+              }
+            }
+            return result
+          })
+        )
+      }
     } catch (err) {
       console.error('Error adding play:', err)
       setNotification({
@@ -834,13 +1361,22 @@ export default function MasterPlayPoolPage() {
             <PlayCircle className="h-6 w-6" />
             Master Play Pool
           </CardTitle>
-          <Button 
-            className="bg-[#2ecc71] hover:bg-[#27ae60] text-white"
-            onClick={() => setIsAddPlayOpen(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add a play to the master playpool
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => setIsBulkUploadOpen(true)}
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Bulk Upload (CSV)
+            </Button>
+            <Button 
+              className="bg-[#2ecc71] hover:bg-[#27ae60] text-white"
+              onClick={() => setIsAddPlayOpen(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add a play to the master playpool
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -1131,6 +1667,7 @@ export default function MasterPlayPoolPage() {
                     <SelectItem value="dropback_game">Dropback Game</SelectItem>
                     <SelectItem value="screen_game">Screen Game</SelectItem>
                     <SelectItem value="shot_plays">Shot Plays</SelectItem>
+                    <SelectItem value="moving_pocket">Moving Pocket</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1292,6 +1829,10 @@ export default function MasterPlayPoolPage() {
                           // RPO games use run_game concepts since they're run plays with RPO tags
                           if (editingPlay.category === 'rpo_game') {
                             return c.category === 'run_game'
+                          }
+                          // Moving pocket can use concepts from quick_game, dropback_game, or shot_plays
+                          if (editingPlay.category === 'moving_pocket') {
+                            return c.category === 'quick_game' || c.category === 'dropback_game' || c.category === 'shot_plays'
                           }
                           return c.category === editingPlay.category
                         })
@@ -1637,6 +2178,114 @@ export default function MasterPlayPoolPage() {
           </AlertDialogContent>
         </AlertDialog>
 
+        {/* Bulk Upload Modal */}
+        <Dialog open={isBulkUploadOpen} onOpenChange={(open) => {
+          setIsBulkUploadOpen(open)
+          if (!open) {
+            setBulkUploadFile(null)
+            setBulkUploadResults([])
+          }
+        }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Bulk Upload Plays (CSV)</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {/* File Upload Section */}
+              <div className="space-y-4 mb-6">
+                <div className="space-y-2">
+                  <Label htmlFor="csvFile">Select CSV File</Label>
+                  <Input
+                    id="csvFile"
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setBulkUploadFile(e.target.files?.[0] || null)}
+                    disabled={isBulkUploading}
+                  />
+                                     <p className="text-xs text-gray-600">
+                     CSV should include columns: Full Play Call, Shift, TO_Motions, Formations, Tags, From_Motions, 
+                     Pass_Protections, Concept, Concept_Tag, Concept_Direction, RPO_Tag, Category, 
+                     3rd & S, 3rd & M, 3rd & L, RZ, GL, Front Beaters, Coverage Beaters, Blitz Beaters
+                   </p>
+                </div>
+                
+                <Button
+                  onClick={handleBulkUpload}
+                  disabled={!bulkUploadFile || isBulkUploading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isBulkUploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload CSV
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Results Section */}
+              {bulkUploadResults.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="font-medium">Upload Results</h3>
+                  <div className="max-h-96 overflow-y-auto border rounded-md">
+                    <div className="space-y-2 p-4">
+                      {bulkUploadResults.map((result, index) => (
+                        <div
+                          key={index}
+                          className={`flex items-center gap-2 p-2 rounded ${
+                            result.status === 'success' ? 'bg-green-50 text-green-700' :
+                            result.status === 'duplicate' ? 'bg-yellow-50 text-yellow-700' :
+                            'bg-red-50 text-red-700 cursor-pointer hover:bg-red-100'
+                          }`}
+                          onClick={() => {
+                            if (result.status === 'error' && result.csvData) {
+                              handleEditFromCsv(result.csvData)
+                            }
+                          }}
+                        >
+                          {result.status === 'success' ? (
+                            <Check className="h-4 w-4 text-green-600" />
+                          ) : result.status === 'duplicate' ? (
+                            <AlertCircle className="h-4 w-4 text-yellow-600" />
+                          ) : (
+                            <X className="h-4 w-4 text-red-600" />
+                          )}
+                          <div className="flex-1">
+                            <div className="font-medium">
+                              {result.play.fullPlayCall || 'Unknown Play'}
+                            </div>
+                            <div className="text-sm">
+                              {result.message}
+                            </div>
+                            {result.status === 'error' && (
+                              <div className="text-xs mt-1 opacity-75">
+                                Click to edit and fix errors
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsBulkUploadOpen(false)}
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Add Play Modal */}
         <Dialog open={isAddPlayOpen} onOpenChange={(open) => {
           if (open) {
@@ -1648,6 +2297,11 @@ export default function MasterPlayPoolPage() {
             setNotification(null)
             setNewPlay(defaultNewPlay)
             setPlayText('')
+            // If we came from bulk upload, return to it
+            if (cameFromBulkUpload) {
+              setCameFromBulkUpload(false)
+              setIsBulkUploadOpen(true)
+            }
           }
         }}>
           <DialogContent className="w-[90vw] max-w-[1200px] h-[85vh] flex flex-col">
@@ -1729,15 +2383,16 @@ export default function MasterPlayPoolPage() {
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      <SelectItem value="run_game">Run Game</SelectItem>
-                      <SelectItem value="rpo_game">RPO Game</SelectItem>
-                      <SelectItem value="quick_game">Quick Game</SelectItem>
-                      <SelectItem value="dropback_game">Dropback Game</SelectItem>
-                      <SelectItem value="screen_game">Screen Game</SelectItem>
-                      <SelectItem value="shot_plays">Shot Plays</SelectItem>
-                    </SelectContent>
-                  </Select>
+                                      <SelectContent className="max-h-[300px]">
+                    <SelectItem value="run_game">Run Game</SelectItem>
+                    <SelectItem value="rpo_game">RPO Game</SelectItem>
+                    <SelectItem value="quick_game">Quick Game</SelectItem>
+                    <SelectItem value="dropback_game">Dropback Game</SelectItem>
+                    <SelectItem value="screen_game">Screen Game</SelectItem>
+                    <SelectItem value="shot_plays">Shot Plays</SelectItem>
+                    <SelectItem value="moving_pocket">Moving Pocket</SelectItem>
+                  </SelectContent>
+                </Select>
                 </div>
 
                 {/* Formation and Formation Tag */}
@@ -1896,6 +2551,10 @@ export default function MasterPlayPoolPage() {
                           // RPO games use run_game concepts since they're run plays with RPO tags
                           if (newPlay.category === 'rpo_game') {
                             return c.category === 'run_game'
+                          }
+                          // Moving pocket can use concepts from quick_game, dropback_game, or shot_plays
+                          if (newPlay.category === 'moving_pocket') {
+                            return c.category === 'quick_game' || c.category === 'dropback_game' || c.category === 'shot_plays'
                           }
                           return c.category === newPlay.category
                         })
