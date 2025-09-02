@@ -548,17 +548,16 @@ export default function MasterPlayPoolPage() {
   const handleEditFromCsv = (csvData: { [key: string]: string }) => {
     // No category mapping needed - use original CSV categories directly
 
-    // Normalize concept direction
+    // Normalize concept direction for UI form
     let conceptDirection: 'plus' | 'minus' | 'none' = 'none'
-    if (csvData['Concept_Direction']) {
+    if (csvData['Concept_Direction'] && csvData['Concept_Direction'].trim()) {
       const dir = csvData['Concept_Direction'].trim()
-      if (dir === '+') {
+      if (dir === '+' || dir === 'plus') {
         conceptDirection = 'plus'
-      } else if (dir === '-') {
+      } else if (dir === '-' || dir === 'minus') {
         conceptDirection = 'minus'
-      } else if (['plus', 'minus', 'none'].includes(dir)) {
-        conceptDirection = dir as 'plus' | 'minus' | 'none'
       }
+      // If it's not a valid direction, leave as 'none'
     }
 
     // Parse beaters from CSV
@@ -728,6 +727,20 @@ export default function MasterPlayPoolPage() {
             continue
           }
 
+          // Special validation for RPO games - require either concept_tag OR rpo_tag (not both)
+          if (rowData['Category'] === 'rpo_game') {
+            if (!rowData['Concept_Tag'] && !rowData['RPO_Tag']) {
+              results.push({
+                row: i + 1,
+                play: { fullPlayCall: rowData['Full Play Call'] || `Row ${i + 1}` },
+                status: 'error',
+                message: 'RPO games require either a Concept Tag or RPO Tag',
+                csvData: rowData
+              })
+              continue
+            }
+          }
+
           // Validate each field against dropdown options
           const errors: string[] = []
           
@@ -869,18 +882,16 @@ export default function MasterPlayPoolPage() {
             errors.push(`Invalid concept tag: ${rowData['Concept_Tag']}`)
           }
           
-          // Validate and normalize concept direction
-          let normalizedDirection = 'none'
-          if (rowData['Concept_Direction']) {
+          // Validate and normalize concept direction for database storage
+          let dbConceptDirection = ''
+          if (rowData['Concept_Direction'] && rowData['Concept_Direction'].trim()) {
             const dir = rowData['Concept_Direction'].trim()
-            if (dir === '+') {
-              normalizedDirection = 'plus'
-            } else if (dir === '-') {
-              normalizedDirection = 'minus'
-            } else if (['plus', 'minus', 'none'].includes(dir)) {
-              normalizedDirection = dir
+            if (dir === '+' || dir === 'plus') {
+              dbConceptDirection = '+'
+            } else if (dir === '-' || dir === 'minus') {
+              dbConceptDirection = '-'
             } else {
-              errors.push(`Invalid concept direction: ${rowData['Concept_Direction']} (must be +, -, plus, minus, or none)`)
+              errors.push(`Invalid concept direction: ${rowData['Concept_Direction']} (must be + or -)`)
             }
           }
           
@@ -931,7 +942,7 @@ export default function MasterPlayPoolPage() {
             pass_protections: rowData['Pass_Protections'] || '',
             concept: rowData['Concept'] || '',
             concept_tag: rowData['Concept_Tag'] || '',
-            concept_direction: normalizedDirection as 'plus' | 'minus' | 'none',
+            concept_direction: dbConceptDirection,
             rpo_tag: rowData['RPO_Tag'] || '',
             category: rowData['Category'] || '',
             third_s: rowData['3rd & S']?.toUpperCase() === 'TRUE',
