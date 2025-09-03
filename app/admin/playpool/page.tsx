@@ -283,6 +283,16 @@ export default function MasterPlayPoolPage() {
 
       if (error) throw error
 
+      // Debug: Log the first few plays to see what data we're getting
+      console.log('DEBUG: First few plays from master_play_pool:', data?.slice(0, 3).map(play => ({
+        id: play.id,
+        play_id: play.play_id,
+        formations: play.formations,
+        concept: play.concept,
+        pass_protections: play.pass_protections,
+        category: play.category
+      })))
+
       setPlays(data || [])
 
       // Extract unique values for filters using reduce
@@ -1509,6 +1519,7 @@ export default function MasterPlayPoolPage() {
                     <th className="h-8 px-2 text-left text-xs font-medium">Formation</th>
                     <th className="h-8 px-2 text-left text-xs font-medium">Formation Tag</th>
                     <th className="h-8 px-2 text-left text-xs font-medium">From Motions</th>
+                    <th className="h-8 px-2 text-left text-xs font-medium">PP</th>
                     <th className="h-8 px-2 text-left text-xs font-medium">Concept</th>
                     <th className="h-8 px-2 text-left text-xs font-medium">Concept Tag</th>
                     <th className="h-8 px-2 text-left text-xs font-medium">Direction</th>
@@ -1528,6 +1539,9 @@ export default function MasterPlayPoolPage() {
                       <td className="p-2 text-xs">{play.formations}</td>
                       <td className="p-2 text-xs">{play.tags}</td>
                       <td className="p-2 text-xs">{play.from_motions}</td>
+                      <td className="p-2 text-xs" title={`Raw value: ${JSON.stringify(play.pass_protections)}`}>
+                        {play.pass_protections || '-'}
+                      </td>
                       <td className="p-2 text-xs">{play.concept}</td>
                       <td className="p-2 text-xs">{play.concept_tag}</td>
                       <td className="p-2 text-xs">{play.concept_direction}</td>
