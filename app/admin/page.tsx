@@ -24,16 +24,6 @@ interface Profile {
   }
 }
 
-// Add interface for scout card
-interface ScoutCard {
-  id: string;
-  front: string;
-  coverage: string | null;
-  blitz: string | null;
-  image_url: string;
-  team_id: string;
-}
-
 export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Profile[]>([])
@@ -41,11 +31,10 @@ export default function AdminPage() {
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [scoutCards, setScoutCards] = useState<ScoutCard[]>([]);
-  const [loadingCards, setLoadingCards] = useState(false);
-  const [cardError, setCardError] = useState<string | null>(null);
-
-  const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683';
+  const [logoUrl, setLogoUrl] = useState('https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904087/AI_PLAYCALLER_ghgk5m.jpg')
+  const [faviconUrl, setFaviconUrl] = useState('https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904350/favicon_aipc_ml6rpg.png')
+  const [updatingLogo, setUpdatingLogo] = useState(false)
+  const [updatingFavicon, setUpdatingFavicon] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -81,33 +70,48 @@ export default function AdminPage() {
     checkAdminStatus()
   }, [])
 
-  // Add effect to fetch scout cards
-  useEffect(() => {
-    const fetchScoutCards = async () => {
-      if (!isAdmin) return;
+  const updateLogo = async () => {
+    try {
+      setUpdatingLogo(true)
+      setError(null)
       
-      try {
-        setLoadingCards(true);
-        setCardError(null);
-        
-        const { data, error } = await supabase
-          .from('scout_cards')
-          .select('*')
-          .order('front', { ascending: true });
+      // For now, we'll just update the local state and localStorage
+      // In a real app, you'd want to save this to a database
+      localStorage.setItem('logoUrl', logoUrl)
+      
+      // Force reload to update the logo across the app
+      window.location.reload()
+    } catch (err) {
+      console.error('Update logo error:', err)
+      setError('Failed to update logo. Please try again.')
+    } finally {
+      setUpdatingLogo(false)
+    }
+  }
 
-        if (error) throw error;
-
-        setScoutCards(data || []);
-      } catch (err) {
-        console.error('Error fetching scout cards:', err);
-        setCardError('Failed to load scout cards');
-      } finally {
-        setLoadingCards(false);
-      }
-    };
-
-    fetchScoutCards();
-  }, [isAdmin]);
+  const updateFavicon = async () => {
+    try {
+      setUpdatingFavicon(true)
+      setError(null)
+      
+      // For now, we'll just update the local state and localStorage
+      // In a real app, you'd want to save this to a database
+      localStorage.setItem('faviconUrl', faviconUrl)
+      
+      // Update the favicon dynamically
+      const link = document.querySelector("link[rel='icon']") as HTMLLinkElement || document.createElement('link')
+      link.type = 'image/png'
+      link.rel = 'icon'
+      link.href = faviconUrl
+      document.head.appendChild(link)
+      
+    } catch (err) {
+      console.error('Update favicon error:', err)
+      setError('Failed to update favicon. Please try again.')
+    } finally {
+      setUpdatingFavicon(false)
+    }
+  }
 
   const searchUsers = async () => {
     if (!searchQuery.trim()) {
@@ -284,7 +288,7 @@ export default function AdminPage() {
         </CardContent>
       </Card>
 
-      {/* Scout Cards Management */}
+      {/* Brand Management */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -293,58 +297,93 @@ export default function AdminPage() {
               <circle cx="8.5" cy="8.5" r="1.5" />
               <path d="M20.4 14.5L16 10 4 20" />
             </svg>
-            Scout Cards Management
+            Brand Management
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {cardError && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
-              {cardError}
+          <div className="space-y-6">
+            {/* Logo Management */}
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="logoUrl">Logo URL</Label>
+                <p className="text-sm text-gray-500 mb-2">
+                  Update the logo displayed on the login page
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="logoUrl"
+                    placeholder="Enter logo image URL..."
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button 
+                    onClick={updateLogo}
+                    disabled={updatingLogo || !logoUrl.trim()}
+                  >
+                    {updatingLogo ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Update Logo'
+                    )}
+                  </Button>
+                </div>
+                {logoUrl && (
+                  <div className="mt-2">
+                    <img 
+                      src={logoUrl} 
+                      alt="Logo preview" 
+                      className="h-16 w-auto border rounded"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none'
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-          
-          {loadingCards ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
+
+            {/* Favicon Management */}
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="faviconUrl">Favicon URL</Label>
+                <p className="text-sm text-gray-500 mb-2">
+                  Update the favicon displayed in browser tabs
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="faviconUrl"
+                    placeholder="Enter favicon image URL..."
+                    value={faviconUrl}
+                    onChange={(e) => setFaviconUrl(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button 
+                    onClick={updateFavicon}
+                    disabled={updatingFavicon || !faviconUrl.trim()}
+                  >
+                    {updatingFavicon ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Update Favicon'
+                    )}
+                  </Button>
+                </div>
+                {faviconUrl && (
+                  <div className="mt-2">
+                    <img 
+                      src={faviconUrl} 
+                      alt="Favicon preview" 
+                      className="h-8 w-8 border rounded"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none'
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2 font-medium">Front</th>
-                    <th className="text-left p-2 font-medium">Coverage</th>
-                    <th className="text-left p-2 font-medium">Blitz</th>
-                    <th className="text-left p-2 font-medium">Image</th>
-                    <th className="text-left p-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scoutCards.map((card) => (
-                    <tr key={card.id} className="border-b">
-                      <td className="p-2">{card.front}</td>
-                      <td className="p-2">{card.coverage || '-'}</td>
-                      <td className="p-2">{card.blitz || '-'}</td>
-                      <td className="p-2">
-                        <img 
-                          src={card.image_url} 
-                          alt="Scout card" 
-                          className="h-16 w-16 object-cover rounded"
-                        />
-                      </td>
-                      <td className="p-2">
-                        {card.team_id === DEFAULT_TEAM_ID && (
-                          <span className="px-2 py-1 bg-blue-500 text-white rounded text-sm">
-                            Default
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          </div>
         </CardContent>
       </Card>
     </div>

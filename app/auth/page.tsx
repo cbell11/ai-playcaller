@@ -32,6 +32,7 @@ export default function AuthPage() {
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [logoUrl, setLogoUrl] = useState("https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904087/AI_PLAYCALLER_ghgk5m.jpg");
   const router = useRouter();
 
   // Create Supabase client in the browser
@@ -39,6 +40,14 @@ export default function AuthPage() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // Check for custom logo URL on mount
+  useEffect(() => {
+    const customLogoUrl = localStorage.getItem('logoUrl');
+    if (customLogoUrl) {
+      setLogoUrl(customLogoUrl);
+    }
+  }, []);
 
   // Validate team code when it changes and has 6 characters
   useEffect(() => {
@@ -611,7 +620,7 @@ export default function AuthPage() {
     <div className="w-full max-w-md px-4" onClick={teamOption === "join" ? handleJoinCodeBoxClick : undefined}>
                   <div className="text-center mb-10">
             <img 
-              src="https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904087/AI_PLAYCALLER_ghgk5m.jpg" 
+              src={logoUrl} 
               alt="AI Playcaller" 
               className="mx-auto mb-1 h-60 w-auto"
             />
