@@ -32,7 +32,7 @@ export default function AuthPage() {
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [logoUrl, setLogoUrl] = useState("https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904087/AI_PLAYCALLER_ghgk5m.jpg");
+  const [logoUrl, setLogoUrl] = useState("https://res.cloudinary.com/dfvzvbygc/image/upload/v1756928729/AI_PLAYCALLER_yxbxer.png");
   const router = useRouter();
 
   // Create Supabase client in the browser
@@ -618,16 +618,33 @@ export default function AuthPage() {
 
   return (
     <div className="w-full max-w-md px-4" onClick={teamOption === "join" ? handleJoinCodeBoxClick : undefined}>
-                  <div className="text-center mb-10">
+                  <div className="text-center mb-4">
             <img 
               src={logoUrl} 
               alt="AI Playcaller" 
-              className="mx-auto mb-1 h-60 w-auto"
+              className="mx-auto -mt-20 -mb-10 h-90 w-auto"
             />
-            <p className="text-gray-600">Your intelligent football assistant</p>
+            <p className="text-gray-600 mb-3 text-sm">Your intelligent football assistant</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+              <p className="mb-2">
+                <strong>Coaches, welcome!</strong> Every new account starts with a 7-day trial. 
+                After that, access continues with a paid subscription.
+              </p>
+              <a 
+                href="https://american-football-academy.com/ai-play-caller-home-page" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer"
+              >
+                Subscribe Here
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
           </div>
         
-        <div className="bg-white p-8 rounded-lg shadow-md">
+        <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-semibold mb-6">
             {showForgotPassword ? "Reset Password" : (isLogin ? "Sign In" : "Create Account")}
           </h2>
@@ -687,7 +704,7 @@ export default function AuthPage() {
                   type="button"
                   onClick={handleForgotPassword}
                   disabled={loading}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 flex justify-center items-center"
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 flex justify-center items-center cursor-pointer"
                 >
                   {loading ? (
                     <>
@@ -706,7 +723,7 @@ export default function AuthPage() {
                       setResetEmailSent(false);
                       setError("");
                     }}
-                    className="text-blue-600 text-sm hover:underline"
+                    className="text-blue-600 text-sm hover:underline cursor-pointer"
                   >
                     Back to Sign In
                   </button>
@@ -779,7 +796,7 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading || (teamOption === "join" && teamCode.length === 6 && teamCodeValid === false)}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 flex justify-center items-center"
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 flex justify-center items-center cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -805,7 +822,7 @@ export default function AuthPage() {
                   setTeamCodeValid(null);
                   setError("");
                 }}
-                className="text-blue-600 text-sm hover:underline"
+                className="text-blue-600 text-sm hover:underline cursor-pointer"
               >
                 {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
               </button>

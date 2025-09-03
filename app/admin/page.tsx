@@ -33,7 +33,7 @@ export default function AdminPage() {
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [logoUrl, setLogoUrl] = useState('https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904087/AI_PLAYCALLER_ghgk5m.jpg')
+  const [logoUrl, setLogoUrl] = useState('https://res.cloudinary.com/dfvzvbygc/image/upload/v1756928729/AI_PLAYCALLER_yxbxer.png')
   const [dashboardLogoUrl, setDashboardLogoUrl] = useState('https://res.cloudinary.com/dfvzvbygc/image/upload/v1756918320/logo_landscape_yszdv3.png')
   const [faviconUrl, setFaviconUrl] = useState('https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904350/favicon_aipc_ml6rpg.png')
   const [updatingLogo, setUpdatingLogo] = useState(false)
@@ -84,8 +84,7 @@ export default function AdminPage() {
       setUpdatingLogo(true)
       setError(null)
       
-      // For now, we'll just update the local state and localStorage
-      // In a real app, you'd want to save this to a database
+      // Update localStorage with the new logo URL
       localStorage.setItem('logoUrl', logoUrl)
       
       // Force reload to update the logo across the app
@@ -109,10 +108,10 @@ export default function AdminPage() {
       
       // Force reload to update the dashboard logo across the app
       window.location.reload()
-    } catch (err) {
+      } catch (err) {
       console.error('Update dashboard logo error:', err)
       setError('Failed to update dashboard logo. Please try again.')
-    } finally {
+      } finally {
       setUpdatingDashboardLogo(false)
     }
   }
@@ -199,7 +198,7 @@ export default function AdminPage() {
           }
 
           return {
-            ...profile,
+        ...profile,
             team: { name: teamName },
             coachCount
           };
@@ -625,8 +624,8 @@ export default function AdminPage() {
                         (e.target as HTMLImageElement).style.display = 'none'
                       }}
                     />
-                  </div>
-                )}
+            </div>
+          )}
               </div>
             </div>
 
