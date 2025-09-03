@@ -86,7 +86,7 @@ export function NavLinks() {
               <button
                 onClick={(e) => handleNavigation(item.href, e)}
                 className={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium w-full text-left",
+                  "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium w-full text-left cursor-pointer transform transition-all duration-200 hover:scale-105",
                   isActive
                     ? "bg-white bg-opacity-10 text-white"
                     : "text-white hover:bg-white hover:bg-opacity-10"
@@ -104,7 +104,7 @@ export function NavLinks() {
             key={item.name}
             onClick={(e) => handleNavigation(item.href, e)}
             className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium w-full text-left",
+              "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium w-full text-left cursor-pointer transform transition-all duration-200 hover:scale-105",
               isActive
                 ? "bg-white bg-opacity-10 text-white"
                 : "text-white hover:bg-white hover:bg-opacity-10"
@@ -125,7 +125,7 @@ export function NavLinks() {
       <button
         onClick={(e) => handleNavigation("/help", e)}
         className={cn(
-          "group flex items-center rounded-md px-3 py-2 text-sm font-medium text-white hover:bg-[#0B2545]/90 w-full text-left",
+          "group flex items-center rounded-md px-3 py-2 text-sm font-medium text-white hover:bg-[#0B2545]/90 w-full text-left cursor-pointer transform transition-all duration-200 hover:scale-105",
           pathname === "/help" ? "bg-[#0B2545]" : "transparent"
         )}
       >
