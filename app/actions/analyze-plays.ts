@@ -261,8 +261,130 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
       }
     });
 
-    // Debug: Log all run game plays from master pool
-    const allRunPlays = allMasterPlays.filter(p => p.category === 'run_game');
+    // Filter plays to only include those with concepts the team has configured
+    console.log('🔍 Filtering plays based on team terminology...');
+    
+    // Get team's configured terminology by category
+    // We need to map team concepts to their corresponding default labels that are used in master play pool
+    const teamConceptsByCategory = {
+      formations: [] as string[],
+      run_game: [] as string[],
+      rpo_game: [] as string[],
+      quick_game: [] as string[],
+      dropback_game: [] as string[],
+      shot_plays: [] as string[],
+      screen_game: [] as string[],
+      moving_pocket: [] as string[]
+    };
+
+    // For each team concept, find the corresponding default label that's used in master play pool
+    teamTerminology?.forEach(teamTerm => {
+      // Find the default terminology that matches this team concept
+      const defaultTerm = defaultTerminology?.find(defaultTerm => 
+        defaultTerm.concept === teamTerm.concept && 
+        defaultTerm.category === teamTerm.category
+      );
+      
+      if (defaultTerm && defaultTerm.label) {
+        const category = teamTerm.category as keyof typeof teamConceptsByCategory;
+        if (teamConceptsByCategory[category]) {
+          teamConceptsByCategory[category].push(defaultTerm.label);
+        }
+      }
+    });
+
+    console.log('Team concepts by category:', teamConceptsByCategory);
+
+    // Debug: Show sample plays and team terminology to identify mismatches
+    console.log('\n=== DEBUGGING TERMINOLOGY MATCHES ===');
+    console.log('Sample master play formations:', allMasterPlays.slice(0, 5).map(p => p.formations));
+    console.log('Sample master play concepts by category:');
+    ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'shot_plays', 'screen_game'].forEach(cat => {
+      const sampleConcepts = allMasterPlays.filter(p => p.category === cat).slice(0, 3).map(p => p.concept);
+      console.log(`  ${cat}:`, sampleConcepts);
+    });
+    console.log('Team formations:', teamConceptsByCategory.formations);
+    console.log('Team run_game concepts:', teamConceptsByCategory.run_game);
+    console.log('=== END DEBUGGING ===\n');
+
+    // Filter master plays to only include those with concepts the team has
+    const filteredMasterPlays = allMasterPlays.filter(play => {
+      // Check if the play's formation concept exists in team's formations
+      // Use more flexible matching - check if any team formation matches the play formation
+      const hasFormation = teamConceptsByCategory.formations.length === 0 || 
+        teamConceptsByCategory.formations.some(teamFormation => {
+          // Try multiple matching approaches:
+          // 1. Exact match
+          if (play.formations === teamFormation) return true;
+          // 2. Play formation contains team formation
+          if (play.formations?.includes(teamFormation)) return true;
+          // 3. Team formation contains play formation  
+          if (teamFormation?.includes(play.formations)) return true;
+          // 4. Case-insensitive match
+          if (play.formations?.toLowerCase() === teamFormation?.toLowerCase()) return true;
+          return false;
+        });
+
+      // Check if the play's concept exists in team's concepts for this category
+      const conceptCategory = play.category === 'moving_pocket' ? 'quick_game' : play.category;
+      const teamConceptsForCategory = teamConceptsByCategory[conceptCategory as keyof typeof teamConceptsByCategory] || [];
+      
+      const hasConcept = teamConceptsForCategory.length === 0 || 
+        teamConceptsForCategory.some(teamConcept => {
+          // Try multiple matching approaches:
+          // 1. Exact match
+          if (play.concept === teamConcept) return true;
+          // 2. Case-insensitive match
+          if (play.concept?.toLowerCase() === teamConcept?.toLowerCase()) return true;
+          // 3. Partial matches
+          if (play.concept?.includes(teamConcept)) return true;
+          if (teamConcept?.includes(play.concept)) return true;
+          return false;
+        });
+
+      // Debug logging for plays that don't match
+      if (!hasFormation || !hasConcept) {
+        console.log(`❌ Play filtered out:`, {
+          play_id: play.play_id,
+          category: play.category,
+          formation: play.formations,
+          concept: play.concept,
+          hasFormation,
+          hasConcept,
+          teamFormations: teamConceptsByCategory.formations,
+          teamConceptsForCategory: teamConceptsForCategory
+        });
+      }
+
+      return hasFormation && hasConcept;
+    });
+
+    console.log('✅ Filtered plays based on team terminology:', {
+      original_count: allMasterPlays.length,
+      filtered_count: filteredMasterPlays.length,
+      filtered_by_category: {
+        run_game: filteredMasterPlays.filter(p => p.category === 'run_game').length,
+        rpo_game: filteredMasterPlays.filter(p => p.category === 'rpo_game').length,
+        quick_game: filteredMasterPlays.filter(p => p.category === 'quick_game').length,
+        dropback_game: filteredMasterPlays.filter(p => p.category === 'dropback_game').length,
+        shot_plays: filteredMasterPlays.filter(p => p.category === 'shot_plays').length,
+        screen_game: filteredMasterPlays.filter(p => p.category === 'screen_game').length,
+        moving_pocket: filteredMasterPlays.filter(p => p.category === 'moving_pocket').length
+      }
+    });
+
+    // Replace allMasterPlays with filtered version for the rest of the function
+    // If filtering results in no plays, fall back to all plays with a warning
+    let playPoolToUse = filteredMasterPlays;
+    if (filteredMasterPlays.length === 0) {
+      console.warn('⚠️ No plays found matching team terminology! Falling back to all master plays.');
+      console.warn('This usually means there is a mismatch between team terminology and master play pool naming.');
+      console.warn('Consider updating your terminology or the master play pool to use consistent naming.');
+      playPoolToUse = allMasterPlays;
+    }
+
+    // Debug: Log all run game plays from filtered pool
+    const allRunPlays = playPoolToUse.filter(p => p.category === 'run_game');
     console.log('\n=== ALL RUN GAME PLAYS FROM MASTER POOL ===');
     allRunPlays.forEach(play => {
       console.log({
@@ -275,8 +397,8 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     console.log(`Total run game plays in master pool: ${allRunPlays.length}`);
     console.log('=== END RUN GAME PLAYS LIST ===\n');
 
-    // Log all RPO plays before any filtering
-    const allRpoPlays = allMasterPlays.filter(p => p.category === 'rpo_game');
+    // Log all RPO plays after terminology filtering
+    const allRpoPlays = playPoolToUse.filter(p => p.category === 'rpo_game');
     console.log('\n=== ALL RPO PLAYS BEFORE FILTERING ===');
     allRpoPlays.forEach(play => {
       console.log({
@@ -303,7 +425,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
 
     // Filter out any plays that are already locked
     const lockedPlayIds = new Set(lockedPlays?.map(play => play.play_id) || []);
-    let availableMasterPlays = allMasterPlays.filter(play => !lockedPlayIds.has(play.play_id));
+    let availableMasterPlays = playPoolToUse.filter(play => !lockedPlayIds.has(play.play_id));
 
     // Log RPO plays after locked plays filtering
     const rpoPlaysAfterLocked = availableMasterPlays.filter(p => p.category === 'rpo_game');
@@ -401,7 +523,7 @@ export async function analyzeAndUpdatePlays(scoutingReport: ScoutingReport): Pro
     console.log('----------------------------------------');
     
     // Debug: Log all moving pocket plays from master pool
-    const allMovingPocketPlays = allMasterPlays.filter(p => p.category === 'moving_pocket');
+    const allMovingPocketPlays = playPoolToUse.filter(p => p.category === 'moving_pocket');
     console.log('All moving pocket plays from master pool:', allMovingPocketPlays.length);
     console.log('Initial Moving Pocket Plays:', {
       count: allMovingPocketPlays.length,
