@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, UserCog, Search, AlertCircle } from 'lucide-react'
+import { Loader2, UserCog, Search, AlertCircle, Trash2 } from 'lucide-react'
 
 interface Team {
   name: string
@@ -22,6 +22,7 @@ interface Profile {
   team?: {
     name: string
   }
+  coachCount?: number
 }
 
 export default function AdminPage() {
@@ -37,6 +38,11 @@ export default function AdminPage() {
   const [updatingLogo, setUpdatingLogo] = useState(false)
   const [updatingDashboardLogo, setUpdatingDashboardLogo] = useState(false)
   const [updatingFavicon, setUpdatingFavicon] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<Profile | null>(null)
+  const [deletingUser, setDeletingUser] = useState(false)
+  const [deleteModalMessage, setDeleteModalMessage] = useState('')
+  const [isTeamDeletion, setIsTeamDeletion] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -151,8 +157,7 @@ export default function AdminPage() {
           email,
           role,
           team_id,
-          created_at,
-          team:teams(name)
+          created_at
         `)
         .ilike('email', `%${searchQuery}%`)
         .order('email')
@@ -163,10 +168,42 @@ export default function AdminPage() {
         throw error
       }
 
-      const formattedResults = profiles?.map(profile => ({
-        ...profile,
-        team: profile.team && Array.isArray(profile.team) && profile.team[0] ? { name: profile.team[0].name } : undefined
-      })) || []
+      // Get team names and coach counts for each profile
+      const formattedResults = await Promise.all(
+        profiles?.map(async (profile) => {
+          let teamName = 'No team';
+          let coachCount = 0;
+
+          if (profile.team_id) {
+            // Get team name from teams table
+            const { data: teamData, error: teamError } = await supabase
+              .from('teams')
+              .select('name')
+              .eq('id', profile.team_id)
+              .single();
+
+            if (!teamError && teamData) {
+              teamName = teamData.name;
+            }
+
+            // Count coaches in this team
+            const { count, error: countError } = await supabase
+              .from('profiles')
+              .select('*', { count: 'exact' })
+              .eq('team_id', profile.team_id);
+
+            if (!countError) {
+              coachCount = count || 0;
+            }
+          }
+
+          return {
+            ...profile,
+            team: { name: teamName },
+            coachCount
+          };
+        }) || []
+      );
 
       setSearchResults(formattedResults)
     } catch (err) {
@@ -199,6 +236,180 @@ export default function AdminPage() {
     } catch (err) {
       console.error('Update role error:', err)
       setError('Failed to update user role. Please try again.')
+    }
+  }
+
+  const checkTeamAssociation = async (teamId: string): Promise<{ count: number, shouldDeleteTeam: boolean }> => {
+    try {
+      // Count users associated with this team
+      const { data: userCount, error: countError } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact' })
+        .eq('team_id', teamId)
+
+      if (countError) throw countError
+
+      const count = userCount?.length || 0
+      return { count, shouldDeleteTeam: count === 1 }
+    } catch (err) {
+      console.error('Error checking team association:', err)
+      throw err
+    }
+  }
+
+  const deleteTeamData = async (teamId: string) => {
+    try {
+      // Delete from terminology table
+      const { error: terminologyError } = await supabase
+        .from('terminology')
+        .delete()
+        .eq('team_id', teamId)
+      
+      if (terminologyError) {
+        console.error('Error deleting terminology:', terminologyError)
+        throw terminologyError
+      }
+
+      // Delete from opponents table
+      const { error: opponentsError } = await supabase
+        .from('opponents')
+        .delete()
+        .eq('team_id', teamId)
+      
+      if (opponentsError) {
+        console.error('Error deleting opponents:', opponentsError)
+        throw opponentsError
+      }
+
+      // Delete from scouting_reports table
+      const { error: scoutingError } = await supabase
+        .from('scouting_reports')
+        .delete()
+        .eq('team_id', teamId)
+      
+      if (scoutingError) {
+        console.error('Error deleting scouting reports:', scoutingError)
+        throw scoutingError
+      }
+
+      // Delete from playpool table
+      const { error: playpoolError } = await supabase
+        .from('playpool')
+        .delete()
+        .eq('team_id', teamId)
+      
+      if (playpoolError) {
+        console.error('Error deleting playpool:', playpoolError)
+        throw playpoolError
+      }
+
+      // Finally delete the team itself
+      const { error: teamError } = await supabase
+        .from('teams')
+        .delete()
+        .eq('id', teamId)
+      
+      if (teamError) {
+        console.error('Error deleting team:', teamError)
+        throw teamError
+      }
+
+      console.log('Successfully deleted team and all associated data')
+    } catch (err) {
+      console.error('Error deleting team data:', err)
+      throw err
+    }
+  }
+
+  const handleDeleteUser = async (user: Profile) => {
+    if (!user.team_id) {
+      // User has no team, just delete the profile and auth user
+      setDeleteModalMessage(`Are you sure you want to delete user ${user.email}?`)
+      setIsTeamDeletion(false)
+    } else {
+      // Check team association
+      try {
+        const { count, shouldDeleteTeam } = await checkTeamAssociation(user.team_id)
+        
+        if (shouldDeleteTeam) {
+          setDeleteModalMessage(
+            `WARNING: This is the only user associated with team ID ${user.team_id}. ` +
+            `Deleting this user will result in the loss of ALL data associated with this team including: ` +
+            `terminology, opponents, scouting reports, and playpool data. ` +
+            `This action cannot be undone. Are you sure you want to proceed?`
+          )
+          setIsTeamDeletion(true)
+        } else {
+          setDeleteModalMessage(
+            `Are you sure you want to delete user ${user.email}? ` +
+            `This user is part of a team with ${count} members. Only the user profile will be deleted.`
+          )
+          setIsTeamDeletion(false)
+        }
+      } catch (err) {
+        console.error('Error checking team association:', err)
+        setError('Failed to check team association. Please try again.')
+        return
+      }
+    }
+    
+    setUserToDelete(user)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return
+
+    try {
+      setDeletingUser(true)
+      setError(null)
+
+      // Delete from Supabase Auth
+      const { error: authError } = await supabase.auth.admin.deleteUser(userToDelete.id)
+      
+      if (authError) {
+        console.error('Error deleting auth user:', authError)
+        // If auth deletion fails, we might still want to delete the profile
+        // This could happen if the user was already deleted from auth
+        console.log('Auth deletion failed, attempting profile deletion anyway...')
+      }
+
+      // Delete profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userToDelete.id)
+
+      if (profileError) {
+        console.error('Error deleting profile:', profileError)
+        throw profileError
+      }
+
+      // If this was a team deletion, clean up all team data
+      if (isTeamDeletion && userToDelete.team_id) {
+        await deleteTeamData(userToDelete.team_id)
+      }
+
+      // Remove from search results
+      setSearchResults(prevResults =>
+        prevResults.filter(user => user.id !== userToDelete.id)
+      )
+
+      // Clear search query if no results left
+      if (searchResults.length === 1) {
+        setSearchQuery('')
+      }
+
+      setShowDeleteModal(false)
+      setUserToDelete(null)
+      setIsTeamDeletion(false)
+      setDeleteModalMessage('')
+      
+    } catch (err) {
+      console.error('Error deleting user:', err)
+      setError('Failed to delete user. Please try again.')
+    } finally {
+      setDeletingUser(false)
     }
   }
 
@@ -281,6 +492,11 @@ export default function AdminPage() {
                       <p className="text-sm text-gray-500">
                         Team: {profile.team?.name || 'No team'}
                       </p>
+                      {profile.team_id && (
+                        <p className="text-sm text-gray-500">
+                          Number of Coaches in Team: {profile.coachCount || 0}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-4">
                       <Select
@@ -295,6 +511,14 @@ export default function AdminPage() {
                           <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>
+                      <Button
+                        size="sm"
+                        onClick={() => handleDeleteUser(profile)}
+                        className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white border-red-500 hover:border-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 ))
@@ -448,6 +672,66 @@ export default function AdminPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete User Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {isTeamDeletion ? 'Delete User & Team' : 'Delete User'}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {isTeamDeletion ? 'This action will delete the user and all team data' : 'This action will delete the user profile'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-700 whitespace-pre-line">
+                {deleteModalMessage}
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setUserToDelete(null)
+                  setIsTeamDeletion(false)
+                  setDeleteModalMessage('')
+                }}
+                disabled={deletingUser}
+              >
+                Back
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDeleteUser}
+                disabled={deletingUser}
+                className="flex items-center gap-2"
+              >
+                {deletingUser ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
