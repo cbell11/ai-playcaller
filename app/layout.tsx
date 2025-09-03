@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AI Playcaller",
   description: "AI-powered football play calling assistant",
+  icons: {
+    icon: "https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904350/favicon_aipc_ml6rpg.png",
+  },
 };
 
 export default function RootLayout({

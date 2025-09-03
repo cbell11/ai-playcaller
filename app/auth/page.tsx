@@ -609,10 +609,14 @@ export default function AuthPage() {
 
   return (
     <div className="w-full max-w-md px-4" onClick={teamOption === "join" ? handleJoinCodeBoxClick : undefined}>
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold mb-2">AI Playcaller</h1>
-          <p className="text-gray-600">Your intelligent football assistant</p>
-        </div>
+                  <div className="text-center mb-10">
+            <img 
+              src="https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904087/AI_PLAYCALLER_ghgk5m.jpg" 
+              alt="AI Playcaller" 
+              className="mx-auto mb-1 h-60 w-auto"
+            />
+            <p className="text-gray-600">Your intelligent football assistant</p>
+          </div>
         
         <div className="bg-white p-8 rounded-lg shadow-md">
           <h2 className="text-2xl font-semibold mb-6">
