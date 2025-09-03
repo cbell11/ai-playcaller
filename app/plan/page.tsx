@@ -3659,13 +3659,63 @@ export default function PlanPage() {
 
       if (lockedError) throw lockedError;
 
-      // Special handling for Opening Script - just randomly select plays from play pool
+      // Special handling for Opening Script - balanced variety across all categories
       if (section === 'openingScript') {
         const count = sectionSizes[section];
         
-        // Randomly shuffle and select plays from the entire play pool
-        const shuffled = [...playPool].sort(() => Math.random() - 0.5);
-        const selectedPlays = shuffled.slice(0, count);
+        // Define all play categories for variety
+        const categories = ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'screen_game', 'shot_plays', 'moving_pocket'];
+        
+        // Group plays by category
+        const playsByCategory: Record<string, ExtendedPlay[]> = {};
+        categories.forEach(cat => {
+          playsByCategory[cat] = playPool.filter(play => play.category === cat);
+        });
+        
+        // Track used concepts to prevent duplicates
+        const usedConcepts = new Set<string>();
+        const selectedPlays: ExtendedPlay[] = [];
+        
+        // Calculate plays per category (distribute evenly)
+        const playsPerCategory = Math.floor(count / categories.length);
+        const remainder = count % categories.length;
+        
+        // Select plays from each category
+        for (let i = 0; i < categories.length && selectedPlays.length < count; i++) {
+          const category = categories[i];
+          const categoryPlays = playsByCategory[category] || [];
+          
+          // Add extra play to first few categories if there's remainder
+          const targetForCategory = playsPerCategory + (i < remainder ? 1 : 0);
+          
+          // Shuffle plays in this category
+          const shuffledCategoryPlays = [...categoryPlays].sort(() => Math.random() - 0.5);
+          
+          // Select unique concepts from this category
+          let addedFromCategory = 0;
+          for (const play of shuffledCategoryPlays) {
+            if (addedFromCategory >= targetForCategory) break;
+            
+            // Check if concept is already used
+            if (!usedConcepts.has(play.concept)) {
+              selectedPlays.push(play);
+              usedConcepts.add(play.concept);
+              addedFromCategory++;
+            }
+          }
+        }
+        
+        // If we still need more plays (due to concept duplicates), fill from any remaining unique concepts
+        if (selectedPlays.length < count) {
+          const allRemainingPlays = playPool.filter(play => !usedConcepts.has(play.concept));
+          const shuffledRemaining = [...allRemainingPlays].sort(() => Math.random() - 0.5);
+          
+          for (const play of shuffledRemaining) {
+            if (selectedPlays.length >= count) break;
+            selectedPlays.push(play);
+            usedConcepts.add(play.concept);
+          }
+        }
         
         if (selectedPlays.length === 0) {
           setNotification({
@@ -3674,6 +3724,11 @@ export default function PlanPage() {
           });
           return;
         }
+        
+        // Shuffle the final selected plays to randomize the order
+        const shuffledSelectedPlays = [...selectedPlays].sort(() => Math.random() - 0.5);
+        
+        console.log(`Opening Script generated with ${shuffledSelectedPlays.length} plays from ${categories.length} categories with ${usedConcepts.size} unique concepts`);
 
         // Delete existing unlocked plays for this section
         const { error: deleteError } = await browserClient
@@ -3690,29 +3745,36 @@ export default function PlanPage() {
 
         // Calculate available positions after locked plays
         const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
-        let currentPosition = 0;
+        
+        // Create array of all available positions
+        const availablePositions: number[] = [];
+        for (let i = 0; i < count; i++) {
+          if (!lockedPositions.has(i)) {
+            availablePositions.push(i);
+          }
+        }
+        
+        // Shuffle the available positions to randomize the final order
+        const shuffledPositions = [...availablePositions].sort(() => Math.random() - 0.5);
+        
         const insertData = [];
 
-        // Insert new plays into available positions
-        for (const play of selectedPlays) {
-          while (currentPosition < count && lockedPositions.has(currentPosition)) {
-            currentPosition++;
-          }
+        // Insert new plays into shuffled positions
+        for (let i = 0; i < Math.min(shuffledSelectedPlays.length, shuffledPositions.length); i++) {
+          const play = shuffledSelectedPlays[i];
+          const position = shuffledPositions[i];
           
-          if (currentPosition < count) {
-            insertData.push({
-              team_id,
-              opponent_id,
-              play_id: play.play_id,
-              section: section.toString().toLowerCase(),
-              position: currentPosition,
-              combined_call: formatPlayFromPool(play),
-              customized_edit: play.customized_edit,
-              is_locked: false,
-              category: play.category
-            });
-            currentPosition++;
-          }
+          insertData.push({
+            team_id,
+            opponent_id,
+            play_id: play.play_id,
+            section: section.toString().toLowerCase(),
+            position: position,
+            combined_call: formatPlayFromPool(play),
+            customized_edit: play.customized_edit,
+            is_locked: false,
+            category: play.category
+          });
         }
 
         if (insertData.length > 0) {
