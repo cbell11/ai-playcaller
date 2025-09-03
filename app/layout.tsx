@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: "AI-powered football play calling assistant",
   icons: {
     icon: "https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904350/favicon_aipc_ml6rpg.png",
+    shortcut: "https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904350/favicon_aipc_ml6rpg.png",
+    apple: "https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904350/favicon_aipc_ml6rpg.png",
   },
 };
 
