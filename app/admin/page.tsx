@@ -32,8 +32,10 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [logoUrl, setLogoUrl] = useState('https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904087/AI_PLAYCALLER_ghgk5m.jpg')
+  const [dashboardLogoUrl, setDashboardLogoUrl] = useState('https://res.cloudinary.com/dfvzvbygc/image/upload/v1756918320/logo_landscape_yszdv3.png')
   const [faviconUrl, setFaviconUrl] = useState('https://res.cloudinary.com/dfvzvbygc/image/upload/v1756904350/favicon_aipc_ml6rpg.png')
   const [updatingLogo, setUpdatingLogo] = useState(false)
+  const [updatingDashboardLogo, setUpdatingDashboardLogo] = useState(false)
   const [updatingFavicon, setUpdatingFavicon] = useState(false)
 
   const supabase = createBrowserClient(
@@ -86,6 +88,25 @@ export default function AdminPage() {
       setError('Failed to update logo. Please try again.')
     } finally {
       setUpdatingLogo(false)
+    }
+  }
+
+  const updateDashboardLogo = async () => {
+    try {
+      setUpdatingDashboardLogo(true)
+      setError(null)
+      
+      // For now, we'll just update the local state and localStorage
+      // In a real app, you'd want to save this to a database
+      localStorage.setItem('dashboardLogoUrl', dashboardLogoUrl)
+      
+      // Force reload to update the dashboard logo across the app
+      window.location.reload()
+    } catch (err) {
+      console.error('Update dashboard logo error:', err)
+      setError('Failed to update dashboard logo. Please try again.')
+    } finally {
+      setUpdatingDashboardLogo(false)
     }
   }
 
@@ -305,7 +326,7 @@ export default function AdminPage() {
             {/* Logo Management */}
             <div className="space-y-4">
               <div>
-                <Label htmlFor="logoUrl">Logo URL</Label>
+                <Label htmlFor="logoUrl">Login Page Logo URL</Label>
                 <p className="text-sm text-gray-500 mb-2">
                   Update the logo displayed on the login page
                 </p>
@@ -334,6 +355,47 @@ export default function AdminPage() {
                       src={logoUrl} 
                       alt="Logo preview" 
                       className="h-16 w-auto border rounded"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none'
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Dashboard Logo Management */}
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="dashboardLogoUrl">Dashboard Logo URL</Label>
+                <p className="text-sm text-gray-500 mb-2">
+                  Update the logo displayed in the sidebar navigation
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="dashboardLogoUrl"
+                    placeholder="Enter dashboard logo image URL..."
+                    value={dashboardLogoUrl}
+                    onChange={(e) => setDashboardLogoUrl(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button 
+                    onClick={updateDashboardLogo}
+                    disabled={updatingDashboardLogo || !dashboardLogoUrl.trim()}
+                  >
+                    {updatingDashboardLogo ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Update Dashboard Logo'
+                    )}
+                  </Button>
+                </div>
+                {dashboardLogoUrl && (
+                  <div className="mt-2">
+                    <img 
+                      src={dashboardLogoUrl} 
+                      alt="Dashboard logo preview" 
+                      className="h-8 w-auto border rounded"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none'
                       }}

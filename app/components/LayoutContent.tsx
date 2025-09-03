@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { NavLinks } from "./NavLinks";
 import { UserMenu } from "./UserMenu";
 
@@ -11,6 +12,15 @@ export function LayoutContent({
 }) {
   const pathname = usePathname();
   const isAuthPage = pathname?.startsWith('/auth');
+  const [dashboardLogoUrl, setDashboardLogoUrl] = useState("https://res.cloudinary.com/dfvzvbygc/image/upload/v1756918320/logo_landscape_yszdv3.png");
+
+  // Check for custom dashboard logo URL on mount
+  useEffect(() => {
+    const customDashboardLogoUrl = localStorage.getItem('dashboardLogoUrl');
+    if (customDashboardLogoUrl) {
+      setDashboardLogoUrl(customDashboardLogoUrl);
+    }
+  }, []);
 
   if (isAuthPage) {
     return children;
@@ -20,7 +30,11 @@ export function LayoutContent({
     <div className="flex min-h-screen">
       <div className="w-[200px]" style={{ backgroundColor: '#0b2545' }}>
         <div className="h-14 flex items-center px-4 border-r border-gray-200" style={{ backgroundColor: '#ffffff' }}>
-          <span className="font-semibold" style={{ color: '#222222' }}>AI Playcaller</span>
+          <img 
+            src={dashboardLogoUrl} 
+            alt="AI Playcaller" 
+            className="h-8 w-auto"
+          />
         </div>
         <NavLinks />
       </div>
