@@ -1540,7 +1540,7 @@ export default function MasterPlayPoolPage() {
                       <td className="p-2 text-xs">{play.tags}</td>
                       <td className="p-2 text-xs">{play.from_motions}</td>
                       <td className="p-2 text-xs" title={`Raw value: ${JSON.stringify(play.pass_protections)}`}>
-                        {play.pass_protections || '-'}
+                        {play.pass_protections || ''}
                       </td>
                       <td className="p-2 text-xs">{play.concept}</td>
                       <td className="p-2 text-xs">{play.concept_tag}</td>
