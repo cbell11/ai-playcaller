@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, UserCog, Search, AlertCircle, Trash2 } from 'lucide-react'
+import { deleteUserFromAuth } from '../actions/delete-user'
 
 interface Team {
   name: string
@@ -364,11 +365,11 @@ export default function AdminPage() {
       setDeletingUser(true)
       setError(null)
 
-      // Delete from Supabase Auth
-      const { error: authError } = await supabase.auth.admin.deleteUser(userToDelete.id)
+      // Delete from Supabase Auth using server action
+      const authResult = await deleteUserFromAuth(userToDelete.id)
       
-      if (authError) {
-        console.error('Error deleting auth user:', authError)
+      if (!authResult.success) {
+        console.error('Error deleting auth user:', authResult.error)
         // If auth deletion fails, we might still want to delete the profile
         // This could happen if the user was already deleted from auth
         console.log('Auth deletion failed, attempting profile deletion anyway...')

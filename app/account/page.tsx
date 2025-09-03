@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 
 import { Loader2, Users, Shield, Mail, AlertTriangle, Trash2, Copy, Check } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { deleteUserFromAuth } from '../actions/delete-user'
 
 interface TeamMember {
   id: string
@@ -175,10 +176,10 @@ export default function AccountPage() {
       setDeletingAccount(true)
       setError(null)
 
-      // Delete from Supabase Auth
-      const { error: authError } = await supabase.auth.admin.deleteUser(user.id)
-      if (authError) {
-        console.error('Auth deletion error:', authError)
+      // Delete from Supabase Auth using server action
+      const authResult = await deleteUserFromAuth(user.id)
+      if (!authResult.success) {
+        console.error('Auth deletion error:', authResult.error)
       }
 
       // Delete profile
