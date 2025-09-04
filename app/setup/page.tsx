@@ -13,6 +13,8 @@ import { updatePlayPoolTerminology } from "@/lib/playpool"
 import { createBrowserClient } from '@supabase/ssr'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { analyzeAndUpdatePlays } from "@/app/actions/analyze-plays"
+import { getScoutingReport } from "@/lib/scouting"
 
 // Helper function to generate a random 6-letter code
 const generateJoinCode = () => {
@@ -26,6 +28,58 @@ const generateJoinCode = () => {
 
 // Default team that contains base terminology
 const DEFAULT_TEAM_ID = '8feef3dc-942f-4bc5-b526-0b39e14cb683';
+
+// Terminology Saving Loading Modal Component
+interface TerminologySavingModalProps {
+  isOpen: boolean;
+  currentStep: number;
+  totalSteps: number;
+  currentMessage: string;
+}
+
+const TerminologySavingModal: React.FC<TerminologySavingModalProps> = ({ 
+  isOpen, 
+  currentStep, 
+  totalSteps, 
+  currentMessage 
+}) => {
+  const progress = (currentStep / totalSteps) * 100;
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-white bg-opacity-80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Important: Wait while we save your terminology
+          </h3>
+          
+          {/* Loading spinner */}
+          <div className="flex justify-center mb-6">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+          
+          {/* Progress bar */}
+          <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+            <div 
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+          
+          {/* Current step message */}
+          <p className="text-sm text-gray-600 mb-2">
+            Step {currentStep} of {totalSteps}
+          </p>
+          <p className="text-sm font-medium text-gray-800">
+            {currentMessage}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Extend Terminology interface to include UI state
 interface TerminologyWithUI extends Terminology {
@@ -628,6 +682,21 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       setTimeout(() => {
         forceReloadFormations();
       }, 500);
+
+      // Trigger playpool regeneration after individual section save
+      try {
+        const currentOpponentId = localStorage.getItem('selectedOpponent');
+        if (currentOpponentId) {
+          // Dispatch a custom event to notify that terminology was updated
+          const event = new CustomEvent('terminologyUpdated', { 
+            detail: { category, teamId: teamIdToUse }
+          });
+          window.dispatchEvent(event);
+        }
+      } catch (error) {
+        console.error('Error triggering playpool update:', error);
+        // Don't throw - this shouldn't block the save operation
+      }
     } catch (error) {
       console.error('Error in handleSaveAll:', error)
       alert(error instanceof Error ? error.message : 'An error occurred while saving')
@@ -1072,6 +1141,9 @@ function SetupPageContent() {
   const [isSavingAll, setIsSavingAll] = useState(false)
   const [saveAllSuccess, setSaveAllSuccess] = useState<string | null>(null)
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(!!welcomeMessage)
+  const [showSavingModal, setShowSavingModal] = useState(false)
+  const [savingStep, setSavingStep] = useState(0)
+  const [savingMessage, setSavingMessage] = useState('')
 
   // Create Supabase client
   const supabase = createBrowserClient(
@@ -1199,28 +1271,20 @@ function SetupPageContent() {
       if (targetUrl) {
         console.log('Auto-saving terminology before navigation to:', targetUrl)
         try {
-          // Get current opponent ID before save
-          const currentOpponentId = localStorage.getItem('selectedOpponent')
+          // Show saving modal during navigation save
+          setShowSavingModal(true);
+          setSavingStep(1);
+          setSavingMessage('Saving your concepts...');
           
           // Trigger save all terminology
           await handleSaveAllTerminology()
-          
-          // If we have an opponent and we're going to the playpool page, trigger reload
-          if (currentOpponentId && targetUrl === '/playpool') {
-            console.log('Triggering playpool reload before navigation')
-            const event = new CustomEvent('opponentChanged', { 
-              detail: { opponentId: currentOpponentId }
-            })
-            window.dispatchEvent(event)
-            // Add small delay to allow reload to start
-            await new Promise(resolve => setTimeout(resolve, 100))
-          }
           
           // Navigate after save completes
           window.location.href = targetUrl
         } catch (error) {
           console.error('Error saving terminology before navigation:', error)
-          // Navigate anyway to prevent being stuck
+          // Hide modal and navigate anyway to prevent being stuck
+          setShowSavingModal(false);
           window.location.href = targetUrl
         }
       }
@@ -1338,6 +1402,57 @@ function SetupPageContent() {
     }
   };
   
+  // Function to trigger automatic playpool regeneration
+  const triggerPlaypoolRegeneration = async () => {
+    try {
+      setSavingStep(4);
+      setSavingMessage('Regenerating your playpool with new terminology...');
+      
+      // Get current opponent ID
+      const currentOpponentId = localStorage.getItem('selectedOpponent');
+      
+      if (!currentOpponentId || !profileInfo.team_id) {
+        console.log('No opponent or team selected, skipping playpool regeneration');
+        return;
+      }
+
+      // Get scouting report data
+      const scoutingResult = await getScoutingReport(profileInfo.team_id, currentOpponentId);
+      
+      if (scoutingResult.success && scoutingResult.data) {
+        const reportData = scoutingResult.data;
+        
+        // Create scouting report object for AI analysis
+        const scoutingReport = {
+          team_id: profileInfo.team_id,
+          opponent_id: currentOpponentId,
+          fronts: reportData.fronts || [],
+          coverages: reportData.coverages || [],
+          blitzes: reportData.blitzes || [],
+          fronts_pct: reportData.fronts_pct || {},
+          coverages_pct: reportData.coverages_pct || {},
+          blitz_pct: reportData.blitz_pct || {},
+          overall_blitz_pct: reportData.overall_blitz_pct || 0,
+          motion_percentage: 100,
+          notes: '',
+          keep_locked_plays: true,
+        };
+
+        // Call analyze and update function to regenerate playpool
+        const result = await analyzeAndUpdatePlays(scoutingReport);
+        
+        if (result.success) {
+          console.log('Successfully regenerated playpool with new terminology');
+        } else {
+          console.error('Failed to regenerate playpool:', result.error);
+        }
+      }
+    } catch (error) {
+      console.error('Error during playpool regeneration:', error);
+      // Don't throw - this shouldn't block the save process
+    }
+  };
+
   // Handle saving all terminology categories
   const handleSaveAllTerminology = async () => {
     if (!profileInfo.team_id) {
@@ -1347,6 +1462,9 @@ function SetupPageContent() {
 
     try {
       setIsSavingAll(true);
+      setShowSavingModal(true);
+      setSavingStep(1);
+      setSavingMessage('Saving your concepts...');
       console.log("Saving all terminology categories for team", profileInfo.team_id);
       
       // Get the current opponent ID from localStorage for playpool reload
@@ -1375,6 +1493,7 @@ function SetupPageContent() {
       ];
 
       let totalSaved = 0;
+      let processedCategories = 0;
 
       // Process each category
       for (const category of categories) {
@@ -1383,6 +1502,16 @@ function SetupPageContent() {
         if (!category.set || category.set.length === 0) {
           console.log(`No items in ${category.name}, skipping`);
           continue;
+        }
+
+        // Update progress for each category
+        processedCategories++;
+        if (processedCategories <= categories.length / 2) {
+          setSavingStep(1);
+          setSavingMessage('Saving your concepts...');
+        } else {
+          setSavingStep(2);
+          setSavingMessage('Dialing up deep shots...');
         }
 
         // Get all the concepts the user wants to keep
@@ -1480,15 +1609,10 @@ function SetupPageContent() {
         category.setFunction(updatedTerms);
       }
 
-      // Show success message
-      setSaveAllSuccess(`Successfully saved ${totalSaved} terminology items across all categories!`);
+      // Step 3: Update playpool terminology
+      setSavingStep(3);
+      setSavingMessage('Generating 90+ yard TD runs...');
       
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setSaveAllSuccess(null);
-      }, 5000);
-
-      // Update existing playpool terminology first
       try {
         const { updatePlayPoolTerminology } = await import('../../lib/playpool');
         await updatePlayPoolTerminology();
@@ -1498,21 +1622,34 @@ function SetupPageContent() {
         // Don't throw, just log - this is not critical for the save operation
       }
 
-      // If we have an opponent selected, trigger playpool reload
+      // Step 4: Regenerate playpool with AI if opponent is selected
       if (currentOpponentId) {
-        console.log('Triggering playpool reload after terminology save');
-        // Dispatch opponent changed event to trigger playpool reload
-        const event = new CustomEvent('opponentChanged', { 
-          detail: { opponentId: currentOpponentId }
-        });
-        window.dispatchEvent(event);
+        await triggerPlaypoolRegeneration();
       }
+
+      // Step 5: Complete
+      setSavingStep(5);
+      setSavingMessage('Complete! Your terminology has been saved.');
+      
+      // Wait a moment to show completion
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Show success message
+      setSaveAllSuccess(`Successfully saved ${totalSaved} terminology items across all categories!`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSaveAllSuccess(null);
+      }, 5000);
 
     } catch (error) {
       console.error("Error saving all terminology:", error);
       alert(error instanceof Error ? error.message : "An error occurred while saving all terminology");
     } finally {
       setIsSavingAll(false);
+      setShowSavingModal(false);
+      setSavingStep(0);
+      setSavingMessage('');
     }
   };
   
@@ -1728,6 +1865,14 @@ function SetupPageContent() {
           </div>
         </div>
       )}
+
+      {/* Terminology Saving Modal */}
+      <TerminologySavingModal 
+        isOpen={showSavingModal}
+        currentStep={savingStep}
+        totalSteps={5}
+        currentMessage={savingMessage}
+      />
     </div>
   )
 }

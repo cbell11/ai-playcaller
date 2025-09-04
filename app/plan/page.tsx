@@ -3803,6 +3803,261 @@ export default function PlanPage() {
         return;
       }
 
+      // Special handling for First Downs - balanced variety like Opening Script
+      if (section === 'firstDowns') {
+        const count = sectionSizes[section];
+        
+        // Define main play categories for variety (focusing on core first down concepts)
+        const categories = ['run_game', 'rpo_game', 'quick_game', 'dropback_game'];
+        
+        // Group plays by category
+        const playsByCategory: Record<string, ExtendedPlay[]> = {};
+        categories.forEach(cat => {
+          playsByCategory[cat] = playPool.filter(play => play.category === cat);
+        });
+        
+        // Track used concepts to prevent duplicates
+        const usedConcepts = new Set<string>();
+        const selectedPlays: ExtendedPlay[] = [];
+        
+        // Calculate plays per category (distribute evenly)
+        const playsPerCategory = Math.floor(count / categories.length);
+        const remainder = count % categories.length;
+        
+        // Select plays from each category
+        for (let i = 0; i < categories.length && selectedPlays.length < count; i++) {
+          const category = categories[i];
+          const categoryPlays = playsByCategory[category] || [];
+          
+          // Add extra play to first few categories if there's remainder
+          const targetForCategory = playsPerCategory + (i < remainder ? 1 : 0);
+          
+          // Shuffle plays in this category
+          const shuffledCategoryPlays = [...categoryPlays].sort(() => Math.random() - 0.5);
+          
+          // Select unique concepts from this category
+          let addedFromCategory = 0;
+          for (const play of shuffledCategoryPlays) {
+            if (addedFromCategory >= targetForCategory) break;
+            
+            // Check if concept is already used
+            if (!usedConcepts.has(play.concept)) {
+              selectedPlays.push(play);
+              usedConcepts.add(play.concept);
+              addedFromCategory++;
+            }
+          }
+        }
+        
+        // If we still need more plays (due to concept duplicates), fill from any remaining unique concepts
+        if (selectedPlays.length < count) {
+          const allRemainingPlays = playPool.filter(play => !usedConcepts.has(play.concept));
+          const shuffledRemaining = [...allRemainingPlays].sort(() => Math.random() - 0.5);
+          
+          for (const play of shuffledRemaining) {
+            if (selectedPlays.length >= count) break;
+            selectedPlays.push(play);
+            usedConcepts.add(play.concept);
+          }
+        }
+        
+        if (selectedPlays.length === 0) {
+          setNotification({
+            message: 'No plays available for First Downs',
+            type: 'error'
+          });
+          return;
+        }
+        
+        // Shuffle the final selected plays to randomize the order
+        const shuffledSelectedPlays = [...selectedPlays].sort(() => Math.random() - 0.5);
+        
+        console.log(`First Downs generated with ${shuffledSelectedPlays.length} plays from ${categories.length} categories with ${usedConcepts.size} unique concepts`);
+
+        // Delete existing unlocked plays for this section
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toString().toLowerCase())
+          .eq('is_locked', false);
+
+        if (deleteError) {
+          throw new Error('Failed to clear unlocked plays');
+        }
+
+        // Calculate available positions after locked plays
+        const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+        
+        // Create array of all available positions
+        const availablePositions: number[] = [];
+        for (let i = 0; i < count; i++) {
+          if (!lockedPositions.has(i)) {
+            availablePositions.push(i);
+          }
+        }
+        
+        // Shuffle the available positions to randomize the final order
+        const shuffledPositions = [...availablePositions].sort(() => Math.random() - 0.5);
+        
+        const insertData = [];
+
+        // Insert new plays into shuffled positions
+        for (let i = 0; i < Math.min(shuffledSelectedPlays.length, shuffledPositions.length); i++) {
+          const play = shuffledSelectedPlays[i];
+          const position = shuffledPositions[i];
+          
+          insertData.push({
+            team_id,
+            opponent_id,
+            play_id: play.play_id,
+            section: section.toString().toLowerCase(),
+            position: position,
+            combined_call: formatPlayFromPool(play),
+            customized_edit: play.customized_edit,
+            is_locked: false,
+            category: play.category
+          });
+        }
+
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+
+        setNotification({
+          message: `Updated First Downs with ${insertData.length} plays`,
+          type: 'success'
+        });
+        return;
+      }
+
+      // Special handling for Screens - pull only from screen_game category with no repeat concepts
+      if (section === 'screens') {
+        const count = sectionSizes[section];
+        
+        // Filter plays to only screen_game category
+        const screenPlays = playPool.filter(play => play.category === 'screen_game');
+        
+        // Track used concepts to prevent duplicates
+        const usedConcepts = new Set<string>();
+        const selectedPlays: ExtendedPlay[] = [];
+        
+        // Shuffle screen plays for random selection
+        const shuffledScreenPlays = [...screenPlays].sort(() => Math.random() - 0.5);
+        
+        // Select unique concepts only
+        for (const play of shuffledScreenPlays) {
+          if (selectedPlays.length >= count) break;
+          
+          // Check if concept is already used
+          if (!usedConcepts.has(play.concept)) {
+            selectedPlays.push(play);
+            usedConcepts.add(play.concept);
+          }
+        }
+        
+        if (selectedPlays.length === 0) {
+          setNotification({
+            message: 'No screen plays available',
+            type: 'error'
+          });
+          return;
+        }
+        
+        // Shuffle the final selected plays to randomize the order
+        const shuffledSelectedPlays = [...selectedPlays].sort(() => Math.random() - 0.5);
+        
+        console.log(`Screens generated with ${shuffledSelectedPlays.length} plays with ${usedConcepts.size} unique concepts`);
+
+        // Delete existing unlocked plays for this section
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toString().toLowerCase())
+          .eq('is_locked', false);
+
+        if (deleteError) {
+          throw new Error('Failed to clear unlocked plays');
+        }
+
+        // Calculate available positions after locked plays
+        const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+        
+        // Create array of all available positions
+        const availablePositions: number[] = [];
+        for (let i = 0; i < count; i++) {
+          if (!lockedPositions.has(i)) {
+            availablePositions.push(i);
+          }
+        }
+        
+        // Shuffle the available positions to randomize the final order
+        const shuffledPositions = [...availablePositions].sort(() => Math.random() - 0.5);
+        
+        const insertData = [];
+
+        // Insert new plays into shuffled positions
+        for (let i = 0; i < Math.min(shuffledSelectedPlays.length, shuffledPositions.length); i++) {
+          const play = shuffledSelectedPlays[i];
+          const position = shuffledPositions[i];
+          
+          insertData.push({
+            team_id,
+            opponent_id,
+            play_id: play.play_id,
+            section: section.toString().toLowerCase(),
+            position: position,
+            combined_call: formatPlayFromPool(play),
+            customized_edit: play.customized_edit,
+            is_locked: false,
+            category: play.category
+          });
+        }
+
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+
+        setNotification({
+          message: `Updated Screens with ${insertData.length} plays`,
+          type: 'success'
+        });
+        return;
+      }
+
       // Special handling for Opening Script - just randomly select plays from play pool
       if (section === 'openingScript') {
         const count = sectionSizes[section];

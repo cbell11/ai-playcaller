@@ -100,9 +100,14 @@ interface OpponentChangedEvent extends CustomEvent<{ opponentId: string }> {
   detail: { opponentId: string };
 }
 
+interface TerminologyUpdatedEvent extends CustomEvent<{ category: string; teamId: string }> {
+  detail: { category: string; teamId: string };
+}
+
 declare global {
   interface WindowEventMap {
     'opponentChanged': OpponentChangedEvent;
+    'terminologyUpdated': TerminologyUpdatedEvent;
   }
 }
 
@@ -510,7 +515,96 @@ export default function PlayPoolPage() {
     };
   }, []);
 
+  // Listen for terminology updates and automatically regenerate playpool
+  useEffect(() => {
+    const handleTerminologyUpdated = async (event: TerminologyUpdatedEvent) => {
+      console.log('Terminology updated, automatically regenerating playpool...', event.detail);
+      
+      // Only regenerate if we have the necessary data
+      if (selectedTeamId && selectedOpponentId && fronts.length > 0) {
+        try {
+          setIsRebuilding(true);
+          setAnalyzing(true);
+          setNotification({
+            message: 'Your terminology has been updated. Automatically regenerating playpool with new concepts...',
+            type: 'info'
+          });
 
+          // Create scouting report object
+          const scoutingReport = {
+            team_id: selectedTeamId,
+            opponent_id: selectedOpponentId,
+            fronts,
+            coverages,
+            blitzes,
+            fronts_pct: frontsPct,
+            coverages_pct: coveragesPct,
+            blitz_pct: blitzPct,
+            overall_blitz_pct: overallBlitzPct,
+            motion_percentage: 100,
+            notes: '',
+            keep_locked_plays: true,
+          };
+
+          // Call analyze and update function
+          const result = await analyzeAndUpdatePlays(scoutingReport);
+
+          if (result.success && result.data) {
+            setAnalysis('Playpool automatically updated with your new terminology!');
+            // Reload plays to show updates
+            await loadPlays();
+            
+            // Clear the analysis after 5 seconds
+            setTimeout(() => {
+              setAnalysis(null);
+            }, 5000);
+
+            // Clear notification after 3 seconds
+            setTimeout(() => {
+              setNotification(null);
+            }, 3000);
+          } else {
+            console.error('Failed to auto-regenerate playpool:', result.error);
+            setNotification({
+              message: 'Failed to automatically regenerate playpool. You can manually rebuild it using the button above.',
+              type: 'warning'
+            });
+            
+            // Clear notification after 8 seconds
+            setTimeout(() => {
+              setNotification(null);
+            }, 8000);
+          }
+        } catch (error) {
+          console.error('Error during automatic playpool regeneration:', error);
+          setNotification({
+            message: 'Error during automatic regeneration. You can manually rebuild the playpool using the button above.',
+            type: 'warning'
+          });
+          
+          // Clear notification after 8 seconds
+          setTimeout(() => {
+            setNotification(null);
+          }, 8000);
+        } finally {
+          setAnalyzing(false);
+          setIsRebuilding(false);
+        }
+      } else {
+        console.log('Missing required data for auto-regeneration:', {
+          hasTeam: !!selectedTeamId,
+          hasOpponent: !!selectedOpponentId,
+          hasFronts: fronts.length > 0
+        });
+      }
+    };
+
+    window.addEventListener('terminologyUpdated', handleTerminologyUpdated);
+
+    return () => {
+      window.removeEventListener('terminologyUpdated', handleTerminologyUpdated);
+    };
+  }, [selectedTeamId, selectedOpponentId, fronts, coverages, blitzes, frontsPct, coveragesPct, blitzPct, overallBlitzPct]);
 
   const handleRebuildPlaypool = async () => {
     try {
