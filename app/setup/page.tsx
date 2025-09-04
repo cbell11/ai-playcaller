@@ -1066,7 +1066,17 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         
         {/* Add image preview dialog - now for all categories */}
         <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
-          <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] flex flex-col fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+          <DialogContent 
+            className="max-w-4xl w-[90vw] max-h-[90vh] flex flex-col"
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 50,
+              margin: 0
+            }}
+          >
             <DialogHeader className="pb-2 text-center flex-shrink-0">
               <DialogTitle className="text-xl text-center w-full">
                 {category === "formations" ? "Formation" : 

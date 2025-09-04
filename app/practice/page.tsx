@@ -2306,7 +2306,17 @@ export default function PracticePage() {
           setSelectedScoutCardPlay(null);
         }
       }}>
-        <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] flex flex-col fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-0 overflow-hidden">
+        <DialogContent 
+          className="max-w-4xl w-[90vw] max-h-[90vh] flex flex-col p-0 overflow-hidden"
+          style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 50,
+            margin: 0
+          }}
+        >
           <DialogHeader className="sr-only">
             <DialogTitle>Scout Card Preview</DialogTitle>
           </DialogHeader>
