@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { OpponentSelect } from "./OpponentSelect"
 import { createBrowserClient } from '@supabase/ssr'
-import { UserCog, HelpCircle, Wrench, Binoculars, ClipboardList, Timer } from 'lucide-react'
+import { UserCog, HelpCircle, Wrench, Binoculars, ClipboardList, Timer, MessageCircle } from 'lucide-react'
 
 const navigation = [
   { name: "Admin", href: "/admin", icon: UserCog, adminOnly: true },
@@ -131,6 +131,16 @@ export function NavLinks() {
       >
         <HelpCircle className="mr-2 h-4 w-4" />
         <span>Help</span>
+      </button>
+      <button
+        onClick={(e) => handleNavigation("/contact", e)}
+        className={cn(
+          "group flex items-center rounded-md px-3 py-2 text-sm font-medium text-white hover:bg-white hover:bg-opacity-10 w-full text-left cursor-pointer transform transition-all duration-200 hover:scale-105",
+          pathname === "/contact" ? "bg-white bg-opacity-10 text-white" : "text-white hover:bg-white hover:bg-opacity-10"
+        )}
+      >
+        <MessageCircle className="mr-2 h-4 w-4" />
+        <span>Contact Us</span>
       </button>
     </nav>
   )
