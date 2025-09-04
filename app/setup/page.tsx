@@ -1066,8 +1066,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         
         {/* Add image preview dialog - now for all categories */}
         <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
-          <DialogContent className="max-w-[75vw] w-full max-h-[98vh]">
-            <DialogHeader className="pb-1 text-center">
+          <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] flex flex-col fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <DialogHeader className="pb-2 text-center flex-shrink-0">
               <DialogTitle className="text-xl text-center w-full">
                 {category === "formations" ? "Formation" : 
                  category === "form_tags" ? "Formation Tag" : 
@@ -1082,25 +1082,24 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                  category === "shot_plays" ? "Shot Play" : ""}: {selectedImage?.concept}
               </DialogTitle>
             </DialogHeader>
-            <div className="flex justify-center items-center p-0 h-full w-full">
+            <div className="flex justify-center items-center flex-1 min-h-0 overflow-hidden">
               {selectedImage?.url ? (
                 <div className="w-full h-full flex justify-center items-center">
                   <img 
                     src={selectedImage.url} 
                     alt={selectedImage.concept} 
-                    className="max-h-[95vh] w-auto object-contain"
-                    style={{ maxWidth: '100%' }}
+                    className="max-w-full max-h-full object-contain"
                   />
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 h-[95vh] w-full">
+                <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 w-full h-64">
                   <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No Image Available</h3>
                   <p className="text-gray-500">This formation doesn't have an image associated with it.</p>
                 </div>
               )}
             </div>
-            <DialogFooter className="pt-1 justify-center">
+            <DialogFooter className="pt-2 justify-center flex-shrink-0">
               <Button variant="secondary" onClick={() => setSelectedImage(null)} className="cursor-pointer">
                 Close
               </Button>
