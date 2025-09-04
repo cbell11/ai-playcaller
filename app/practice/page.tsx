@@ -2300,39 +2300,32 @@ export default function PracticePage() {
       )}
 
       {/* Image Preview Dialog with Replace button */}
-      <Dialog open={!!selectedImage} onOpenChange={(open) => {
-        if (!open) {
-          setSelectedImage(null);
-          setSelectedScoutCardPlay(null);
-        }
-      }}>
-        <DialogContent 
-          className="max-w-4xl w-[90vw] max-h-[90vh] flex flex-col p-0 overflow-hidden"
-          style={{
-            position: 'fixed',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 50,
-            margin: 0
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50"
+          onClick={() => {
+            setSelectedImage(null);
+            setSelectedScoutCardPlay(null);
           }}
         >
-          <DialogHeader className="sr-only">
-            <DialogTitle>Scout Card Preview</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-hidden flex items-center justify-center">
-            {selectedImage && (
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-[95vw] max-h-[95vh] w-auto h-auto flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b flex-shrink-0">
+              <h2 className="text-xl font-semibold text-center">Scout Card Preview</h2>
+            </div>
+            <div className="flex-1 flex items-center justify-center p-4 min-h-0">
               <img
                 src={selectedImage}
                 alt="Scout card"
                 className="max-w-full max-h-full object-contain"
+                style={{ maxWidth: '85vw', maxHeight: '75vh' }}
                 onClick={(e) => e.stopPropagation()}
               />
-            )}
-          </div>
-          {/* Always show Replace button for scout cards */}
-          {selectedImage && (
-            <div className="p-4 bg-white border-t flex justify-center flex-shrink-0">
+            </div>
+            {/* Always show Replace button for scout cards */}
+            <div className="p-4 border-t flex justify-center flex-shrink-0">
               <Button
                 variant="outline"
                 className="bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
@@ -2344,9 +2337,9 @@ export default function PracticePage() {
                 Replace
               </Button>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
 
       {/* Add Scout Card Modal */}
       {renderAddScoutCardModal()}

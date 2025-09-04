@@ -1068,57 +1068,54 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         )}
         
         {/* Add image preview dialog - now for all categories */}
-        <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
-          <DialogContent 
-            className="max-w-4xl w-[90vw] max-h-[90vh] flex flex-col"
-            style={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 50,
-              margin: 0
-            }}
+        {selectedImage && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50"
+            onClick={() => setSelectedImage(null)}
           >
-            <DialogHeader className="pb-2 text-center flex-shrink-0">
-              <DialogTitle className="text-xl text-center w-full">
-                {category === "formations" ? "Formation" : 
-                 category === "form_tags" ? "Formation Tag" : 
-                 category === "shifts" ? "Shift" : 
-                 category === "to_motions" ? "To Motion" : 
-                 category === "from_motions" ? "From Motion" :
-                 category === "run_game" ? "Run Game" :
-                 category === "pass_protections" ? "Pass Protection" :
-                 category === "quick_game" ? "Quick Game" :
-                 category === "dropback_game" ? "Dropback Game" :
-                 category === "screen_game" ? "Screen Game" :
-                 category === "shot_plays" ? "Shot Play" : ""}: {selectedImage?.concept}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex justify-center items-center flex-1 min-h-0 overflow-hidden">
-              {selectedImage?.url ? (
-                <div className="w-full h-full flex justify-center items-center">
+            <div 
+              className="bg-white rounded-lg shadow-xl max-w-[95vw] max-h-[95vh] w-auto h-auto flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b flex-shrink-0">
+                <h2 className="text-xl font-semibold text-center">
+                  {category === "formations" ? "Formation" : 
+                   category === "form_tags" ? "Formation Tag" : 
+                   category === "shifts" ? "Shift" : 
+                   category === "to_motions" ? "To Motion" : 
+                   category === "from_motions" ? "From Motion" :
+                   category === "run_game" ? "Run Game" :
+                   category === "pass_protections" ? "Pass Protection" :
+                   category === "quick_game" ? "Quick Game" :
+                   category === "dropback_game" ? "Dropback Game" :
+                   category === "screen_game" ? "Screen Game" :
+                   category === "shot_plays" ? "Shot Play" : ""}: {selectedImage?.concept}
+                </h2>
+              </div>
+              <div className="flex-1 flex items-center justify-center p-4 min-h-0">
+                {selectedImage?.url ? (
                   <img 
                     src={selectedImage.url} 
                     alt={selectedImage.concept} 
                     className="max-w-full max-h-full object-contain"
+                    style={{ maxWidth: '85vw', maxHeight: '75vh' }}
                   />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 w-full h-64">
-                  <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Image Available</h3>
-                  <p className="text-gray-500">This formation doesn't have an image associated with it.</p>
-                </div>
-              )}
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                    <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Image Available</h3>
+                    <p className="text-gray-500">This formation doesn't have an image associated with it.</p>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t flex justify-center flex-shrink-0">
+                <Button variant="secondary" onClick={() => setSelectedImage(null)} className="cursor-pointer">
+                  Close
+                </Button>
+              </div>
             </div>
-            <DialogFooter className="pt-2 justify-center flex-shrink-0">
-              <Button variant="secondary" onClick={() => setSelectedImage(null)} className="cursor-pointer">
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
