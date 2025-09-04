@@ -900,7 +900,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                      category === "shot_plays" ? "Shot Play" :
                      category === "concept_tags" ? "Concept Tag" : ""}
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-w-[400px] max-h-[300px] overflow-y-auto">
                 {availableItems
                   .sort((a, b) => {
                     const aSort = (a.label || a.concept || '').toLowerCase()
@@ -911,8 +911,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                     <SelectItem 
                       key={item.concept || ''} 
                       value={item.concept || ''}
+                      className="whitespace-normal break-words min-h-[60px] py-3 leading-relaxed text-xs"
                     >
-                      {item.concept || ''}
+                      <span className="block text-xs">{item.concept || ''}</span>
                     </SelectItem>
                   ))}
               </SelectContent>
@@ -958,11 +959,11 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <SelectTrigger className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "w-[220px] cursor-pointer" : "w-[280px] cursor-pointer"}>
                     <SelectValue placeholder="Select..." />
                   </SelectTrigger>
-                  <SelectContent className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "min-w-[220px]" : "min-w-[280px]"}>
+                  <SelectContent className={`${category === "to_motions" || category === "from_motions" || category === "shifts" ? "min-w-[220px] max-w-[320px]" : "min-w-[280px] max-w-[400px]"} max-h-[300px] overflow-y-auto`}>
                     {/* Always add the current concept to ensure it's in the list */}
                     {term.concept && (
-                      <SelectItem key={`current-${term.concept}`} value={term.concept}>
-                        {term.concept}
+                      <SelectItem key={`current-${term.concept}`} value={term.concept} className="whitespace-normal break-words min-h-[60px] py-3 leading-relaxed text-xs">
+                        <span className="block text-xs">{term.concept}</span>
                       </SelectItem>
                     )}
                     {/* Show all default items with proper disabled states */}
@@ -993,9 +994,11 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                             key={`${item.concept}-${index}`} 
                             value={item.concept || ''} 
                             disabled={isAlreadySelected}
-                            className={isAlreadySelected ? "text-gray-400" : ""}
+                            className={`whitespace-normal break-words min-h-[60px] py-3 leading-relaxed text-xs ${isAlreadySelected ? "text-gray-400" : ""}`}
                           >
-                            {item.concept} {isAlreadySelected ? "(already selected)" : ""}
+                            <span className="block text-xs">
+                              {item.concept} {isAlreadySelected ? "(already selected)" : ""}
+                            </span>
                           </SelectItem>
                         );
                       })
