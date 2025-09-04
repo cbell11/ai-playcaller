@@ -2306,23 +2306,23 @@ export default function PracticePage() {
           setSelectedScoutCardPlay(null);
         }
       }}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] flex flex-col fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-0 overflow-hidden">
           <DialogHeader className="sr-only">
             <DialogTitle>Scout Card Preview</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 min-h-0 overflow-hidden flex items-center justify-center">
             {selectedImage && (
               <img
                 src={selectedImage}
                 alt="Scout card"
-                className="w-full h-auto object-contain max-h-[730px]"
+                className="max-w-full max-h-full object-contain"
                 onClick={(e) => e.stopPropagation()}
               />
             )}
           </div>
           {/* Always show Replace button for scout cards */}
           {selectedImage && (
-            <div className="p-4 bg-white border-t flex justify-center shrink-0">
+            <div className="p-4 bg-white border-t flex justify-center flex-shrink-0">
               <Button
                 variant="outline"
                 className="bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
