@@ -4843,6 +4843,274 @@ export default function PlanPage() {
           }
         }
       }
+
+      // Special handling for Front Beater sections - use run_game and rpo_game plays with concept variety
+      if (isFrontBeaterSection && frontName) {
+        const count = sectionSizes[section];
+        
+        // Filter for run_game and rpo_game plays that beat this specific front
+        const frontBeaterPlays = playPool.filter(play => {
+          if (!(['run_game', 'rpo_game'].includes(play.category))) {
+            return false;
+          }
+          if (play.front_beaters) {
+            const frontBeaters = play.front_beaters.toLowerCase();
+            const targetFront = frontName.toLowerCase();
+            return frontBeaters.includes(targetFront);
+          }
+          return false;
+        });
+        
+        // Track used concepts to prevent duplicates
+        const usedConcepts = new Set<string>();
+        const selectedPlays: ExtendedPlay[] = [];
+        
+        // Shuffle front beater plays to randomize selection
+        const shuffledFrontBeaterPlays = [...frontBeaterPlays].sort(() => Math.random() - 0.5);
+        
+        // Select unique concepts from front beater plays
+        for (const play of shuffledFrontBeaterPlays) {
+          if (selectedPlays.length >= count) break;
+          
+          // Check if concept is already used
+          if (!usedConcepts.has(play.concept)) {
+            selectedPlays.push(play);
+            usedConcepts.add(play.concept);
+          }
+        }
+        
+        // If we still need more plays, allow concept duplicates
+        if (selectedPlays.length < count) {
+          const remainingPlays = frontBeaterPlays.filter(play => 
+            !selectedPlays.some(selected => selected.play_id === play.play_id)
+          );
+          const shuffledRemainingPlays = [...remainingPlays].sort(() => Math.random() - 0.5);
+          
+          for (const play of shuffledRemainingPlays) {
+            if (selectedPlays.length >= count) break;
+            selectedPlays.push(play);
+          }
+        }
+        
+        if (selectedPlays.length === 0) {
+          setNotification({
+            message: `No ${frontName} front beater plays available`,
+            type: 'error'
+          });
+          return;
+        }
+        
+        // Shuffle the final selected plays to randomize the order
+        const shuffledSelectedPlays = [...selectedPlays].sort(() => Math.random() - 0.5);
+        
+        console.log(`${frontName} Beaters generated with ${shuffledSelectedPlays.length} plays with ${usedConcepts.size} unique concepts (${selectedPlays.filter(p => p.category === 'run_game').length} run_game, ${selectedPlays.filter(p => p.category === 'rpo_game').length} rpo_game)`);
+
+        // Delete existing unlocked plays for this section
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toString().toLowerCase())
+          .eq('is_locked', false);
+
+        if (deleteError) {
+          throw new Error('Failed to clear unlocked plays');
+        }
+
+        // Calculate available positions after locked plays
+        const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+        
+        // Create array of all available positions
+        const availablePositions: number[] = [];
+        for (let i = 0; i < count; i++) {
+          if (!lockedPositions.has(i)) {
+            availablePositions.push(i);
+          }
+        }
+        
+        // Shuffle the available positions to randomize the final order
+        const shuffledPositions = [...availablePositions].sort(() => Math.random() - 0.5);
+        
+        const insertData = [];
+
+        // Insert new plays into shuffled positions
+        for (let i = 0; i < Math.min(shuffledSelectedPlays.length, shuffledPositions.length); i++) {
+          const play = shuffledSelectedPlays[i];
+          const position = shuffledPositions[i];
+          
+          insertData.push({
+            team_id,
+            opponent_id,
+            play_id: play.play_id,
+            section: section.toString().toLowerCase(),
+            position: position,
+            combined_call: formatPlayFromPool(play),
+            customized_edit: play.customized_edit,
+            is_locked: false,
+            category: play.category
+          });
+        }
+
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+
+        setNotification({
+          message: `Updated ${frontName} Beaters with ${insertData.length} plays`,
+          type: 'success'
+        });
+        return;
+      }
+
+      // Special handling for Coverage Beater sections - use quick_game, dropback_game, and shot_plays with concept variety
+      if (isCoverageBeaterSection && coverageName) {
+        const count = sectionSizes[section];
+        
+        // Filter for quick_game, dropback_game, and shot_plays that beat this specific coverage
+        const coverageBeaterPlays = playPool.filter(play => {
+          if (!(['quick_game', 'dropback_game', 'shot_plays'].includes(play.category))) {
+            return false;
+          }
+          if (play.coverage_beaters) {
+            const coverageBeaters = play.coverage_beaters.toLowerCase();
+            const targetCoverage = coverageName.toLowerCase();
+            return coverageBeaters.includes(targetCoverage);
+          }
+          return false;
+        });
+        
+        // Track used concepts to prevent duplicates
+        const usedConcepts = new Set<string>();
+        const selectedPlays: ExtendedPlay[] = [];
+        
+        // Shuffle coverage beater plays to randomize selection
+        const shuffledCoverageBeaterPlays = [...coverageBeaterPlays].sort(() => Math.random() - 0.5);
+        
+        // Select unique concepts from coverage beater plays
+        for (const play of shuffledCoverageBeaterPlays) {
+          if (selectedPlays.length >= count) break;
+          
+          // Check if concept is already used
+          if (!usedConcepts.has(play.concept)) {
+            selectedPlays.push(play);
+            usedConcepts.add(play.concept);
+          }
+        }
+        
+        // If we still need more plays, allow concept duplicates
+        if (selectedPlays.length < count) {
+          const remainingPlays = coverageBeaterPlays.filter(play => 
+            !selectedPlays.some(selected => selected.play_id === play.play_id)
+          );
+          const shuffledRemainingPlays = [...remainingPlays].sort(() => Math.random() - 0.5);
+          
+          for (const play of shuffledRemainingPlays) {
+            if (selectedPlays.length >= count) break;
+            selectedPlays.push(play);
+          }
+        }
+        
+        if (selectedPlays.length === 0) {
+          setNotification({
+            message: `No ${coverageName} coverage beater plays available`,
+            type: 'error'
+          });
+          return;
+        }
+        
+        // Shuffle the final selected plays to randomize the order
+        const shuffledSelectedPlays = [...selectedPlays].sort(() => Math.random() - 0.5);
+        
+        console.log(`${coverageName} Beaters generated with ${shuffledSelectedPlays.length} plays with ${usedConcepts.size} unique concepts (${selectedPlays.filter(p => p.category === 'quick_game').length} quick_game, ${selectedPlays.filter(p => p.category === 'dropback_game').length} dropback_game, ${selectedPlays.filter(p => p.category === 'shot_plays').length} shot_plays)`);
+
+        // Delete existing unlocked plays for this section
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toString().toLowerCase())
+          .eq('is_locked', false);
+
+        if (deleteError) {
+          throw new Error('Failed to clear unlocked plays');
+        }
+
+        // Calculate available positions after locked plays
+        const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+        
+        // Create array of all available positions
+        const availablePositions: number[] = [];
+        for (let i = 0; i < count; i++) {
+          if (!lockedPositions.has(i)) {
+            availablePositions.push(i);
+          }
+        }
+        
+        // Shuffle the available positions to randomize the final order
+        const shuffledPositions = [...availablePositions].sort(() => Math.random() - 0.5);
+        
+        const insertData = [];
+
+        // Insert new plays into shuffled positions
+        for (let i = 0; i < Math.min(shuffledSelectedPlays.length, shuffledPositions.length); i++) {
+          const play = shuffledSelectedPlays[i];
+          const position = shuffledPositions[i];
+          
+          insertData.push({
+            team_id,
+            opponent_id,
+            play_id: play.play_id,
+            section: section.toString().toLowerCase(),
+            position: position,
+            combined_call: formatPlayFromPool(play),
+            customized_edit: play.customized_edit,
+            is_locked: false,
+            category: play.category
+          });
+        }
+
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+
+        setNotification({
+          message: `Updated ${coverageName} Beaters with ${insertData.length} plays`,
+          type: 'success'
+        });
+        return;
+      }
       
       const filteredPlays = playPool
         .filter(p => {
