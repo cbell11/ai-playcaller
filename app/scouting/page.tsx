@@ -27,20 +27,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/app/components/ui/slider"
 import { Textarea } from "@/app/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog"
-import { 
-  DialogHighZ, 
-  DialogHighZContent, 
-  DialogHighZHeader, 
-  DialogHighZTitle, 
-  DialogHighZFooter 
-} from "../components/ui/dialog-high-z"
-import {
-  SelectSafeDialog,
-  SelectSafeDialogContent,
-  SelectSafeDialogHeader,
-  SelectSafeDialogFooter,
-  SelectSafeDialogTitle,
-} from "../components/ui/dialog-select-fix"
 
 // Define the option type with the new fields
 type ScoutingOption = {
@@ -2190,11 +2176,11 @@ export default function ScoutingPage() {
       )}
 
       {/* Add Front Dialog */}
-      <SelectSafeDialog open={showAddFrontDialog} onOpenChange={setShowAddFrontDialog}>
-        <SelectSafeDialogContent>
-          <SelectSafeDialogHeader>
-            <SelectSafeDialogTitle>Add Front</SelectSafeDialogTitle>
-          </SelectSafeDialogHeader>
+      <Dialog open={showAddFrontDialog} onOpenChange={setShowAddFrontDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Front</DialogTitle>
+          </DialogHeader>
           <div className="py-2">
             <Select 
               value={selectedFrontId} 
@@ -2220,7 +2206,7 @@ export default function ScoutingPage() {
               <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
             )}
           </div>
-          <SelectSafeDialogFooter>
+          <DialogFooter>
             <Button variant="outline" onClick={() => {
               setShowAddFrontDialog(false);
               setSelectedFrontId("");
@@ -2228,16 +2214,16 @@ export default function ScoutingPage() {
             }}>
               Cancel
             </Button>
-          </SelectSafeDialogFooter>
-        </SelectSafeDialogContent>
-      </SelectSafeDialog>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Coverage Dialog */}
-      <SelectSafeDialog open={showAddCoverageDialog} onOpenChange={setShowAddCoverageDialog}>
-        <SelectSafeDialogContent>
-          <SelectSafeDialogHeader>
-            <SelectSafeDialogTitle>Add Coverage</SelectSafeDialogTitle>
-          </SelectSafeDialogHeader>
+      <Dialog open={showAddCoverageDialog} onOpenChange={setShowAddCoverageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Coverage</DialogTitle>
+          </DialogHeader>
           <div className="py-2">
             <Select 
               value={selectedCoverageId} 
@@ -2263,7 +2249,7 @@ export default function ScoutingPage() {
               <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
             )}
           </div>
-          <SelectSafeDialogFooter>
+          <DialogFooter>
             <Button variant="outline" onClick={() => {
               setShowAddCoverageDialog(false);
               setSelectedCoverageId("");
@@ -2271,16 +2257,16 @@ export default function ScoutingPage() {
             }}>
               Cancel
             </Button>
-          </SelectSafeDialogFooter>
-        </SelectSafeDialogContent>
-      </SelectSafeDialog>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Blitz Dialog */}
-      <SelectSafeDialog open={showAddBlitzDialog} onOpenChange={setShowAddBlitzDialog}>
-        <SelectSafeDialogContent>
-          <SelectSafeDialogHeader>
-            <SelectSafeDialogTitle>Add Blitz</SelectSafeDialogTitle>
-          </SelectSafeDialogHeader>
+      <Dialog open={showAddBlitzDialog} onOpenChange={setShowAddBlitzDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Blitz</DialogTitle>
+          </DialogHeader>
           <div className="py-2">
             <Select 
               value={selectedBlitzId} 
@@ -2306,7 +2292,7 @@ export default function ScoutingPage() {
               <p className="text-sm text-red-600 mt-2">{errorMessage}</p>
             )}
           </div>
-          <SelectSafeDialogFooter>
+          <DialogFooter>
             <Button variant="outline" onClick={() => {
               setShowAddBlitzDialog(false);
               setSelectedBlitzId("");
@@ -2314,9 +2300,9 @@ export default function ScoutingPage() {
             }}>
               Cancel
             </Button>
-          </SelectSafeDialogFooter>
-        </SelectSafeDialogContent>
-      </SelectSafeDialog>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* First Opponent Modal */}
       <Dialog open={showFirstOpponentModal} onOpenChange={() => {}}>
