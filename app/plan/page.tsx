@@ -5111,6 +5111,130 @@ export default function PlanPage() {
         });
         return;
       }
+
+      // Special handling for Two Point Plays - use plays with third_s = true (same as 3rd and short)
+      if (section === 'twoPointPlays') {
+        const count = sectionSizes[section];
+        
+        // Filter for plays with third_s = true (short yardage situations)
+        const twoPointPlays = playPool.filter(play => play.third_s === true);
+        
+        // Track used concepts to prevent duplicates
+        const usedConcepts = new Set<string>();
+        const selectedPlays: ExtendedPlay[] = [];
+        
+        // Shuffle two point plays to randomize selection
+        const shuffledTwoPointPlays = [...twoPointPlays].sort(() => Math.random() - 0.5);
+        
+        // Select unique concepts from two point plays
+        for (const play of shuffledTwoPointPlays) {
+          if (selectedPlays.length >= count) break;
+          
+          // Check if concept is already used
+          if (!usedConcepts.has(play.concept)) {
+            selectedPlays.push(play);
+            usedConcepts.add(play.concept);
+          }
+        }
+        
+        // If we still need more plays, allow concept duplicates
+        if (selectedPlays.length < count) {
+          const remainingPlays = twoPointPlays.filter(play => 
+            !selectedPlays.some(selected => selected.play_id === play.play_id)
+          );
+          const shuffledRemainingPlays = [...remainingPlays].sort(() => Math.random() - 0.5);
+          
+          for (const play of shuffledRemainingPlays) {
+            if (selectedPlays.length >= count) break;
+            selectedPlays.push(play);
+          }
+        }
+        
+        if (selectedPlays.length === 0) {
+          setNotification({
+            message: 'No two point plays available (plays with third_s = true)',
+            type: 'error'
+          });
+          return;
+        }
+        
+        // Shuffle the final selected plays to randomize the order
+        const shuffledSelectedPlays = [...selectedPlays].sort(() => Math.random() - 0.5);
+        
+        console.log(`Two Point Plays generated with ${shuffledSelectedPlays.length} plays with ${usedConcepts.size} unique concepts from third_s = true plays`);
+
+        // Delete existing unlocked plays for this section
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toString().toLowerCase())
+          .eq('is_locked', false);
+
+        if (deleteError) {
+          throw new Error('Failed to clear unlocked plays');
+        }
+
+        // Calculate available positions after locked plays
+        const lockedPositions = new Set(lockedPlays?.map(p => p.position) || []);
+        
+        // Create array of all available positions
+        const availablePositions: number[] = [];
+        for (let i = 0; i < count; i++) {
+          if (!lockedPositions.has(i)) {
+            availablePositions.push(i);
+          }
+        }
+        
+        // Shuffle the available positions to randomize the final order
+        const shuffledPositions = [...availablePositions].sort(() => Math.random() - 0.5);
+        
+        const insertData = [];
+
+        // Insert new plays into shuffled positions
+        for (let i = 0; i < Math.min(shuffledSelectedPlays.length, shuffledPositions.length); i++) {
+          const play = shuffledSelectedPlays[i];
+          const position = shuffledPositions[i];
+          
+          insertData.push({
+            team_id,
+            opponent_id,
+            play_id: play.play_id,
+            section: section.toString().toLowerCase(),
+            position: position,
+            combined_call: formatPlayFromPool(play),
+            customized_edit: play.customized_edit,
+            is_locked: false,
+            category: play.category
+          });
+        }
+
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+
+        setNotification({
+          message: `Updated Two Point Plays with ${insertData.length} plays`,
+          type: 'success'
+        });
+        return;
+      }
       
       const filteredPlays = playPool
         .filter(p => {
