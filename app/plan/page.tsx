@@ -1340,6 +1340,13 @@ export default function PlanPage() {
     };
   });
   const [uniqueFormations, setUniqueFormations] = useState<string[]>([]);
+  
+  // Add state to track AI-generated focuses
+  const [aiGeneratedFocuses, setAiGeneratedFocuses] = useState<Record<string, { type: 'concept' | 'formation'; value: string }>>(() => {
+    if (!isBrowser) return {};
+    const saved = localStorage.getItem('aiGeneratedFocuses');
+    return saved ? JSON.parse(saved) : {};
+  });
 
   // Add this function to handle name updates
   const handleSectionNameChange = (section: string, newName: string) => {
@@ -1367,6 +1374,16 @@ export default function PlanPage() {
     if (isBrowser) {
       localStorage.setItem('basePackageConcepts', JSON.stringify(updated));
     }
+    
+    // Clear AI-generated status when user manually changes selection
+    if (aiGeneratedFocuses[section]) {
+      const aiUpdated = { ...aiGeneratedFocuses };
+      delete aiUpdated[section];
+      setAiGeneratedFocuses(aiUpdated);
+      if (isBrowser) {
+        localStorage.setItem('aiGeneratedFocuses', JSON.stringify(aiUpdated));
+      }
+    }
   };
 
   // Add this function to handle formation changes
@@ -1385,6 +1402,16 @@ export default function PlanPage() {
     setBasePackageFormations(updated);
     if (isBrowser) {
       localStorage.setItem('basePackageFormations', JSON.stringify(updated));
+    }
+    
+    // Clear AI-generated status when user manually changes selection
+    if (aiGeneratedFocuses[section]) {
+      const aiUpdated = { ...aiGeneratedFocuses };
+      delete aiUpdated[section];
+      setAiGeneratedFocuses(aiUpdated);
+      if (isBrowser) {
+        localStorage.setItem('aiGeneratedFocuses', JSON.stringify(aiUpdated));
+      }
     }
   };
 
@@ -2363,6 +2390,11 @@ export default function PlanPage() {
                             Select a concept to focus on for this package
                           </p>
                         )}
+                        {aiGeneratedFocuses[section]?.type === 'concept' && (
+                          <p className="text-sm text-blue-600 mt-1 font-medium">
+                            Focus: {aiGeneratedFocuses[section].value} (AI Generated)
+                          </p>
+                        )}
 
                         <div className="mt-4">
                           <Label htmlFor="formation">Focus Formation</Label>
@@ -2391,6 +2423,11 @@ export default function PlanPage() {
                           {!basePackageConcepts[section] && (
                             <p className="text-sm text-gray-500 mt-1">
                               Select a formation to focus on for this package
+                            </p>
+                          )}
+                          {aiGeneratedFocuses[section]?.type === 'formation' && (
+                            <p className="text-sm text-blue-600 mt-1 font-medium">
+                              Focus: {aiGeneratedFocuses[section].value} (AI Generated)
                             </p>
                           )}
                         </div>
@@ -4796,8 +4833,316 @@ export default function PlanPage() {
         return;
       }
 
-      // For other sections, continue with existing AI-based logic
+      // For base packages, use local filtering instead of AI
       const isBasePackage = section.startsWith('basePackage');
+      
+      if (isBasePackage) {
+        const count = sectionSizes[section];
+        let selectedConcept = basePackageConcepts[section];
+        let selectedFormation = basePackageFormations[section];
+        
+        // Auto-select focus if user hasn't selected one
+        if (!selectedConcept && !selectedFormation) {
+          // Find the most common concept or formation in the playpool
+          const conceptCounts = playPool.reduce((acc, play) => {
+            if (play.concept) {
+              acc[play.concept] = (acc[play.concept] || 0) + 1;
+            }
+            return acc;
+          }, {} as Record<string, number>);
+          
+          const formationCounts = playPool.reduce((acc, play) => {
+            if (play.formations) {
+              acc[play.formations] = (acc[play.formations] || 0) + 1;
+            }
+            return acc;
+          }, {} as Record<string, number>);
+          
+          // Find the most popular concept and formation
+          const mostCommonConcept = Object.entries(conceptCounts).sort((a, b) => b[1] - a[1])[0];
+          const mostCommonFormation = Object.entries(formationCounts).sort((a, b) => b[1] - a[1])[0];
+          
+          // Choose the one with more plays available
+          if (mostCommonConcept && mostCommonFormation) {
+            if (mostCommonConcept[1] >= mostCommonFormation[1]) {
+              selectedConcept = mostCommonConcept[0];
+              console.log(`Auto-selected concept "${selectedConcept}" for ${section} (${mostCommonConcept[1]} plays available)`);
+            } else {
+              selectedFormation = mostCommonFormation[0];
+              console.log(`Auto-selected formation "${selectedFormation}" for ${section} (${mostCommonFormation[1]} plays available)`);
+            }
+          } else if (mostCommonConcept) {
+            selectedConcept = mostCommonConcept[0];
+            console.log(`Auto-selected concept "${selectedConcept}" for ${section} (${mostCommonConcept[1]} plays available)`);
+          } else if (mostCommonFormation) {
+            selectedFormation = mostCommonFormation[0];
+            console.log(`Auto-selected formation "${selectedFormation}" for ${section} (${mostCommonFormation[1]} plays available)`);
+          }
+          
+          // Save the auto-selected focus to state and mark as AI-generated
+          if (selectedConcept) {
+            const updated = { ...basePackageConcepts, [section]: selectedConcept };
+            setBasePackageConcepts(updated);
+            if (isBrowser) {
+              localStorage.setItem('basePackageConcepts', JSON.stringify(updated));
+            }
+            
+            // Mark as AI-generated
+            const aiUpdated = { ...aiGeneratedFocuses, [section]: { type: 'concept' as const, value: selectedConcept } };
+            setAiGeneratedFocuses(aiUpdated);
+            if (isBrowser) {
+              localStorage.setItem('aiGeneratedFocuses', JSON.stringify(aiUpdated));
+            }
+          } else if (selectedFormation) {
+            const updated = { ...basePackageFormations, [section]: selectedFormation };
+            setBasePackageFormations(updated);
+            if (isBrowser) {
+              localStorage.setItem('basePackageFormations', JSON.stringify(updated));
+            }
+            
+            // Mark as AI-generated
+            const aiUpdated = { ...aiGeneratedFocuses, [section]: { type: 'formation' as const, value: selectedFormation } };
+            setAiGeneratedFocuses(aiUpdated);
+            if (isBrowser) {
+              localStorage.setItem('aiGeneratedFocuses', JSON.stringify(aiUpdated));
+            }
+          }
+        }
+        
+        // Filter plays based on concept or formation focus
+        let filteredPlays = playPool;
+        if (selectedConcept) {
+          filteredPlays = playPool.filter(play => play.concept === selectedConcept);
+          console.log(`Filtering ${playPool.length} plays by concept "${selectedConcept}" → ${filteredPlays.length} plays`);
+        } else if (selectedFormation) {
+          filteredPlays = playPool.filter(play => play.formations === selectedFormation);
+          console.log(`Filtering ${playPool.length} plays by formation "${selectedFormation}" → ${filteredPlays.length} plays`);
+        }
+        
+        // Ensure concept variety within the focus
+        const usedConcepts = new Set<string>();
+        const finalSelectedPlays: ExtendedPlay[] = [];
+        
+        // First pass: select plays with unique concepts
+        for (const play of filteredPlays) {
+          if (finalSelectedPlays.length >= count) break;
+          if (play.concept && !usedConcepts.has(play.concept)) {
+            finalSelectedPlays.push(play);
+            usedConcepts.add(play.concept);
+          }
+        }
+        
+        // Second pass: fill remaining slots with any plays from the filtered pool
+        for (const play of filteredPlays) {
+          if (finalSelectedPlays.length >= count) break;
+          if (!finalSelectedPlays.includes(play)) {
+            finalSelectedPlays.push(play);
+          }
+        }
+        
+        console.log(`Selected ${finalSelectedPlays.length} plays for ${section} with ${usedConcepts.size} unique concepts`);
+        
+        // Get locked plays for this section
+        const { data: lockedPlaysData } = await browserClient
+          .from('game_plan')
+          .select('position')
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toLowerCase())
+          .eq('is_locked', true);
+        
+        const lockedPositions = new Set(lockedPlaysData?.map(p => p.position) || []);
+        
+        // Delete unlocked plays first
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toLowerCase())
+          .eq('is_locked', false);
+        
+        if (deleteError) {
+          throw new Error(`Failed to clear section: ${deleteError.message}`);
+        }
+        
+        // Insert new plays into available positions
+        let currentPosition = 0;
+        const insertData = [];
+        
+        for (const play of finalSelectedPlays) {
+          // Find next available position
+          while (currentPosition < count && lockedPositions.has(currentPosition)) {
+            currentPosition++;
+          }
+          
+          if (currentPosition < count) {
+            insertData.push({
+              team_id,
+              opponent_id,
+              play_id: play.play_id,
+              section: section.toLowerCase(),
+              position: currentPosition,
+              combined_call: formatPlayFromPool(play),
+              customized_edit: play.customized_edit,
+              is_locked: false,
+              category: play.category
+            });
+            currentPosition++;
+          }
+        }
+        
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+          
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+        
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+        
+        const focus = selectedConcept ? `concept "${selectedConcept}"` : selectedFormation ? `formation "${selectedFormation}"` : 'all plays';
+        setNotification({
+          message: `Updated ${section} with ${insertData.length} plays using ${focus}`,
+          type: 'success'
+        });
+        return;
+      }
+
+      // Handle First & Second Combos section - use local filtering instead of AI
+      if (section === 'firstSecondCombos') {
+        const count = sectionSizes[section]; // This is number of combo pairs
+        const totalPlaysNeeded = count * 2; // Double because we need 2 plays per combo
+        
+        console.log(`First & Second Combos: Need ${count} combos (${totalPlaysNeeded} total plays)`);
+        
+        // Get all available categories
+        const availableCategories = ['run_game', 'rpo_game', 'quick_game', 'dropback_game', 'screen_game', 'moving_pocket', 'shot_plays'];
+        
+        // Create combo pairs by randomly selecting plays from different categories
+        const finalSelectedPlays: ExtendedPlay[] = [];
+        
+        for (let i = 0; i < count; i++) {
+          // For each combo pair, select two plays from different categories
+          const shuffledCategories = [...availableCategories].sort(() => Math.random() - 0.5);
+          
+          // Get first play from first available category
+          const firstCategoryPlays = playPool.filter(play => play.category === shuffledCategories[0]);
+          if (firstCategoryPlays.length > 0) {
+            const firstPlay = firstCategoryPlays[Math.floor(Math.random() * firstCategoryPlays.length)];
+            finalSelectedPlays.push(firstPlay);
+          }
+          
+          // Get second play from different category
+          const secondCategoryPlays = playPool.filter(play => 
+            play.category === shuffledCategories[1] && play.id !== finalSelectedPlays[finalSelectedPlays.length - 1]?.id
+          );
+          if (secondCategoryPlays.length > 0) {
+            const secondPlay = secondCategoryPlays[Math.floor(Math.random() * secondCategoryPlays.length)];
+            finalSelectedPlays.push(secondPlay);
+          } else {
+            // Fallback: get any play from a different category
+            const fallbackPlays = playPool.filter(play => 
+              play.category !== shuffledCategories[0] && play.id !== finalSelectedPlays[finalSelectedPlays.length - 1]?.id
+            );
+            if (fallbackPlays.length > 0) {
+              const fallbackPlay = fallbackPlays[Math.floor(Math.random() * fallbackPlays.length)];
+              finalSelectedPlays.push(fallbackPlay);
+            }
+          }
+        }
+        
+        console.log(`Selected ${finalSelectedPlays.length} plays for ${count} combos with categories:`, 
+          finalSelectedPlays.map(p => p.category));
+        
+        // Get locked plays for this section
+        const { data: lockedPlaysData } = await browserClient
+          .from('game_plan')
+          .select('position')
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toLowerCase())
+          .eq('is_locked', true);
+        
+        const lockedPositions = new Set(lockedPlaysData?.map(p => p.position) || []);
+        
+        // Delete unlocked plays first
+        const { error: deleteError } = await browserClient
+          .from('game_plan')
+          .delete()
+          .eq('team_id', team_id)
+          .eq('opponent_id', opponent_id)
+          .eq('section', section.toLowerCase())
+          .eq('is_locked', false);
+        
+        if (deleteError) {
+          throw new Error(`Failed to clear section: ${deleteError.message}`);
+        }
+        
+        // Insert new plays into available positions
+        let currentPosition = 0;
+        const insertData = [];
+        
+        for (const play of finalSelectedPlays) {
+          // Find next available position
+          while (currentPosition < totalPlaysNeeded && lockedPositions.has(currentPosition)) {
+            currentPosition++;
+          }
+          
+          if (currentPosition < totalPlaysNeeded) {
+            insertData.push({
+              team_id,
+              opponent_id,
+              play_id: play.play_id,
+              section: section.toLowerCase(),
+              position: currentPosition,
+              combined_call: formatPlayFromPool(play),
+              customized_edit: play.customized_edit,
+              is_locked: false,
+              category: play.category
+            });
+            currentPosition++;
+          }
+        }
+        
+        if (insertData.length > 0) {
+          const { error: insertError } = await browserClient
+            .from('game_plan')
+            .insert(insertData);
+          
+          if (insertError) {
+            throw new Error(`Failed to save plays: ${insertError.message}`);
+          }
+        }
+        
+        // Update local state
+        const updatedPlan = await fetchGamePlanFromDatabase(sectionSizes);
+        if (updatedPlan) {
+          setPlan(updatedPlan);
+          if (isBrowser) {
+            save('plan', updatedPlan);
+          }
+        }
+        
+        const combosCreated = Math.floor(insertData.length / 2);
+        setNotification({
+          message: `Updated First & Second Combos with ${combosCreated} combo pairs (${insertData.length} total plays)`,
+          type: 'success'
+        });
+        return;
+      }
+
+      // For other sections, continue with existing AI-based logic
       const selectedConcept = isBasePackage ? basePackageConcepts[section] : null;
       const selectedFormation = isBasePackage ? basePackageFormations[section] : null;
       
