@@ -130,7 +130,7 @@ export function NavLinks() {
         )}
       >
         <HelpCircle className="mr-2 h-4 w-4" />
-        <span>Help</span>
+        <span>Help Videos</span>
       </button>
       <button
         onClick={(e) => handleNavigation("/contact", e)}
