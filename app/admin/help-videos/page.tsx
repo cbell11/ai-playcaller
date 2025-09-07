@@ -30,8 +30,14 @@ export default function HelpVideosPage() {
   const [createVideoType, setCreateVideoType] = useState<'showcase' | 'tutorial'>('tutorial')
   const [createPosition, setCreatePosition] = useState<number>(1)
   const [creatingVideo, setCreatingVideo] = useState(false)
+  
+  // First Login Video state
+  const [showFirstLoginDialog, setShowFirstLoginDialog] = useState(false)
+  const [firstLoginUrl, setFirstLoginUrl] = useState('')
+  const [updatingFirstLogin, setUpdatingFirstLogin] = useState(false)
+  const [firstLoginVideoUrl, setFirstLoginVideoUrl] = useState('')
 
-  // Add effect to fetch help videos
+  // Add effect to fetch help videos and first login video
   useEffect(() => {
     const fetchHelpVideos = async () => {
       try {
@@ -43,6 +49,15 @@ export default function HelpVideosPage() {
           setHelpVideos(result.data);
         } else {
           setVideoError('Failed to load help videos');
+        }
+        
+        // Load first login video URL from localStorage
+        const savedFirstLoginUrl = localStorage.getItem('firstLoginVideoUrl');
+        if (savedFirstLoginUrl) {
+          setFirstLoginVideoUrl(savedFirstLoginUrl);
+        } else {
+          // Set default URL
+          setFirstLoginVideoUrl('https://www.loom.com/share/51c0ef4fbe404e3686597e530e8fee34?sid=011650c7-9438-47ae-8cab-81cd224b45e1');
         }
       } catch (err) {
         console.error('Error fetching help videos:', err);
@@ -157,6 +172,47 @@ export default function HelpVideosPage() {
     setUpdateSuccess(null)
   }
 
+  const handleUpdateFirstLogin = () => {
+    if (!firstLoginUrl.trim()) {
+      setVideoError('Please enter a valid Loom URL')
+      return
+    }
+
+    try {
+      setUpdatingFirstLogin(true)
+      setVideoError(null)
+      
+      // Save to localStorage
+      localStorage.setItem('firstLoginVideoUrl', firstLoginUrl.trim())
+      setFirstLoginVideoUrl(firstLoginUrl.trim())
+      
+      setUpdateSuccess('First Login Video updated successfully')
+      setShowFirstLoginDialog(false)
+      setFirstLoginUrl('')
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setUpdateSuccess(null), 3000)
+    } catch (err) {
+      console.error('Error updating first login video:', err)
+      setVideoError('Failed to update first login video')
+    } finally {
+      setUpdatingFirstLogin(false)
+    }
+  }
+
+  const handleEditFirstLogin = () => {
+    setFirstLoginUrl(firstLoginVideoUrl)
+    setShowFirstLoginDialog(true)
+    setVideoError(null)
+    setUpdateSuccess(null)
+  }
+
+  const handleCancelFirstLogin = () => {
+    setShowFirstLoginDialog(false)
+    setFirstLoginUrl('')
+    setVideoError(null)
+  }
+
   const moveVideo = async (video: HelpVideo, direction: 'up' | 'down') => {
     const currentIndex = helpVideos.findIndex(v => v.id === video.id)
     const newPosition = direction === 'up' ? video.position - 1 : video.position + 1
@@ -222,23 +278,23 @@ export default function HelpVideosPage() {
                   Training Video for New Users
                 </h3>
                 <div className="space-y-4">
-                  {helpVideos.filter(v => v.title === 'First Login Video').map((video) => (
-                    <div key={video.id} className="border rounded-lg p-4 bg-amber-50">
+                  {firstLoginVideoUrl && (
+                    <div className="border rounded-lg p-4 bg-amber-50">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-medium">{video.title}</h4>
-                            <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded">Special</span>
+                            <h4 className="font-medium">First Login Training Video</h4>
+                            <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded">Active</span>
                           </div>
                           <div className="relative w-full max-w-sm">
                             <div className="relative w-full pb-[56.25%] h-0 rounded overflow-hidden">
                               <iframe
-                                src={convertToEmbedUrl(video.loom_url)}
+                                src={convertToEmbedUrl(firstLoginVideoUrl)}
                                 frameBorder="0"
                                 allow="autoplay; fullscreen; picture-in-picture"
                                 allowFullScreen
                                 className="absolute top-0 left-0 w-full h-full"
-                                title={video.title}
+                                title="First Login Training Video"
                               />
                             </div>
                           </div>
@@ -250,7 +306,7 @@ export default function HelpVideosPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleEditVideo(video)}
+                            onClick={handleEditFirstLogin}
                           >
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
@@ -258,17 +314,12 @@ export default function HelpVideosPage() {
                         </div>
                       </div>
                     </div>
-                  ))}
-                  {helpVideos.filter(v => v.title === 'First Login Video').length === 0 && (
+                  )}
+                  {!firstLoginVideoUrl && (
                     <div className="border-2 border-dashed border-amber-300 rounded-lg p-6 text-center bg-amber-50">
                       <p className="text-amber-700 mb-4">No First Login Video configured</p>
                       <Button
-                        onClick={() => {
-                          setCreateTitle('First Login Video')
-                          setCreateVideoType('tutorial')
-                          setCreatePosition(1)
-                          setShowCreateDialog(true)
-                        }}
+                        onClick={handleEditFirstLogin}
                         className="bg-amber-600 hover:bg-amber-700"
                       >
                         <Plus className="h-4 w-4 mr-2" />
@@ -567,6 +618,61 @@ export default function HelpVideosPage() {
                 <>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Video
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* First Login Video Dialog */}
+      <Dialog open={showFirstLoginDialog} onOpenChange={(open) => !open && handleCancelFirstLogin()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update First Login Video</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="first-login-url">Loom URL</Label>
+              <Input
+                id="first-login-url"
+                value={firstLoginUrl}
+                onChange={(e) => setFirstLoginUrl(e.target.value)}
+                placeholder="https://www.loom.com/share/..."
+              />
+              <p className="text-sm text-gray-500">
+                Paste your Loom share or embed URL here. This video will be shown to all new users.
+              </p>
+            </div>
+            {videoError && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-md text-sm">
+                {videoError}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCancelFirstLogin}
+              disabled={updatingFirstLogin}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateFirstLogin}
+              disabled={updatingFirstLogin || !firstLoginUrl.trim()}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {updatingFirstLogin ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Update Video
                 </>
               )}
             </Button>

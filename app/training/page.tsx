@@ -38,16 +38,10 @@ export default function TrainingPage() {
         if (profile?.team_id) {
           setTeamId(profile.team_id);
           
-          // Try to load custom training video from help_videos table
-          const { data: helpVideo } = await supabase
-            .from('help_videos')
-            .select('video_url')
-            .eq('video_name', 'First Login Video')
-            .eq('team_id', profile.team_id)
-            .single();
-
-          if (helpVideo?.video_url) {
-            setVideoUrl(helpVideo.video_url);
+          // Try to load custom training video from localStorage
+          const savedFirstLoginUrl = localStorage.getItem('firstLoginVideoUrl');
+          if (savedFirstLoginUrl) {
+            setVideoUrl(savedFirstLoginUrl);
           }
         }
       } catch (error) {
@@ -125,8 +119,6 @@ export default function TrainingPage() {
                 src={getEmbedUrl(videoUrl)}
                 className="w-full h-full rounded-lg"
                 frameBorder="0"
-                webkitAllowFullScreen
-                mozallowfullscreen
                 allowFullScreen
                 title="AI Playcaller Training Video"
               />
