@@ -27,7 +27,7 @@ export default function HelpVideosPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [createTitle, setCreateTitle] = useState('')
   const [createUrl, setCreateUrl] = useState('')
-  const [createVideoType, setCreateVideoType] = useState<'showcase' | 'tutorial'>('tutorial')
+  const [createVideoType, setCreateVideoType] = useState<'showcase' | 'tutorial' | 'tips'>('tutorial')
   const [createPosition, setCreatePosition] = useState<number>(1)
   const [creatingVideo, setCreatingVideo] = useState(false)
   
@@ -450,6 +450,63 @@ export default function HelpVideosPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Tips and Tricks Videos */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">Tips & Tricks</span>
+                  Pro Tips and Advanced Features
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {helpVideos.filter(v => v.video_type === 'tips').map((video, index, filteredVideos) => (
+                    <div key={video.id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium">{video.title}</h4>
+                          <span className="text-sm text-gray-500">#{video.position}</span>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => moveVideo(video, 'up')}
+                            disabled={index === 0}
+                            title="Move up"
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => moveVideo(video, 'down')}
+                            disabled={index === filteredVideos.length - 1}
+                            title="Move down"
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditVideo(video)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="relative w-full pb-[56.25%] h-0 rounded overflow-hidden">
+                        <iframe
+                          src={convertToEmbedUrl(video.loom_url)}
+                          frameBorder="0"
+                          allow="autoplay; fullscreen; picture-in-picture"
+                          allowFullScreen
+                          className="absolute top-0 left-0 w-full h-full"
+                          title={video.title}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
@@ -565,13 +622,14 @@ export default function HelpVideosPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="create-type">Video Type</Label>
-              <Select value={createVideoType} onValueChange={(value: 'showcase' | 'tutorial') => setCreateVideoType(value)}>
+              <Select value={createVideoType} onValueChange={(value: 'showcase' | 'tutorial' | 'tips') => setCreateVideoType(value)}>
                 <SelectTrigger id="create-type">
                   <SelectValue placeholder="Select video type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="showcase">Showcase (Main Overview)</SelectItem>
                   <SelectItem value="tutorial">Tutorial (Step-by-Step)</SelectItem>
+                  <SelectItem value="tips">Tips & Tricks (Pro Tips)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

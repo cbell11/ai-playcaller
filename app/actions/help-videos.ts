@@ -6,7 +6,7 @@ export interface HelpVideo {
   id: string
   title: string
   loom_url: string
-  video_type: 'showcase' | 'tutorial'
+  video_type: 'showcase' | 'tutorial' | 'tips'
   position: number
   is_active: boolean
   created_at: string
@@ -136,7 +136,7 @@ export async function updateHelpVideo(
 export async function createHelpVideo(
   title: string,
   loom_url: string,
-  video_type: 'showcase' | 'tutorial',
+  video_type: 'showcase' | 'tutorial' | 'tips',
   position: number
 ): Promise<HelpVideoResult> {
   try {

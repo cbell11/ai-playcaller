@@ -33,6 +33,7 @@ export default function HelpPage() {
 
   const showcaseVideos = videos.filter(v => v.video_type === 'showcase')
   const tutorialVideos = videos.filter(v => v.video_type === 'tutorial')
+  const tipsVideos = videos.filter(v => v.video_type === 'tips')
 
   return (
     <div className="container mx-auto py-8">
@@ -85,6 +86,37 @@ export default function HelpPage() {
                       <CardHeader className="pb-3">
                         <CardTitle className="text-lg flex items-center gap-2">
                           <Play className="h-5 w-5 text-blue-500" />
+                          {video.title}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="relative w-full pb-[56.25%] h-0 rounded overflow-hidden">
+                          <iframe
+                            src={convertToEmbedUrl(video.loom_url)}
+                            frameBorder="0"
+                            allow="autoplay; fullscreen; picture-in-picture"
+                            allowFullScreen
+                            className="absolute top-0 left-0 w-full h-full"
+                            title={video.title}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tips and Tricks Videos Grid */}
+            {tipsVideos.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold mb-6 text-center">Tips & Tricks</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                  {tipsVideos.map((video) => (
+                    <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Play className="h-5 w-5 text-purple-500" />
                           {video.title}
                         </CardTitle>
                       </CardHeader>
