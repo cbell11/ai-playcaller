@@ -17,6 +17,7 @@ function generateJoinCode() {
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLogin, setIsLogin] = useState(true);
@@ -129,6 +130,12 @@ export default function AuthPage() {
           return;
         }
         
+        if (!firstName.trim()) {
+          setError("Please enter your first name");
+          setLoading(false);
+          return;
+        }
+        
         setSignupStep(2);
         setLoading(false);
         return;
@@ -164,10 +171,17 @@ export default function AuthPage() {
       // Get or create team_id first
       let teamId: string | undefined;
 
-      // Create the user
+      // Create the user with display name and first name
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        password
+        password,
+        options: {
+          data: {
+            display_name: firstName.trim(),
+            first_name: firstName.trim(),
+            full_name: firstName.trim()
+          }
+        }
       });
       
       if (authError) {
@@ -188,6 +202,28 @@ export default function AuthPage() {
       
       const userId = authData.user.id;
       console.log("Created user:", userId);
+
+      // Update user metadata to ensure first name is properly set
+      try {
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: {
+            display_name: firstName.trim(),
+            first_name: firstName.trim(),
+            full_name: firstName.trim()
+          }
+        });
+        
+        if (updateError) {
+          console.warn("Failed to update user metadata:", updateError);
+        } else {
+          console.log("Successfully updated user metadata with first name");
+          // Log the current user data to verify metadata
+          const { data: currentUser } = await supabase.auth.getUser();
+          console.log("Current user metadata:", currentUser.user?.user_metadata);
+        }
+      } catch (metadataError) {
+        console.warn("Error updating user metadata:", metadataError);
+      }
 
       // Check if profile already exists
       const { data: existingProfile, error: profileCheckError } = await supabase
@@ -270,7 +306,10 @@ export default function AuthPage() {
         console.log("Updating existing profile with team_id:", teamId);
         const { error: updateError } = await supabase
           .from('profiles')
-          .update({ team_id: teamId })
+          .update({ 
+            team_id: teamId,
+            first_name: firstName.trim() 
+          })
           .eq('id', userId);
 
         if (updateError) {
@@ -287,6 +326,7 @@ export default function AuthPage() {
           .insert([{
             id: userId,
             email: email,
+            first_name: firstName.trim(),
             team_id: teamId,
             created_at: new Date().toISOString()
           }]);
@@ -363,6 +403,19 @@ export default function AuthPage() {
 
   const renderSignupStep1 = () => (
     <div>
+      <div className="mb-4">
+        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="firstName">
+          First Name
+        </label>
+        <input
+          id="firstName"
+          type="text"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          placeholder="Enter your first name"
+        />
+      </div>
       <div className="mb-4">
         <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
           Email
@@ -820,6 +873,7 @@ export default function AuthPage() {
                   setTeamName("");
                   setTeamCode("");
                   setTeamCodeValid(null);
+                  setFirstName("");
                   setError("");
                 }}
                 className="text-blue-600 text-sm hover:underline cursor-pointer"
