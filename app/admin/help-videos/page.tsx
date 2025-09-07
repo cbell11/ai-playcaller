@@ -215,6 +215,70 @@ export default function HelpVideosPage() {
             </div>
           ) : (
             <div className="space-y-6">
+              {/* First Login Video */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-sm">First Login</span>
+                  Training Video for New Users
+                </h3>
+                <div className="space-y-4">
+                  {helpVideos.filter(v => v.title === 'First Login Video').map((video) => (
+                    <div key={video.id} className="border rounded-lg p-4 bg-amber-50">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium">{video.title}</h4>
+                            <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded">Special</span>
+                          </div>
+                          <div className="relative w-full max-w-sm">
+                            <div className="relative w-full pb-[56.25%] h-0 rounded overflow-hidden">
+                              <iframe
+                                src={convertToEmbedUrl(video.loom_url)}
+                                frameBorder="0"
+                                allow="autoplay; fullscreen; picture-in-picture"
+                                allowFullScreen
+                                className="absolute top-0 left-0 w-full h-full"
+                                title={video.title}
+                              />
+                            </div>
+                          </div>
+                          <p className="text-sm text-amber-700 mt-2">
+                            This video is shown to all new users when they first sign up.
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2 flex-shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditVideo(video)}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {helpVideos.filter(v => v.title === 'First Login Video').length === 0 && (
+                    <div className="border-2 border-dashed border-amber-300 rounded-lg p-6 text-center bg-amber-50">
+                      <p className="text-amber-700 mb-4">No First Login Video configured</p>
+                      <Button
+                        onClick={() => {
+                          setCreateTitle('First Login Video')
+                          setCreateVideoType('tutorial')
+                          setCreatePosition(1)
+                          setShowCreateDialog(true)
+                        }}
+                        className="bg-amber-600 hover:bg-amber-700"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add First Login Video
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Showcase Videos */}
               <div>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">

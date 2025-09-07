@@ -21,8 +21,19 @@ export default function Home() {
         // Use window.location for a full page redirect instead of router.push
         window.location.href = "/auth";
       } else {
-        // User is authenticated, redirect to setup page with a full page reload
-        window.location.href = "/setup";
+        // Check if user has seen training video
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('has_seen_training')
+          .eq('id', session.user.id)
+          .single();
+        
+        // Redirect based on training status
+        if (profile?.has_seen_training) {
+          window.location.href = "/setup";
+        } else {
+          window.location.href = "/training";
+        }
       }
     };
 

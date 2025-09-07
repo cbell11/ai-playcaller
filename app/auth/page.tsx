@@ -103,8 +103,19 @@ export default function AuthPage() {
       
       if (error) throw error;
       
-      // Redirect to scouting page instead of setup
-      window.location.href = "/scouting";
+      // Check if user has seen training video
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('has_seen_training')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+      
+      // Redirect based on training status
+      if (profile?.has_seen_training) {
+        window.location.href = "/scouting";
+      } else {
+        window.location.href = "/training";
+      }
     } catch (error: any) {
       setError(error.message || "An error occurred during sign in");
       setLoading(false);
@@ -343,8 +354,8 @@ export default function AuthPage() {
         }
       }
 
-      console.log("Successfully created/updated user and profile. Redirecting to scouting");
-      window.location.href = "/scouting";
+      console.log("Successfully created/updated user and profile. Redirecting to training");
+      window.location.href = "/training";
       
     } catch (error: any) {
       console.error("Signup error:", error);
