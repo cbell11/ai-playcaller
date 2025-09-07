@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Video, Edit, Save, X, Plus, ArrowUp, ArrowDown } from 'lucide-react'
-import { getAllHelpVideos, updateHelpVideo, createHelpVideo, HelpVideo } from '@/app/actions/help-videos'
+import { Loader2, Video, Edit, Save, X, Plus, ArrowUp, ArrowDown, Trash2 } from 'lucide-react'
+import { getAllHelpVideos, updateHelpVideo, createHelpVideo, deleteHelpVideo, HelpVideo } from '@/app/actions/help-videos'
 import { convertToEmbedUrl } from '@/lib/utils'
 
 export default function HelpVideosPage() {
@@ -213,6 +213,32 @@ export default function HelpVideosPage() {
     setVideoError(null)
   }
 
+  const handleDeleteVideo = async (video: HelpVideo) => {
+    if (!confirm(`Are you sure you want to delete "${video.title}"? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      setVideoError(null)
+      
+      const result = await deleteHelpVideo(video.id)
+      
+      if (result.success) {
+        // Remove from local state
+        setHelpVideos(prev => prev.filter(v => v.id !== video.id))
+        setUpdateSuccess(`Successfully deleted "${video.title}"`)
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setUpdateSuccess(null), 3000)
+      } else {
+        setVideoError(result.error?.message || 'Failed to delete video')
+      }
+    } catch (err) {
+      console.error('Error deleting video:', err)
+      setVideoError('Failed to delete video')
+    }
+  }
+
   const moveVideo = async (video: HelpVideo, direction: 'up' | 'down') => {
     const currentIndex = helpVideos.findIndex(v => v.id === video.id)
     const newPosition = direction === 'up' ? video.position - 1 : video.position + 1
@@ -387,6 +413,14 @@ export default function HelpVideosPage() {
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
                           </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteVideo(video)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -433,6 +467,14 @@ export default function HelpVideosPage() {
                             onClick={() => handleEditVideo(video)}
                           >
                             <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteVideo(video)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
@@ -490,6 +532,14 @@ export default function HelpVideosPage() {
                             onClick={() => handleEditVideo(video)}
                           >
                             <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteVideo(video)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
