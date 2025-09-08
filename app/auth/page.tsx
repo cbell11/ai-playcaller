@@ -681,8 +681,11 @@ export default function AuthPage() {
   }, [supabase]);
 
   return (
-    <div className="w-full max-w-md px-4" onClick={teamOption === "join" ? handleJoinCodeBoxClick : undefined}>
-                  <div className="text-center mb-4">
+    <div className="flex min-h-screen">
+      {/* Left Column - Auth Content */}
+      <div className="w-1/2 flex items-center justify-center px-8" onClick={teamOption === "join" ? handleJoinCodeBoxClick : undefined}>
+        <div className="w-full max-w-md">
+          <div className="text-center mb-4">
             <img 
               src={logoUrl} 
               alt="AI Playcaller" 
@@ -702,16 +705,16 @@ export default function AuthPage() {
               >
                 Subscribe Here
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
               </a>
             </div>
           </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-2xl font-semibold mb-6">
-            {showForgotPassword ? "Reset Password" : (isLogin ? "Sign In" : "Create Account")}
-          </h2>
+          
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-2xl font-semibold mb-6">
+              {showForgotPassword ? "Reset Password" : (isLogin ? "Sign In" : "Create Account")}
+            </h2>
           
           {!isLogin && !showForgotPassword && (
             <div className="flex mb-6">
@@ -893,6 +896,57 @@ export default function AuthPage() {
               </button>
             </div>
           )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right Column - How It Works */}
+      <div className="w-1/2 bg-white flex items-center justify-center px-8">
+        <div className="max-w-lg">
+          <h2 className="text-3xl font-bold text-gray-900 mb-8">How AI Playcaller Works</h2>
+          
+          <div className="space-y-8">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                1
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg text-gray-900 mb-2">Set Your Terminology</h3>
+                <p className="text-gray-600">Use our defaults or customize your own. Make sure formations, motions, and concepts match your coaching language.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                2
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg text-gray-900 mb-2">Scout Your Opponent</h3>
+                <p className="text-gray-600">Plug in basic tendencies—no need for exact stats. A rough profile is all the AI needs.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                3
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg text-gray-900 mb-2">Generate Your Gameplan</h3>
+                <p className="text-gray-600">AI creates plays from our pool of 1,000+ proven designs. Edit, reorder, and favorite what you like. Then print your callsheet and QB wristband.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                4
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg text-gray-900 mb-2">Run Your Practices</h3>
+                <p className="text-gray-600">Turn your gameplan into practice. Auto-generate practice scripts and scout cards that mirror opponent looks—ready to print and go.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
