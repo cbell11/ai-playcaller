@@ -17,7 +17,7 @@ const navigation = [
   { name: "Practice", href: "/practice", icon: Timer, beta: true },
 ]
 
-export function NavLinks() {
+export function NavLinks({ onMobileItemClick }: { onMobileItemClick?: () => void } = {}) {
   const pathname = usePathname()
   const router = useRouter()
   const [isAdmin, setIsAdmin] = useState(false)
@@ -51,6 +51,11 @@ export function NavLinks() {
   // Handle navigation with auto-save for setup page
   const handleNavigation = async (href: string, e: React.MouseEvent) => {
     e.preventDefault()
+    
+    // Close mobile menu if callback provided
+    if (onMobileItemClick) {
+      onMobileItemClick()
+    }
     
     // If we're on the setup page, trigger save before navigation
     if (pathname === '/setup') {
