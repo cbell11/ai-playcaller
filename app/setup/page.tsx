@@ -104,6 +104,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [isResetting, setIsResetting] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [expandedImageRow, setExpandedImageRow] = useState<string | null>(null)
+  const [showAllImages, setShowAllImages] = useState(false)
   const [defaultFormations, setDefaultFormations] = useState<Terminology[]>([])
   const [defaultFormTags, setDefaultFormTags] = useState<Terminology[]>([])
   const [defaultShifts, setDefaultShifts] = useState<Terminology[]>([])
@@ -865,7 +866,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div>
           <CardTitle className="text-xl font-bold">{title}</CardTitle>
-          <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
             Select the {category === "formations" ? "formations" : 
                        category === "form_tags" ? "formation tags" : 
                        category === "shifts" ? "shifts" : 
@@ -879,8 +880,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                        category === "shot_plays" ? "shot plays" :
                        category === "concept_tags" ? "concept tags" :
                        category === "rpo_tag" ? "RPO tags" : "items"} you want to use in your playbook. Delete the ones you don't use.
-            <span className="block mt-1 italic">Click the edit button to customize names.</span>
-          </p>
+              <span className="block mt-1 italic">Click the edit button to customize names.</span>
+            </p>
           {saveSuccess && (
             <div className="mt-2 text-sm bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center">
               <Check className="h-4 w-4 mr-2 text-green-600" />
@@ -889,37 +890,40 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           )}
         </div>
         <div className="flex space-x-2 items-center">
-          {((localTerms?.some && localTerms.some(term => term.isDirty)) || hasDeleted) && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleSaveAll}
-              disabled={isSaving}
-              className="bg-[#2ecc71] hover:bg-[#27ae60] text-white cursor-pointer"
-            >
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
-          )}
-          {isCheckingAvailable ? (
-            <Button
-              variant="outline"
-              disabled
-              className="cursor-wait"
-            >
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Checking...
-            </Button>
-          ) : availableCount === 0 ? (
-            <Button
-              variant="outline"
-              disabled
-              className="cursor-not-allowed"
-            >
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              No Items Available
-            </Button>
-          ) : (
-            <Select
+          <div className="flex items-center gap-2">
+            {((localTerms?.some && localTerms.some(term => term.isDirty)) || hasDeleted) && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSaveAll}
+                disabled={isSaving}
+                className="bg-[#2ecc71] hover:bg-[#27ae60] text-white cursor-pointer"
+              >
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-col w-full gap-2">
+            {isCheckingAvailable ? (
+              <Button
+                variant="outline"
+                disabled
+                className="cursor-wait"
+              >
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Checking...
+              </Button>
+            ) : availableCount === 0 ? (
+              <Button
+                variant="outline"
+                disabled
+                className="cursor-not-allowed"
+              >
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                No Items Available
+              </Button>
+            ) : (
+              <Select
               open={showAddDropdown}
               onOpenChange={setShowAddDropdown}
               onValueChange={(value) => addRow(value)}
@@ -957,7 +961,25 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   ))}
               </SelectContent>
             </Select>
-          )}
+            )}
+            {localTerms?.some(term => term.image_url) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (showAllImages) {
+                    setExpandedImageRow(null);
+                    setShowAllImages(false);
+                  } else {
+                    setShowAllImages(true);
+                  }
+                }}
+                className={`cursor-pointer w-full ${showAllImages ? 'bg-amber-400 hover:bg-amber-500 text-[#0B2545]' : 'bg-[#0B2545] hover:bg-[#0B2545]/80 text-white hover:text-white'}`}
+              >
+                {showAllImages ? "Hide All Images" : "Show All Images"}
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -1109,17 +1131,17 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <Trash2 className="h-4 w-4 text-rose-500" />
                 </Button>
               </div>
-              </div>
+            </div>
               
               {/* Expanded Image Row */}
-              {expandedImageRow === term.id && (
-                <div className="col-span-full px-4 py-4 bg-gray-50 border-b border-gray-200">
+              {(expandedImageRow === term.id || showAllImages) && (
+                <div className="col-span-full px-4 py-4 bg-white border-b border-gray-200">
                   {term.image_url ? (
                     <div className="flex justify-center">
                       <img 
                         src={term.image_url} 
                         alt={term.concept || ''} 
-                        className="max-w-md max-h-64 object-contain border border-gray-300 rounded-lg shadow-sm"
+                        className="max-w-xl max-h-[36rem] object-contain border border-gray-300 rounded-lg shadow-sm"
                       />
                     </div>
                   ) : (
@@ -1142,7 +1164,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded relative mb-4 flex items-center">
             <AlertTriangle className="h-5 w-5 mr-2 text-yellow-600" />
             <span>No more {category} available to add.</span>
-                  </div>
+          </div>
         )}
       </CardContent>
     </Card>
