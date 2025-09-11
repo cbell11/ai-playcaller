@@ -103,7 +103,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [isSaving, setIsSaving] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<{url: string, concept: string} | null>(null)
+  const [expandedImageRow, setExpandedImageRow] = useState<string | null>(null)
   const [defaultFormations, setDefaultFormations] = useState<Terminology[]>([])
   const [defaultFormTags, setDefaultFormTags] = useState<Terminology[]>([])
   const [defaultShifts, setDefaultShifts] = useState<Terminology[]>([])
@@ -836,12 +836,22 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div>
           <CardTitle className="text-xl font-bold">{title}</CardTitle>
-          {(category === "formations" || category === "form_tags") && (
-            <p className="text-sm text-gray-500 mt-1">
-              Select the {category === "formations" ? "formations" : "formation tags"} you want to use in your playbook.
-              <span className="block mt-1 italic">Click the edit button to customize names.</span>
-            </p>
-          )}
+          <p className="text-sm text-gray-500 mt-1">
+            Select the {category === "formations" ? "formations" : 
+                       category === "form_tags" ? "formation tags" : 
+                       category === "shifts" ? "shifts" : 
+                       category === "to_motions" ? "to motions" : 
+                       category === "from_motions" ? "from motions" :
+                       category === "run_game" ? "run game concepts" :
+                       category === "pass_protections" ? "pass protections" :
+                       category === "quick_game" ? "quick game concepts" :
+                       category === "dropback_game" ? "dropback game concepts" :
+                       category === "screen_game" ? "screen game concepts" :
+                       category === "shot_plays" ? "shot plays" :
+                       category === "concept_tags" ? "concept tags" :
+                       category === "rpo_tag" ? "RPO tags" : "items"} you want to use in your playbook. Delete the ones you don't use.
+            <span className="block mt-1 italic">Click the edit button to customize names.</span>
+          </p>
           {saveSuccess && (
             <div className="mt-2 text-sm bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center">
               <Check className="h-4 w-4 mr-2 text-green-600" />
@@ -950,7 +960,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
               return aSort.localeCompare(bSort)
             })
             .map((term) => (
-            <div key={term.id} className={`grid grid-cols-[2fr_auto_1fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} items-center py-2 border-b border-gray-100`}>
+            <React.Fragment key={term.id}>
+              <div className={`grid grid-cols-[2fr_auto_1fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} items-center py-2 border-b border-gray-100`}>
               <div className="flex items-center">
                 <Select 
                   value={term.concept || ''} 
@@ -1011,9 +1022,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   variant="ghost"
                   size="sm"
                   className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "ml-0 p-0 cursor-pointer" : "ml-1 p-1 cursor-pointer"}
-                  onClick={() => setSelectedImage({url: term.image_url || '', concept: term.concept || ''})}
+                  onClick={() => setExpandedImageRow(expandedImageRow === term.id ? null : term.id)}
                 >
-                  <Eye className={`h-4 w-4 ${term.image_url ? 'text-amber-500' : 'text-gray-400'}`} />
+                  <Eye className={`h-4 w-4 ${term.image_url ? 'text-amber-500' : 'text-gray-400'} ${expandedImageRow === term.id ? 'text-blue-500' : ''}`} />
                 </Button>
               </div>
               
@@ -1055,7 +1066,31 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <Trash2 className="h-4 w-4 text-rose-500" />
                 </Button>
               </div>
-            </div>
+              </div>
+              
+              {/* Expanded Image Row */}
+              {expandedImageRow === term.id && (
+                <div className="col-span-full px-4 py-4 bg-gray-50 border-b border-gray-200">
+                  {term.image_url ? (
+                    <div className="flex justify-center">
+                      <img 
+                        src={term.image_url} 
+                        alt={term.concept || ''} 
+                        className="max-w-md max-h-64 object-contain border border-gray-300 rounded-lg shadow-sm"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex justify-center">
+                      <div className="flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-gray-300 rounded-lg bg-gray-100 max-w-md">
+                        <AlertTriangle className="h-8 w-8 text-amber-500 mb-2" />
+                        <h4 className="text-sm font-medium text-gray-900 mb-1">No Image Available</h4>
+                        <p className="text-xs text-gray-500">This {category === "formations" ? "formation" : "item"} doesn't have an image associated with it.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </React.Fragment>
           ))}
                   </div>
 
@@ -1065,56 +1100,6 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             <AlertTriangle className="h-5 w-5 mr-2 text-yellow-600" />
             <span>No more {category} available to add.</span>
                   </div>
-        )}
-        
-        {/* Add image preview dialog - now for all categories */}
-        {selectedImage && (
-          <div 
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50"
-            onClick={() => setSelectedImage(null)}
-          >
-            <div 
-              className="bg-white rounded-lg shadow-xl max-w-[95vw] max-h-[95vh] w-auto h-auto flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-4 border-b flex-shrink-0">
-                <h2 className="text-xl font-semibold text-center">
-                  {category === "formations" ? "Formation" : 
-                   category === "form_tags" ? "Formation Tag" : 
-                   category === "shifts" ? "Shift" : 
-                   category === "to_motions" ? "To Motion" : 
-                   category === "from_motions" ? "From Motion" :
-                   category === "run_game" ? "Run Game" :
-                   category === "pass_protections" ? "Pass Protection" :
-                   category === "quick_game" ? "Quick Game" :
-                   category === "dropback_game" ? "Dropback Game" :
-                   category === "screen_game" ? "Screen Game" :
-                   category === "shot_plays" ? "Shot Play" : ""}: {selectedImage?.concept}
-                </h2>
-              </div>
-              <div className="flex-1 flex items-center justify-center p-4 min-h-0">
-                {selectedImage?.url ? (
-                  <img 
-                    src={selectedImage.url} 
-                    alt={selectedImage.concept} 
-                    className="max-w-full max-h-full object-contain"
-                    style={{ maxWidth: '85vw', maxHeight: '75vh' }}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
-                    <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Image Available</h3>
-                    <p className="text-gray-500">This formation doesn't have an image associated with it.</p>
-                  </div>
-                )}
-              </div>
-              <div className="p-4 border-t flex justify-center flex-shrink-0">
-                <Button variant="secondary" onClick={() => setSelectedImage(null)} className="cursor-pointer">
-                  Close
-                </Button>
-              </div>
-            </div>
-          </div>
         )}
       </CardContent>
     </Card>
