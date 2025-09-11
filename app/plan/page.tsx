@@ -3047,11 +3047,11 @@ export default function PlanPage() {
           <div className="flex flex-1 min-h-0 overflow-hidden" style={{ height: 'calc(100% - 40px)' }}>
             {/* Category tabs - only show if in category mode */}
             {playPoolFilterType === 'category' && (
-              <div className="w-1/3 border-r pr-1 overflow-y-auto">
+              <div className="w-1/4 border-r pr-1 overflow-y-auto">
                 {Object.entries(CATEGORIES).map(([key, label]) => (
                   <button 
                     key={key}
-                    className={`w-full text-left py-1 px-2 mb-1 text-xs rounded cursor-pointer ${playPoolCategory === key ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
+                    className={`w-full text-left py-1 px-1 mb-1 text-[10px] rounded cursor-pointer ${playPoolCategory === key ? 'bg-blue-100 font-medium' : 'hover:bg-gray-100'}`}
                     onClick={() => setPlayPoolCategory(key as any)}
                   >
                     {label}
@@ -3062,7 +3062,7 @@ export default function PlanPage() {
             
             {/* Category view - show plays for selected category */}
             {playPoolFilterType === 'category' && (
-              <div className="w-2/3 pl-2 overflow-y-auto">
+              <div className="w-3/4 pl-1 overflow-y-auto">
                 <div className="space-y-1">
                   {filteredPlays.length > 0 ? (
                     filteredPlays.map((play, index) => {
@@ -3070,11 +3070,11 @@ export default function PlanPage() {
                       return (
                         <div 
                           key={index}
-                          className={`p-1 border rounded flex justify-between items-center ${
+                          className={`px-1 py-0.5 border rounded flex justify-between items-center ${
                             alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
                           }`}
                         >
-                          <div className={`text-[10px] font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                          <div className={`text-[10px] font-mono ${alreadyInSection ? 'text-gray-500' : ''} flex-1 mr-1 overflow-x-auto whitespace-nowrap play-pool-text`}>
                             {play.is_favorite && (
                               <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
                             )}
@@ -3128,11 +3128,11 @@ export default function PlanPage() {
                         return (
                           <div 
                             key={index}
-                            className={`p-1 border rounded flex justify-between items-center ${
+                            className={`px-1 py-0.5 border rounded flex justify-between items-center ${
                               alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
                             }`}
                           >
-                            <div className={`text-[10px] font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                            <div className={`text-[10px] font-mono ${alreadyInSection ? 'text-gray-500' : ''} flex-1 mr-1 overflow-x-auto whitespace-nowrap play-pool-text`}>
                               {play.is_favorite && (
                                 <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
                               )}
@@ -3179,11 +3179,11 @@ export default function PlanPage() {
                     return (
                       <div 
                         key={index}
-                        className={`p-1 border rounded flex justify-between items-center ${
+                        className={`px-1 py-0.5 border rounded flex justify-between items-center ${
                           alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
                         }`}
                       >
-                        <div className={`text-[10px] font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                        <div className={`text-[10px] font-mono ${alreadyInSection ? 'text-gray-500' : ''} flex-1 mr-1 overflow-x-auto whitespace-nowrap play-pool-text`}>
                           {play.is_favorite && (
                             <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
                           )}

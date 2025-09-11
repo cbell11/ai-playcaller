@@ -139,3 +139,27 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom thin scrollbars for play pool text */
+.play-pool-text {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.play-pool-text::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+
+.play-pool-text::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.play-pool-text::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 2px;
+}
+
+.play-pool-text::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
