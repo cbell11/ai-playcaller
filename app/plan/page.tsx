@@ -3074,7 +3074,7 @@ export default function PlanPage() {
                             alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
                           }`}
                         >
-                          <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                          <div className={`text-[10px] font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
                             {play.is_favorite && (
                               <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
                             )}
@@ -3132,7 +3132,7 @@ export default function PlanPage() {
                               alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
                             }`}
                           >
-                            <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                            <div className={`text-[10px] font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
                               {play.is_favorite && (
                                 <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
                               )}
@@ -3183,7 +3183,7 @@ export default function PlanPage() {
                           alreadyInSection ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200'
                         }`}
                       >
-                        <div className={`text-xs font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
+                        <div className={`text-[10px] font-mono ${alreadyInSection ? 'text-gray-500' : ''} truncate flex-1`}>
                           {play.is_favorite && (
                             <Star className="inline-block h-3 w-3 mr-0.5 fill-yellow-400 text-yellow-400" />
                           )}
