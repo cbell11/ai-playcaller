@@ -34,6 +34,7 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [logoUrl, setLogoUrl] = useState("https://res.cloudinary.com/dfvzvbygc/image/upload/v1756928729/AI_PLAYCALLER_yxbxer.png");
+  const [showMobileAuthNotification, setShowMobileAuthNotification] = useState(false);
   const router = useRouter();
 
   // Create Supabase client in the browser
@@ -48,6 +49,22 @@ export default function AuthPage() {
     if (customLogoUrl) {
       setLogoUrl(customLogoUrl);
     }
+  }, []);
+
+  // Show mobile notification after 2 seconds if on mobile
+  useEffect(() => {
+    const checkMobileAndShowNotification = () => {
+      const isMobile = window.innerWidth < 768; // md breakpoint
+      if (isMobile) {
+        const timer = setTimeout(() => {
+          setShowMobileAuthNotification(true);
+        }, 2000); // Show after 2 seconds
+
+        return () => clearTimeout(timer);
+      }
+    };
+
+    checkMobileAndShowNotification();
   }, []);
 
   // Validate team code when it changes and has 6 characters
@@ -682,6 +699,42 @@ export default function AuthPage() {
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen">
+      {/* Mobile Auth Notification Modal */}
+      {showMobileAuthNotification && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div className="fixed inset-0 bg-black bg-opacity-50" />
+          
+          {/* Modal */}
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6 relative">
+              {/* Football emoji at top */}
+              <div className="text-center mb-4">
+                <span className="text-4xl">🏈</span>
+              </div>
+              
+              {/* Title */}
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-3">
+                Hey Coach!
+              </h3>
+              
+              {/* Message */}
+              <p className="text-sm text-gray-600 text-center mb-6 leading-relaxed">
+                For the best experience use a desktop. Mobile works too, but you'll get the best experience and results on a bigger screen.
+              </p>
+              
+              {/* Close Button */}
+              <button
+                onClick={() => setShowMobileAuthNotification(false)}
+                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition font-medium"
+              >
+                Got it, Coach!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Left Column - Auth Content */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 lg:py-0" onClick={teamOption === "join" ? handleJoinCodeBoxClick : undefined}>
         <div className="w-full max-w-md">
