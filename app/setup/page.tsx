@@ -393,6 +393,35 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     onUpdate(updatedTerms)
   }
 
+  // Auto-save when user clicks away from edit mode
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as HTMLElement
+    // Check if click is outside any input field that's in edit mode
+    if (!target.closest('input') && localTerms.some(term => term.isEditing)) {
+      // Find any terms that are currently being edited
+      const editedTerms = localTerms.filter(term => term.isEditing)
+      if (editedTerms.length > 0) {
+        // Exit edit mode for all edited terms
+        const updatedTerms = localTerms.map(t => ({ ...t, isEditing: false }))
+        setLocalTerms(updatedTerms)
+        onUpdate(updatedTerms)
+        
+        // Auto-save the section if there are dirty terms
+        if (localTerms.some(term => term.isDirty) || hasDeleted) {
+          handleSaveAll()
+        }
+      }
+    }
+  }
+
+  // Add click outside listener
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [localTerms, hasDeleted])
+
   const toggleEdit = (term: TerminologyWithUI) => {
     const updatedTerms = localTerms.map(t => t.id === term.id ? { ...t, isEditing: !t.isEditing } : t)
     setLocalTerms(updatedTerms)
@@ -1036,7 +1065,21 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <Input
                     value={term.label || ''}
                     onChange={(e) => updateLabel(term, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        // Exit edit mode and auto-save
+                        const updatedTerms = localTerms.map(t => ({ ...t, isEditing: false }))
+                        setLocalTerms(updatedTerms)
+                        onUpdate(updatedTerms)
+                        
+                        // Auto-save if there are changes
+                        if (localTerms.some(term => term.isDirty) || hasDeleted) {
+                          handleSaveAll()
+                        }
+                      }
+                    }}
                     className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "h-8 w-full max-w-[180px]" : "h-8"}
+                    autoFocus
                   />
                 ) : (
                   <span className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "truncate block max-w-[180px]" : ""}>{term.label}</span>
@@ -1108,6 +1151,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
 
 // Parent component to manage all terminology sets
 function SetupPageContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const welcomeMessage = searchParams.get('message')
   
@@ -1626,15 +1670,15 @@ function SetupPageContent() {
       setSavingMessage('Complete! Your terminology has been saved.');
       
       // Wait a moment to show completion
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Show success message
-      setSaveAllSuccess(`Successfully saved ${totalSaved} terminology items across all categories!`);
+      // Show success message and redirect to scouting
+      setSavingMessage('Success! Redirecting to scouting...');
       
-      // Clear success message after 5 seconds
+      // Wait a moment to show the success message, then redirect
       setTimeout(() => {
-        setSaveAllSuccess(null);
-      }, 5000);
+        router.push('/scouting');
+      }, 1500);
 
     } catch (error) {
       console.error("Error saving all terminology:", error);
