@@ -105,14 +105,16 @@ export function LayoutContent({
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Top Header */}
-        <div className="h-14 flex items-center justify-between px-4 md:px-6 bg-white border-b border-gray-200">
+        <div className="h-14 flex items-center px-4 md:px-6 bg-white border-b border-gray-200">
           {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="mobile-menu-button md:hidden p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-          >
-            <Menu className="h-6 w-6" />
-          </button>
+          <div className="md:hidden">
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="mobile-menu-button p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+          </div>
 
           {/* Mobile Logo (shown when sidebar is closed) */}
           <div className="md:hidden flex-1 flex justify-center">
@@ -123,8 +125,11 @@ export function LayoutContent({
             />
           </div>
 
-          {/* User Menu */}
-          <div className="flex items-center">
+          {/* Spacer for desktop (pushes UserMenu to right) */}
+          <div className="hidden md:flex md:flex-1"></div>
+
+          {/* User Menu - Always on the right */}
+          <div className="flex items-center ml-auto md:ml-0">
             <UserMenu />
           </div>
         </div>
