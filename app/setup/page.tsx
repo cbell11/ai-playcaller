@@ -939,19 +939,6 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           )}
         </div>
         <div className="flex space-x-2 items-center">
-          <div className="flex items-center gap-2">
-            {((localTerms?.some && localTerms.some(term => term.isDirty)) || hasDeleted) && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleSaveAll}
-                disabled={isSaving}
-                className="bg-[#2ecc71] hover:bg-[#27ae60] text-white cursor-pointer"
-              >
-                {isSaving ? "Saving..." : "Save"}
-              </Button>
-            )}
-          </div>
           <div className="flex flex-col w-full gap-2">
             {isCheckingAvailable ? (
               <Button
@@ -969,7 +956,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 className="cursor-not-allowed"
               >
                 <AlertTriangle className="h-4 w-4 mr-2" />
-                No Items Available
+                All Concepts In Use
               </Button>
             ) : (
               <Select
@@ -1214,7 +1201,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         {showNoMoreItemsMessage && (
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded relative mb-4 flex items-center">
             <AlertTriangle className="h-5 w-5 mr-2 text-yellow-600" />
-            <span>No more {category} available to add.</span>
+            <span>All {category} concepts are in use.</span>
           </div>
         )}
       </CardContent>
