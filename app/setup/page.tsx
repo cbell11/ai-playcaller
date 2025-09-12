@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, useEffect, Suspense } from "react"
@@ -105,6 +106,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [expandedImageRow, setExpandedImageRow] = useState<string | null>(null)
   const [showAllImages, setShowAllImages] = useState(false)
+  const [isActivelyEditing, setIsActivelyEditing] = useState(false)
   const [defaultFormations, setDefaultFormations] = useState<Terminology[]>([])
   const [defaultFormTags, setDefaultFormTags] = useState<Terminology[]>([])
   const [defaultShifts, setDefaultShifts] = useState<Terminology[]>([])
@@ -330,23 +332,37 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     }
   }
 
-  // Update local terms when props change
+  // Update local terms when props change (but not during active editing)
   useEffect(() => {
+    // Don't update if user is actively editing
+    if (isActivelyEditing) {
+      return;
+    }
+    
     if (!terms) {
       setLocalTerms([]);
       return;
     }
     
+    let processedTerms;
     if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions") {
-      const termsWithSelection = terms.map(term => ({
+      processedTerms = terms.map(term => ({
         ...term,
         isSelected: term.team_id === userInfo.team_id
       }));
-      setLocalTerms(termsWithSelection);
     } else {
-      setLocalTerms(terms);
+      processedTerms = terms;
     }
-  }, [terms, category, userInfo.team_id]);
+    
+    // Sort alphabetically on initial load
+    const sortedTerms = [...processedTerms].sort((a, b) => {
+      const aSort = (a.label || a.concept || '').toLowerCase()
+      const bSort = (b.label || b.concept || '').toLowerCase()
+      return aSort.localeCompare(bSort)
+    });
+    
+    setLocalTerms(sortedTerms);
+  }, [terms, category, userInfo.team_id, isActivelyEditing]);
 
   const updateConcept = (term: TerminologyWithUI, newConcept: string, isSelected: boolean) => {
     if (category === "formations" || category === "form_tags" || category === "shifts" || category === "to_motions" || category === "from_motions" ||
@@ -394,6 +410,18 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
     onUpdate(updatedTerms)
   }
 
+  // Sort terms alphabetically 
+  const sortTermsAlphabetically = () => {
+    const sortedTerms = [...localTerms].sort((a, b) => {
+      // Sort alphabetically by label (customized name), falling back to concept if no label
+      const aSort = (a.label || a.concept || '').toLowerCase()
+      const bSort = (b.label || b.concept || '').toLowerCase()
+      return aSort.localeCompare(bSort)
+    })
+    setLocalTerms(sortedTerms)
+    onUpdate(sortedTerms)
+  }
+
   // Auto-save when user clicks away from edit mode
   const handleClickOutside = (event: MouseEvent) => {
     const target = event.target as HTMLElement
@@ -406,6 +434,14 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         const updatedTerms = localTerms.map(t => ({ ...t, isEditing: false }))
         setLocalTerms(updatedTerms)
         onUpdate(updatedTerms)
+        
+        // Clear active editing state
+        setIsActivelyEditing(false)
+        
+        // Sort alphabetically after editing is complete
+        setTimeout(() => {
+          sortTermsAlphabetically()
+        }, 50)
         
         // Auto-save the section if there are dirty terms
         if (localTerms.some(term => term.isDirty) || hasDeleted) {
@@ -424,9 +460,21 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   }, [localTerms, hasDeleted])
 
   const toggleEdit = (term: TerminologyWithUI) => {
+    const wasEditing = term.isEditing
     const updatedTerms = localTerms.map(t => t.id === term.id ? { ...t, isEditing: !t.isEditing } : t)
     setLocalTerms(updatedTerms)
     onUpdate(updatedTerms)
+    
+    // Update active editing state
+    const nowEditing = updatedTerms.some(t => t.isEditing)
+    setIsActivelyEditing(nowEditing)
+    
+    // If we just finished editing (was editing and now isn't), sort alphabetically
+    if (wasEditing) {
+      setTimeout(() => {
+        sortTermsAlphabetically()
+      }, 50)
+    }
   }
 
   const deleteRow = (term: TerminologyWithUI) => {
@@ -1004,12 +1052,6 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           </div>
 
           {localTerms && localTerms
-            .sort((a, b) => {
-              // Sort alphabetically by label (customized name), falling back to concept if no label
-              const aSort = (a.label || a.concept || '').toLowerCase()
-              const bSort = (b.label || b.concept || '').toLowerCase()
-              return aSort.localeCompare(bSort)
-            })
             .map((term) => (
             <React.Fragment key={term.id}>
               <div className={`grid grid-cols-[2fr_auto_1fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} items-center py-2 border-b border-gray-100`}>
@@ -1094,6 +1136,14 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                         setLocalTerms(updatedTerms)
                         onUpdate(updatedTerms)
                         
+                        // Clear active editing state
+                        setIsActivelyEditing(false)
+                        
+                        // Sort alphabetically after editing is complete
+                        setTimeout(() => {
+                          sortTermsAlphabetically()
+                        }, 50)
+                        
                         // Auto-save if there are changes
                         if (localTerms.some(term => term.isDirty) || hasDeleted) {
                           handleSaveAll()
@@ -1141,7 +1191,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                       <img 
                         src={term.image_url} 
                         alt={term.concept || ''} 
-                        className="max-w-xl max-h-[36rem] object-contain border border-gray-300 rounded-lg shadow-sm"
+                        className="max-w-lg max-h-80 object-contain border border-gray-300 rounded-lg shadow-sm"
                       />
                     </div>
                   ) : (
