@@ -1825,7 +1825,7 @@ function SetupPageContent() {
       ) : (
         <div className="space-y-6">
           {/* Main grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 min-[1320px]:grid-cols-2 gap-6">
             {/* Left column - Formations */}
             <div className="space-y-6">
               <TerminologySet
