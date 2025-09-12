@@ -666,8 +666,8 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
             team_id: teamIdToUse,
           };
           
-          // Add image_url only for formations and only if it exists
-          if (category === "formations" && item.image_url) {
+          // Add image_url for any category if it exists
+          if (item.image_url) {
             return { ...saveItem, image_url: item.image_url };
           }
           
@@ -737,9 +737,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
         const matchingInserted = insertedItems?.find(f => f.concept === term.concept);
         
         if (matchingInserted) {
-          // Return the copied item with UI state
+          // Return the copied item with UI state, preserving original image_url
           return {
             ...matchingInserted,
+            image_url: term.image_url || matchingInserted.image_url, // Preserve original image_url
             isDirty: false,
             isEditing: false
           };
@@ -1660,8 +1661,8 @@ function SetupPageContent() {
               team_id: profileInfo.team_id,
             };
             
-            // Add image_url only for formations and only if it exists
-            if (category.name === "formations" && item.image_url) {
+            // Add image_url for any category if it exists
+            if (item.image_url) {
               return { ...saveItem, image_url: item.image_url };
             }
             
@@ -1700,9 +1701,10 @@ function SetupPageContent() {
           const matchingInserted = insertedItems?.find(f => f.concept === term.concept);
           
           if (matchingInserted) {
-            // Return the copied item with UI state
+            // Return the copied item with UI state, preserving original image_url
             return {
               ...matchingInserted,
+              image_url: term.image_url || matchingInserted.image_url, // Preserve original image_url
               isDirty: false,
               isEditing: false
             };
