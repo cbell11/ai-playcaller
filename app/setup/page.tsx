@@ -915,6 +915,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div>
           <CardTitle className="text-xl font-bold">{title}</CardTitle>
+          <div className="relative">
             <p className="text-sm text-gray-500 mt-1">
             Select the {category === "formations" ? "formations" : 
                        category === "form_tags" ? "formation tags" : 
@@ -931,12 +932,13 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                        category === "rpo_tag" ? "RPO tags" : "items"} you want to use in your playbook. Delete the ones you don't use.
               <span className="block mt-1 italic">Click the edit button to customize names.</span>
             </p>
-          {saveSuccess && (
-            <div className="mt-2 text-sm bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center">
-              <Check className="h-4 w-4 mr-2 text-green-600" />
-              {saveSuccess}
-            </div>
-          )}
+            {saveSuccess && (
+              <div className="absolute top-0 left-0 right-0 z-10 text-sm bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center shadow-sm">
+                <Check className="h-4 w-4 mr-2 text-green-600" />
+                {saveSuccess}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex space-x-2 items-center">
           <div className="flex flex-col w-full gap-2">
