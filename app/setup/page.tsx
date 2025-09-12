@@ -1033,7 +1033,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
       </CardHeader>
       <CardContent>
         <div className="mb-6">
-          <div className={`grid grid-cols-[2fr_1fr_auto_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} font-medium mb-2 px-2`}>
+          <div className={`grid grid-cols-[2fr_2fr_auto_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} font-medium mb-2 px-2`}>
             <div>{category === "formations" ? "Formation" : 
                  category === "form_tags" ? "Formation Tag" : 
                  category === "shifts" ? "Shift" : 
@@ -1055,7 +1055,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           {localTerms && localTerms
             .map((term) => (
             <React.Fragment key={term.id}>
-              <div className={`grid grid-cols-[2fr_auto_1fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2" : "gap-4"} items-center py-2 border-b border-gray-100`}>
+              <div className={`grid grid-cols-[2fr_auto_2fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2 gap-x-1" : "gap-4 gap-x-2"} items-center py-2 border-b border-gray-100`}>
               <div className="flex items-center">
                 <Select 
                   value={term.concept || ''} 
