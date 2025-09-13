@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Plus, Pencil, Check, Trash2, Save, Eye, X, RefreshCw, AlertTriangle, Loader2 } from "lucide-react"
+import { Plus, Pencil, Check, Trash2, Save, Eye, X, RefreshCw, AlertTriangle, Loader2, Image } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -105,7 +105,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [isResetting, setIsResetting] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [expandedImageRow, setExpandedImageRow] = useState<string | null>(null)
-  const [showAllImages, setShowAllImages] = useState(false)
+  const [showAllImages, setShowAllImages] = useState(true)
   const [isActivelyEditing, setIsActivelyEditing] = useState(false)
   const [defaultFormations, setDefaultFormations] = useState<Terminology[]>([])
   const [defaultFormTags, setDefaultFormTags] = useState<Terminology[]>([])
@@ -932,36 +932,36 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                        category === "rpo_tag" ? "RPO tags" : "items"} you want to use in your playbook. Delete the ones you don't use.
               <span className="block mt-1 italic">Click the edit button to customize names.</span>
             </p>
-            {saveSuccess && (
+          {saveSuccess && (
               <div className="absolute top-0 left-0 right-0 z-10 text-sm bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center shadow-sm">
-                <Check className="h-4 w-4 mr-2 text-green-600" />
-                {saveSuccess}
-              </div>
-            )}
+              <Check className="h-4 w-4 mr-2 text-green-600" />
+              {saveSuccess}
+            </div>
+          )}
           </div>
         </div>
         <div className="flex space-x-2 items-center">
           <div className="flex flex-col w-full gap-2">
-            {isCheckingAvailable ? (
-              <Button
-                variant="outline"
-                disabled
-                className="cursor-wait"
-              >
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Checking...
-              </Button>
-            ) : availableCount === 0 ? (
-              <Button
-                variant="outline"
-                disabled
-                className="cursor-not-allowed"
-              >
-                <AlertTriangle className="h-4 w-4 mr-2" />
+          {isCheckingAvailable ? (
+            <Button
+              variant="outline"
+              disabled
+              className="cursor-wait"
+            >
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Checking...
+            </Button>
+          ) : availableCount === 0 ? (
+            <Button
+              variant="outline"
+              disabled
+              className="cursor-not-allowed"
+            >
+              <AlertTriangle className="h-4 w-4 mr-2" />
                 All Concepts In Use
-              </Button>
-            ) : (
-              <Select
+            </Button>
+          ) : (
+            <Select
               open={showAddDropdown}
               onOpenChange={setShowAddDropdown}
               onValueChange={(value) => addRow(value)}
@@ -999,7 +999,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   ))}
               </SelectContent>
             </Select>
-            )}
+          )}
             {localTerms?.some(term => term.image_url) && (
               <Button
                 variant="outline"
@@ -1042,9 +1042,9 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           </div>
 
           {localTerms && localTerms
-            .map((term) => (
+            .map((term, index) => (
             <React.Fragment key={term.id}>
-              <div className={`grid grid-cols-[2fr_auto_2fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2 gap-x-1" : "gap-4 gap-x-2"} items-center py-2 border-b border-gray-100`}>
+              <div className={`grid grid-cols-[2fr_auto_2fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2 gap-x-1" : "gap-4 gap-x-2"} items-center py-2 border-b border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
               <div className="flex items-center">
                 <Select 
                   value={term.concept || ''} 
@@ -1107,7 +1107,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "ml-0 p-0 cursor-pointer" : "ml-1 p-1 cursor-pointer"}
                   onClick={() => setExpandedImageRow(expandedImageRow === term.id ? null : term.id)}
                 >
-                  <Eye className={`h-4 w-4 ${term.image_url ? 'text-amber-500' : 'text-gray-400'} ${expandedImageRow === term.id ? 'text-blue-500' : ''}`} />
+                  <Image className={`h-4 w-4 ${term.image_url ? 'text-amber-500' : 'text-gray-400'} ${expandedImageRow === term.id ? 'text-blue-500' : ''}`} />
                 </Button>
               </div>
               
@@ -1171,11 +1171,11 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   <Trash2 className="h-4 w-4 text-rose-500" />
                 </Button>
               </div>
-            </div>
-              
+                  </div>
+
               {/* Expanded Image Row */}
               {(expandedImageRow === term.id || showAllImages) && (
-                <div className="col-span-full px-4 py-4 bg-white border-b border-gray-200">
+                <div className={`col-span-full px-4 py-4 border-b border-gray-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                   {term.image_url ? (
                     <div className="flex justify-center">
                       <img 
@@ -1191,13 +1191,13 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                         <h4 className="text-sm font-medium text-gray-900 mb-1">No Image Available</h4>
                         <p className="text-xs text-gray-500">This {category === "formations" ? "formation" : "item"} doesn't have an image associated with it.</p>
                       </div>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
               )}
             </React.Fragment>
           ))}
-                  </div>
+              </div>
 
         {/* Show a message when there are no more items available */}
         {showNoMoreItemsMessage && (
