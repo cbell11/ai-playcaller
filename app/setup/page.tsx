@@ -105,7 +105,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
   const [isResetting, setIsResetting] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [expandedImageRow, setExpandedImageRow] = useState<string | null>(null)
-  const [showAllImages, setShowAllImages] = useState(true)
+  const [showAllImages, setShowAllImages] = useState(false)
   const [isActivelyEditing, setIsActivelyEditing] = useState(false)
   const [defaultFormations, setDefaultFormations] = useState<Terminology[]>([])
   const [defaultFormTags, setDefaultFormTags] = useState<Terminology[]>([])
@@ -1012,7 +1012,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                     setShowAllImages(true);
                   }
                 }}
-                className={`cursor-pointer w-full ${showAllImages ? 'bg-amber-400 hover:bg-amber-500 text-[#0B2545]' : 'bg-[#0B2545] hover:bg-[#0B2545]/80 text-white hover:text-white'}`}
+                className={`cursor-pointer w-full ${showAllImages ? 'bg-amber-400 hover:bg-amber-500 text-[#0B2545]' : 'bg-amber-400 hover:bg-amber-500 text-[#0B2545] font-medium'}`}
               >
                 {showAllImages ? "Hide All Images" : "Show All Images"}
               </Button>
@@ -1100,14 +1100,15 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                   </SelectContent>
                 </Select>
                 
-                {/* View button - directly next to dropdown without gap - now for all categories */}
+                {/* Toggle button for concept image */}
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "ml-0 p-0 cursor-pointer" : "ml-1 p-1 cursor-pointer"}
-                  onClick={() => setExpandedImageRow(expandedImageRow === term.id ? null : term.id)}
+                  className={`ml-2 text-xs px-2 py-1 h-6 cursor-pointer border ${term.image_url ? (expandedImageRow === term.id ? 'bg-white text-black border-gray-300 hover:bg-gray-50' : 'bg-[#0B2545] text-white border-[#0B2545] hover:bg-[#0B2545]/90') : 'opacity-50 cursor-not-allowed bg-gray-200 text-gray-500'}`}
+                  onClick={() => term.image_url ? setExpandedImageRow(expandedImageRow === term.id ? null : term.id) : null}
+                  disabled={!term.image_url}
                 >
-                  <Image className={`h-4 w-4 ${term.image_url ? 'text-amber-500' : 'text-gray-400'} ${expandedImageRow === term.id ? 'text-blue-500' : ''}`} />
+                  Show Concept Image
                 </Button>
               </div>
               
@@ -1772,7 +1773,7 @@ function SetupPageContent() {
         </div>
       )}
       
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Terminology Setup</h1>
         <div className="flex items-center space-x-4">
           {(saveAllSuccess || restoreSuccess) && (
@@ -1797,6 +1798,32 @@ function SetupPageContent() {
           >
             {isRestoring ? "Restoring..." : "Restore to Default Terminology"}
           </Button>
+        </div>
+      </div>
+
+      {/* Setup Walkthrough Video */}
+      <div className="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <div className="flex items-center mb-4">
+          <div className="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-blue-900">Setup Walkthrough</h2>
+        </div>
+        <p className="text-blue-800 mb-4">
+          Need Help? Watch this quick walkthrough to learn how to customize your terminology and get the most out of the setup process.
+        </p>
+        <div className="flex justify-center">
+          <iframe
+            src="https://www.loom.com/embed/b693685f541044b6b27a00b29843fe94?sid=9eea9e02-6d20-4b30-ae36-169af6fde60d"
+            className="rounded-lg"
+            width="300"
+            height="300"
+            frameBorder="0"
+            allowFullScreen
+            title="Setup Walkthrough"
+          />
         </div>
       </div>
       
