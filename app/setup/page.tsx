@@ -98,9 +98,14 @@ interface TerminologySetProps {
   setProfileInfo?: (info: {team_id: string | null}) => void
   setTeamCode?: (code: string | null) => void
   setTeamName?: (name: string | null) => void
+  showTour?: boolean
+  helpMode?: boolean
+  currentTourStep?: number
+  setShowTour?: (show: boolean) => void
+  setCurrentTourStep?: (step: number) => void
 }
 
-const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate, supabase, setProfileInfo, setTeamCode, setTeamName }) => {
+const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate, supabase, setProfileInfo, setTeamCode, setTeamName, showTour = false, helpMode = false, currentTourStep = 0, setShowTour, setCurrentTourStep }) => {
   const [isSaving, setIsSaving] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
@@ -1044,15 +1049,55 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
           {localTerms && localTerms
             .map((term, index) => (
             <React.Fragment key={term.id}>
-              <div className={`grid grid-cols-[2fr_auto_2fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2 gap-x-1" : "gap-4 gap-x-2"} items-center py-2 border-b border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-              <div className="flex items-center">
+              <div className={`grid grid-cols-[2fr_auto_2fr_auto_auto] ${category === "to_motions" || category === "from_motions" || category === "shifts" ? "gap-2 gap-x-1" : "gap-4 gap-x-2"} items-center py-2 border-b border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} ${showTour && helpMode && category === "formations" && index === 0 ? 'relative' : ''}`}>
+              <div className="flex items-center relative">
                 <Select 
                   value={term.concept || ''} 
                   onValueChange={(value) => updateConcept(term, value, true)}
                 >
-                  <SelectTrigger className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "w-[220px] cursor-pointer" : "w-[280px] cursor-pointer"}>
+                  <SelectTrigger 
+                    className={`${category === "to_motions" || category === "from_motions" || category === "shifts" ? "w-[220px] cursor-pointer" : "w-[280px] cursor-pointer"} ${showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 0 ? 'ring-4 ring-blue-500 ring-opacity-50 bg-blue-50 z-50 relative' : ''}`}
+                    data-tour-element="concept-select"
+                  >
                     <SelectValue placeholder="Select..." />
                   </SelectTrigger>
+                
+                {/* Step 0 tooltip attached to concept select */}
+                {showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 0 && (
+                  <div className="absolute z-50" style={{
+                    top: '-90px',
+                    left: '0px'
+                  }}>
+                    <div className="bg-blue-600 text-white rounded-lg p-4 max-w-sm shadow-lg relative">
+                      <div className="absolute top-full left-8 w-3 h-3 bg-blue-600 transform rotate-45 -mt-1"></div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-sm">1. Concept Overview</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowTour?.(false)}
+                          className="text-white hover:bg-blue-700 h-6 w-6 p-0 ml-2"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p className="text-xs mb-3">
+                        This is the general concept used. It's descriptive to try to make it clear for all to understand. 
+                        For those that don't know + is to the field and - is to the boundary.
+                      </p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs opacity-75">Step 1 of 5</span>
+                        <Button
+                          size="sm"
+                          onClick={() => setCurrentTourStep?.(1)}
+                          className="bg-white text-blue-600 hover:bg-gray-100 text-xs px-3 py-1 h-7"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                   <SelectContent className={`${category === "to_motions" || category === "from_motions" || category === "shifts" ? "min-w-[220px] max-w-[320px]" : "min-w-[280px] max-w-[400px]"} max-h-[300px] overflow-y-auto`}>
                     {/* Always add the current concept to ensure it's in the list */}
                     {term.concept && (
@@ -1101,21 +1146,70 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 </Select>
                 
                 {/* Toggle button for concept image */}
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`ml-2 text-xs px-2 py-1 h-6 cursor-pointer border ${term.image_url ? (expandedImageRow === term.id ? 'bg-white text-black border-gray-300 hover:bg-gray-50' : 'bg-[#0B2545] text-white border-[#0B2545] hover:bg-[#0B2545]/90 hover:text-white') : 'opacity-50 cursor-not-allowed bg-gray-200 text-gray-500'} ${showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 1 ? 'ring-4 ring-blue-500 ring-opacity-50 z-50 relative' : ''}`}
+                    onClick={() => term.image_url ? setExpandedImageRow(expandedImageRow === term.id ? null : term.id) : null}
+                    disabled={!term.image_url}
+                    data-tour-element="concept-image-button"
+                  >
+                    Show Concept Image
+                  </Button>
+                  
+                  {/* Step 1 tooltip attached to image button */}
+                  {showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 1 && (
+                    <div className="absolute z-50" style={{
+                      top: '-110px',
+                      left: '-50px'
+                    }}>
+                      <div className="bg-blue-600 text-white rounded-lg p-4 max-w-sm shadow-lg relative">
+                        <div className="absolute top-full left-20 w-3 h-3 bg-blue-600 transform rotate-45 -mt-1"></div>
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-semibold text-sm">2. Show Concept Image</h4>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className={`ml-2 text-xs px-2 py-1 h-6 cursor-pointer border ${term.image_url ? (expandedImageRow === term.id ? 'bg-white text-black border-gray-300 hover:bg-gray-50' : 'bg-[#0B2545] text-white border-[#0B2545] hover:bg-[#0B2545]/90 hover:text-white') : 'opacity-50 cursor-not-allowed bg-gray-200 text-gray-500'}`}
-                  onClick={() => term.image_url ? setExpandedImageRow(expandedImageRow === term.id ? null : term.id) : null}
-                  disabled={!term.image_url}
+                            onClick={() => setShowTour?.(false)}
+                            className="text-white hover:bg-blue-700 h-6 w-6 p-0 ml-2"
                 >
-                  Show Concept Image
+                            <X className="h-3 w-3" />
                 </Button>
+                        </div>
+                        <p className="text-xs mb-3">
+                          Not sure what the concept is? Click here to see it. <br />
+                          <strong>Expert Tip:</strong> You can also toggle on "Show All Images" at the top of each section.
+                        </p>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs opacity-75">Step 2 of 5</span>
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              onClick={() => setCurrentTourStep?.(0)}
+                              className="bg-white text-blue-600 hover:bg-gray-100 text-xs px-3 py-1 h-7"
+                            >
+                              Back
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => setCurrentTourStep?.(2)}
+                              className="bg-white text-blue-600 hover:bg-gray-100 text-xs px-3 py-1 h-7"
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               
               {/* Empty div to maintain grid structure when no view button - no longer needed */}
               <div></div>
               
-              <div>
+              <div className={`${showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 2 ? 'ring-4 ring-blue-500 ring-opacity-50 bg-blue-50 z-50 relative rounded p-1' : ''} relative`} data-tour-element="customized-name">
                 {term.isEditing ? (
                   <Input
                     value={term.label || ''}
@@ -1147,30 +1241,167 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 ) : (
                   <span className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "truncate block max-w-[180px]" : ""}>{term.label}</span>
                 )}
+                
+                {/* Step 2 tooltip attached to customized name */}
+                {showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 2 && (
+                  <div className="absolute z-50" style={{
+                    top: '-85px',
+                    left: '0px'
+                  }}>
+                    <div className="bg-blue-600 text-white rounded-lg p-4 max-w-sm shadow-lg relative">
+                      <div className="absolute top-full left-8 w-3 h-3 bg-blue-600 transform rotate-45 -mt-1"></div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-sm">3. Customized Name</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowTour?.(false)}
+                          className="text-white hover:bg-blue-700 h-6 w-6 p-0 ml-2"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p className="text-xs mb-3">
+                        This is the term that you will use in your playcalls.
+                      </p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs opacity-75">Step 3 of 5</span>
+                        <div className="flex space-x-2">
+                          <Button
+                            size="sm"
+                            onClick={() => setCurrentTourStep?.(1)}
+                            className="bg-white text-blue-600 hover:bg-gray-100 text-xs px-3 py-1 h-7"
+                          >
+                            Back
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => setCurrentTourStep?.(3)}
+                            className="bg-white text-blue-600 hover:bg-gray-100 text-xs px-3 py-1 h-7"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               
               {/* Edit button */}
-              <div>
+              <div className="relative">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleEdit(term)}
-                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8 cursor-pointer" : "cursor-pointer"}
+                  className={`${category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8 cursor-pointer" : "cursor-pointer"} ${showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 3 ? 'ring-4 ring-blue-500 ring-opacity-50 bg-blue-50 z-50 relative rounded' : ''}`}
+                  data-tour-element="edit-button"
                 >
                   <Pencil className="h-4 w-4 text-blue-500" />
                 </Button>
+                
+                {/* Step 3 tooltip attached to edit button */}
+                {showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 3 && (
+                  <div className="absolute z-50" style={{
+                    top: '-105px',
+                    left: '-120px'
+                  }}>
+                    <div className="bg-blue-600 text-white rounded-lg p-4 max-w-sm shadow-lg relative">
+                      <div className="absolute top-full left-32 w-3 h-3 bg-blue-600 transform rotate-45 -mt-1"></div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-sm">4. Edit Icon</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowTour?.(false)}
+                          className="text-white hover:bg-blue-700 h-6 w-6 p-0 ml-2"
+                        >
+                          <X className="h-3 w-3" />
+                </Button>
+                      </div>
+                      <p className="text-xs mb-3">
+                        This is how you can edit those customized names to align with your system OR you can leave it in our default terminology.
+                      </p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs opacity-75">Step 4 of 5</span>
+                        <div className="flex space-x-2">
+                          <Button
+                            size="sm"
+                            onClick={() => setCurrentTourStep?.(2)}
+                            className="bg-white text-blue-600 hover:bg-gray-100 text-xs px-3 py-1 h-7"
+                          >
+                            Back
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => setCurrentTourStep?.(4)}
+                            className="bg-white text-blue-600 hover:bg-gray-100 text-xs px-3 py-1 h-7"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               
               {/* Delete button */}
-              <div>
+              <div className="relative">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => deleteRow(term)}
-                  className={category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8 cursor-pointer" : "cursor-pointer"}
+                  className={`${category === "to_motions" || category === "from_motions" || category === "shifts" ? "p-0 h-8 w-8 cursor-pointer" : "cursor-pointer"} ${showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 4 ? 'ring-4 ring-blue-500 ring-opacity-50 bg-blue-50 z-50 relative rounded' : ''}`}
+                  data-tour-element="delete-button"
                 >
                   <Trash2 className="h-4 w-4 text-rose-500" />
                 </Button>
+                
+                {/* Step 4 tooltip attached to delete button */}
+                {showTour && helpMode && category === "formations" && index === 0 && currentTourStep === 4 && (
+                  <div className="absolute z-50" style={{
+                    top: '-105px',
+                    left: '-140px'
+                  }}>
+                    <div className="bg-blue-600 text-white rounded-lg p-4 max-w-sm shadow-lg relative">
+                      <div className="absolute top-full left-36 w-3 h-3 bg-blue-600 transform rotate-45 -mt-1"></div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-sm">5. Delete Icon</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowTour?.(false)}
+                          className="text-white hover:bg-blue-700 h-6 w-6 p-0 ml-2"
+                        >
+                          <X className="h-3 w-3" />
+                </Button>
+              </div>
+                      <p className="text-xs mb-3">
+                        Don't want to use a concept? Delete it from your terminology. Don't worry, you can add it back later if you want.
+                      </p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs opacity-75">Step 5 of 5</span>
+                        <div className="flex space-x-2">
+                          <Button
+                            size="sm"
+                            onClick={() => setCurrentTourStep?.(3)}
+                            className="bg-white text-blue-600 hover:bg-gray-100 text-xs px-3 py-1 h-7"
+                          >
+                            Back
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => setShowTour?.(false)}
+                            className="bg-green-500 text-white hover:bg-green-600 text-xs px-3 py-1 h-7"
+                          >
+                            Finish
+                          </Button>
+            </div>
+                  </div>
+                    </div>
+                  </div>
+        )}
               </div>
                   </div>
 
@@ -1245,6 +1476,9 @@ function SetupPageContent() {
   const [showSavingModal, setShowSavingModal] = useState(false)
   const [savingStep, setSavingStep] = useState(0)
   const [savingMessage, setSavingMessage] = useState('')
+  const [helpMode, setHelpMode] = useState(true)
+  const [currentTourStep, setCurrentTourStep] = useState(0)
+  const [showTour, setShowTour] = useState(false)
 
   // Create Supabase client
   const supabase = createBrowserClient(
@@ -1363,6 +1597,14 @@ function SetupPageContent() {
 
     loadTerminology()
   }, [supabase])
+
+  // Start tour when page loads if help mode is on
+  useEffect(() => {
+    if (helpMode && formationsSet.length > 0) {
+      setShowTour(true)
+      setCurrentTourStep(0)
+    }
+  }, [helpMode, formationsSet])
 
   // Handle navigation save event
   useEffect(() => {
@@ -1783,6 +2025,21 @@ function SetupPageContent() {
             </div>
           )}
           <Button
+            variant="outline"
+            onClick={() => {
+              setHelpMode(!helpMode)
+              if (!helpMode) {
+                setShowTour(true)
+                setCurrentTourStep(0)
+              } else {
+                setShowTour(false)
+              }
+            }}
+            className="border-blue-500 text-blue-600 hover:bg-blue-50"
+          >
+            {helpMode ? "Turn Off Help" : "Turn On Help"}
+          </Button>
+          <Button
             variant="default"
             onClick={handleSaveAllTerminology}
             disabled={isSavingAll || !profileInfo.team_id}
@@ -1864,6 +2121,11 @@ function SetupPageContent() {
                 setProfileInfo={setProfileInfo}
                 setTeamCode={setTeamCode}
                 setTeamName={setTeamName}
+                showTour={showTour}
+                helpMode={helpMode}
+                currentTourStep={currentTourStep}
+                setShowTour={setShowTour}
+                setCurrentTourStep={setCurrentTourStep}
               />
               <TerminologySet
                 title="Shifts"
@@ -2001,6 +2263,13 @@ function SetupPageContent() {
         totalSteps={5}
         currentMessage={savingMessage}
       />
+
+      {/* Guided Tour Tooltips */}
+      {showTour && helpMode && (
+        <>
+
+        </>
+      )}
     </div>
   )
 }
