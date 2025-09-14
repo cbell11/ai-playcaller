@@ -1104,7 +1104,7 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                 <Button
                   variant="outline"
                   size="sm"
-                  className={`ml-2 text-xs px-2 py-1 h-6 cursor-pointer border ${term.image_url ? (expandedImageRow === term.id ? 'bg-white text-black border-gray-300 hover:bg-gray-50' : 'bg-[#0B2545] text-white border-[#0B2545] hover:bg-[#0B2545]/90') : 'opacity-50 cursor-not-allowed bg-gray-200 text-gray-500'}`}
+                  className={`ml-2 text-xs px-2 py-1 h-6 cursor-pointer border ${term.image_url ? (expandedImageRow === term.id ? 'bg-white text-black border-gray-300 hover:bg-gray-50' : 'bg-[#0B2545] text-white border-[#0B2545] hover:bg-[#0B2545]/90 hover:text-white') : 'opacity-50 cursor-not-allowed bg-gray-200 text-gray-500'}`}
                   onClick={() => term.image_url ? setExpandedImageRow(expandedImageRow === term.id ? null : term.id) : null}
                   disabled={!term.image_url}
                 >
