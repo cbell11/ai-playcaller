@@ -103,9 +103,10 @@ interface TerminologySetProps {
   currentTourStep?: number
   setShowTour?: (show: boolean) => void
   setCurrentTourStep?: (step: number) => void
+  markTourComplete?: () => void
 }
 
-const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate, supabase, setProfileInfo, setTeamCode, setTeamName, showTour = false, helpMode = false, currentTourStep = 0, setShowTour, setCurrentTourStep }) => {
+const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category, onUpdate, supabase, setProfileInfo, setTeamCode, setTeamName, showTour = false, helpMode = false, currentTourStep = 0, setShowTour, setCurrentTourStep, markTourComplete }) => {
   const [isSaving, setIsSaving] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
@@ -1392,7 +1393,10 @@ const TerminologySet: React.FC<TerminologySetProps> = ({ title, terms, category,
                           </Button>
                           <Button
                             size="sm"
-                            onClick={() => setShowTour?.(false)}
+                            onClick={() => {
+                              markTourComplete?.()
+                              setShowTour?.(false)
+                            }}
                             className="bg-green-500 text-white hover:bg-green-600 text-xs px-3 py-1 h-7"
                           >
                             Finish
@@ -1476,9 +1480,10 @@ function SetupPageContent() {
   const [showSavingModal, setShowSavingModal] = useState(false)
   const [savingStep, setSavingStep] = useState(0)
   const [savingMessage, setSavingMessage] = useState('')
-  const [helpMode, setHelpMode] = useState(true)
+  const [helpMode, setHelpMode] = useState(false)
   const [currentTourStep, setCurrentTourStep] = useState(0)
   const [showTour, setShowTour] = useState(false)
+  const [setupTourComplete, setSetupTourComplete] = useState(false)
 
   // Create Supabase client
   const supabase = createBrowserClient(
@@ -1491,11 +1496,13 @@ function SetupPageContent() {
     const loadTerminology = async () => {
       try {
         setIsLoading(true)
+        console.log('Loading terminology...')
         
         // Get session to check if user is authenticated
         const { data: { session } } = await supabase.auth.getSession()
         
         if (session?.user?.id) {
+          console.log('User authenticated:', session.user.id)
           // Get the user's team_id from profiles table
           const { data: profileData } = await supabase
             .from('profiles')
@@ -1587,6 +1594,8 @@ function SetupPageContent() {
           setScreenGameSet(screenGame as TerminologyWithUI[])
           setShotPlaysSet(shotPlays as TerminologyWithUI[])
           setConceptTagsSet(conceptTags as TerminologyWithUI[])
+          
+          console.log('Formations loaded:', formations.length, 'items')
         }
       } catch (error) {
         console.error('Error loading terminology:', error)
@@ -1598,13 +1607,97 @@ function SetupPageContent() {
     loadTerminology()
   }, [supabase])
 
-  // Start tour when page loads if help mode is on
+  // Function to mark setup tour as complete
+  const markTourComplete = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ setup_tour_complete: true })
+          .eq('id', session.user.id)
+        
+        if (error) {
+          console.error('Error marking tour complete:', error)
+        } else {
+          setSetupTourComplete(true)
+          console.log('Setup tour marked as complete')
+        }
+      }
+    } catch (error) {
+      console.error('Error in markTourComplete:', error)
+    }
+  }
+
+  // Check if user has completed setup tour when component loads
   useEffect(() => {
-    if (helpMode && formationsSet.length > 0) {
+    const checkTourStatus = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user?.id) {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('id, setup_tour_complete')
+            .eq('id', session.user.id)
+            .single()
+          
+          if (!error && profile) {
+            setSetupTourComplete(profile.setup_tour_complete || false)
+            console.log('User tour status:', profile.setup_tour_complete)
+            
+            // Auto-start tour for new users who haven't completed it
+            if (!profile.setup_tour_complete && formationsSet.length > 0) {
+              console.log('Auto-starting tour for new user')
+              setHelpMode(true)
+              setShowTour(true)
+              setCurrentTourStep(0)
+            }
+          } else if (error) {
+            console.log('Profile not found or error:', error)
+            // If profile doesn't exist yet, assume new user and auto-start tour
+            if (formationsSet.length > 0) {
+              console.log('No profile found, auto-starting tour for new user')
+              setSetupTourComplete(false)
+              setHelpMode(true)
+              setShowTour(true)
+              setCurrentTourStep(0)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking tour status:', error)
+      }
+    }
+
+    // Only check when we have both supabase and formations data
+    if (supabase && formationsSet.length > 0) {
+      checkTourStatus()
+    }
+  }, [supabase, formationsSet])
+
+  // Start tour when help mode is turned on (only if tour not completed)
+  useEffect(() => {
+    if (helpMode && !setupTourComplete && formationsSet.length > 0) {
       setShowTour(true)
       setCurrentTourStep(0)
     }
-  }, [helpMode, formationsSet])
+  }, [helpMode, setupTourComplete, formationsSet])
+
+  // Additional check: when formations are first loaded, check if we should auto-start tour
+  useEffect(() => {
+    if (formationsSet.length > 0 && !setupTourComplete) {
+      console.log('Formations loaded, checking if should auto-start tour')
+      console.log('setupTourComplete:', setupTourComplete, 'helpMode:', helpMode)
+      
+      // Auto-start for new users
+      if (!helpMode) {
+        console.log('Auto-starting tour for user')
+        setHelpMode(true)
+        setShowTour(true)
+        setCurrentTourStep(0)
+      }
+    }
+  }, [formationsSet.length, setupTourComplete])
 
   // Handle navigation save event
   useEffect(() => {
@@ -2028,7 +2121,7 @@ function SetupPageContent() {
             variant="outline"
             onClick={() => {
               setHelpMode(!helpMode)
-              if (!helpMode) {
+              if (!helpMode && !setupTourComplete) {
                 setShowTour(true)
                 setCurrentTourStep(0)
               } else {
@@ -2037,7 +2130,7 @@ function SetupPageContent() {
             }}
             className="border-blue-500 text-blue-600 hover:bg-blue-50"
           >
-            {helpMode ? "Turn Off Help" : "Turn On Help"}
+            Turn On Help
           </Button>
           <Button
             variant="default"
@@ -2126,6 +2219,7 @@ function SetupPageContent() {
                 currentTourStep={currentTourStep}
                 setShowTour={setShowTour}
                 setCurrentTourStep={setCurrentTourStep}
+                markTourComplete={markTourComplete}
               />
               <TerminologySet
                 title="Shifts"
